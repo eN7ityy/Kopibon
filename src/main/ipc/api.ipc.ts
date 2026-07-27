@@ -1,5 +1,7 @@
 import { ipcMain } from 'electron'
-import { getApiClient } from '../services/api-client'
+import { getApiClient, type GalleryDetail } from '../services/api-client'
+
+const galleryCache = new Map<number, GalleryDetail>()
 
 export function registerApiIpc(): void {
   const client = getApiClient()
@@ -21,7 +23,12 @@ export function registerApiIpc(): void {
 
   ipcMain.handle('api:getGallery', async (_event, id: number) => {
     try {
+      const cached = galleryCache.get(id)
+      if (cached) {
+        return { success: true, data: cached }
+      }
       const gallery = await client.getGallery(id)
+      galleryCache.set(id, gallery)
       return { success: true, data: gallery }
     } catch (error) {
       return { success: false, error: String(error) }
