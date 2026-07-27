@@ -2,9 +2,29 @@ import { ipcMain, BrowserWindow } from 'electron'
 import { Worker } from 'worker_threads'
 import { join as pathJoin } from 'path'
 import { libraryRepo } from '../db/repositories/library.repo'
-import { setSeries, embedMetadata } from '../services/metadata-writer'
 import { renameSync, mkdirSync, existsSync } from 'fs'
 import { dirname, join, basename } from 'path'
+
+// ─── Metadata Worker Helper ────────────────────────────────────────────────
+
+function spawnMetadataWorker(
+  command: { type: 'embed'; pdfPath: string; metadata: Record<string, unknown> }
+          | { type: 'setSeries'; pdfPath: string; seriesName: string }
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const workerPath = pathJoin(__dirname, 'services/metadata.worker.js')
+    const worker = new Worker(workerPath)
+    worker.on('message', (msg: { type: string; message?: string }) => {
+      if (msg.type === 'complete') resolve()
+      else if (msg.type === 'error') reject(new Error(msg.message || 'Metadata worker error'))
+    })
+    worker.on('error', reject)
+    worker.on('exit', (code) => {
+      if (code !== 0) reject(new Error(`Metadata worker exited with code ${code}`))
+    })
+    worker.postMessage(command)
+  })
+}
 
 let isScanning = false
 let scanWorker: Worker | null = null
@@ -230,9 +250,9 @@ export function registerLibraryIpc(): void {
         }
 
         try {
-          // 1. Embed series into PDF metadata
+          // 1. Embed series into PDF metadata (offloaded to worker)
           try {
-            await setSeries(item.filePath, seriesName)
+            await spawnMetadataWorker({ type: 'setSeries', pdfPath: item.filePath, seriesName })
           } catch (err) {
             errors.push(`Failed to embed series in PDF for item ${id}: ${String(err)}`)
             // Continue — DB update is still valid
@@ -348,24 +368,29 @@ export function registerLibraryIpc(): void {
         ? metadata.tags.split(',').map((t) => t.trim()).filter(Boolean)
         : []
 
-      await embedMetadata(finalPdfPath, {
-        id: 0,
-        title: {
-          english: metadata.title,
-          japanese: null,
-          pretty: metadata.title
-        },
-        tags: [
-          ...tagList.map((name) => ({ id: 0, type: 'tag', name })),
-          ...metadata.artists.map((name) => ({ id: 0, type: 'artist', name })),
-          ...(metadata.language ? [{ id: 0, type: 'language', name: metadata.language }] : [])
-        ],
-        uploadDate: metadata.date
-          ? Math.floor(new Date(metadata.date).getTime() / 1000)
-          : Math.floor(Date.now() / 1000),
-        numPages: 0,
-        seriesName: metadata.series,
-        description: metadata.description
+      // Embed metadata (offloaded to worker thread)
+      await spawnMetadataWorker({
+        type: 'embed',
+        pdfPath: finalPdfPath,
+        metadata: {
+          id: 0,
+          title: {
+            english: metadata.title,
+            japanese: null,
+            pretty: metadata.title
+          },
+          tags: [
+            ...tagList.map((name) => ({ id: 0, type: 'tag', name })),
+            ...metadata.artists.map((name) => ({ id: 0, type: 'artist', name })),
+            ...(metadata.language ? [{ id: 0, type: 'language', name: metadata.language }] : [])
+          ],
+          uploadDate: metadata.date
+            ? Math.floor(new Date(metadata.date).getTime() / 1000)
+            : Math.floor(Date.now() / 1000),
+          numPages: 0,
+          seriesName: metadata.series,
+          description: metadata.description
+        }
       })
 
       // Get file size
@@ -509,22 +534,26 @@ export function registerLibraryIpc(): void {
           ? Math.floor(new Date(newDate).getTime() / 1000)
           : Math.floor(Date.now() / 1000)
 
-        await embedMetadata(item.filePath, {
-          id: item.galleryId ?? 0,
-          title: {
-            english: newTitle ?? '',
-            japanese: null,
-            pretty: newTitle ?? ''
-          },
-          tags: tagList,
-          uploadDate,
-          numPages: 0,
-          seriesName: newSeriesName ?? undefined,
-          seriesIndex: newSeriesIndex,
-          language: newLanguage ?? undefined,
-          publisher: newPublisher,
-          description: newDescription ?? undefined
-        } as import('../services/metadata-writer').GalleryMetadata)
+        await spawnMetadataWorker({
+          type: 'embed',
+          pdfPath: item.filePath,
+          metadata: {
+            id: item.galleryId ?? 0,
+            title: {
+              english: newTitle ?? '',
+              japanese: null,
+              pretty: newTitle ?? ''
+            },
+            tags: tagList,
+            uploadDate,
+            numPages: 0,
+            seriesName: newSeriesName ?? undefined,
+            seriesIndex: newSeriesIndex,
+            language: newLanguage ?? undefined,
+            publisher: newPublisher,
+            description: newDescription ?? undefined
+          }
+        })
       } catch (embedErr) {
         // Non-fatal: metadata embedding failure shouldn't block the update
         console.error('Failed to re-embed metadata:', embedErr)

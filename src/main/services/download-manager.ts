@@ -8,8 +8,8 @@ import { galleryRepo } from '../db/repositories/gallery.repo'
 import { settingsRepo } from '../db/repositories/settings.repo'
 import { libraryRepo } from '../db/repositories/library.repo'
 import { getApiClient } from './api-client'
+import type { GalleryMetadata } from './metadata-writer'
 import type { PdfOptions } from './pdf-generator'
-import { embedMetadata } from './metadata-writer'
 import type { GalleryDetail } from './api-client'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -357,18 +357,27 @@ export class DownloadManager {
 
       const validPaths = downloadedPaths.filter(Boolean) as string[]
 
-      // Offload PDF generation to a worker thread to keep main process responsive
-      await new Promise<void>((resolve, reject) => {
+      // Offload PDF generation + metadata embedding + thumbnail to a worker thread
+      const thumbDir = join(tmpdir(), 'doujin-downloader-thumbs')
+      const metadataPayload: GalleryMetadata = {
+        id: gallery.id,
+        title: gallery.title,
+        tags: gallery.tags,
+        uploadDate: gallery.upload_date,
+        numPages: gallery.num_pages
+      }
+
+      const workerResult = await new Promise<{ thumbnailPath?: string }>((resolve, reject) => {
         const workerPath = join(__dirname, 'services/download-pdf.worker.js')
         const worker = new Worker(workerPath)
 
-        worker.on('message', (msg: { type: string; current?: number; total?: number; outputPath?: string; message?: string }) => {
+        worker.on('message', (msg: { type: string; current?: number; total?: number; outputPath?: string; thumbnailPath?: string; message?: string }) => {
           if (msg.type === 'progress') {
             this.emitProgress(
               queueId, galleryId, title, msg.total!, msg.current!, 0, 0, 'converting'
             )
           } else if (msg.type === 'complete') {
-            resolve()
+            resolve({ thumbnailPath: msg.thumbnailPath })
           } else if (msg.type === 'error') {
             reject(new Error(msg.message || 'PDF generation failed'))
           }
@@ -383,17 +392,12 @@ export class DownloadManager {
           type: 'generate',
           imagePaths: validPaths,
           outputPath: pdfPath,
-          options: pdfOptions
+          options: pdfOptions,
+          metadata: metadataPayload,
+          firstImagePath: validPaths.length > 0 ? validPaths[0] : undefined,
+          thumbnailDir: thumbDir,
+          galleryId
         })
-      })
-
-      // Step 7: Embed metadata
-      await embedMetadata(pdfPath, {
-        id: gallery.id,
-        title: gallery.title,
-        tags: gallery.tags,
-        uploadDate: gallery.upload_date,
-        numPages: gallery.num_pages
       })
 
       // Step 8: Mark complete
@@ -434,21 +438,12 @@ export class DownloadManager {
           }
         }
 
-        // Generate thumbnail from first page image
-        if (validPaths.length > 0 && validPaths[0]) {
-          try {
-            const sharp = (await import('sharp')).default
-            const thumbDir = join(tmpdir(), 'doujin-downloader-thumbs')
-            if (!existsSync(thumbDir)) mkdirSync(thumbDir, { recursive: true })
-            const thumbPath = join(thumbDir, `${galleryId}.jpg`)
-            await sharp(validPaths[0])
-              .resize(300, 400, { fit: 'inside' })
-              .jpeg({ quality: 80 })
-              .toFile(thumbPath)
-            libraryRepo.update(libItem.id, { customCoverPath: thumbPath, thumbnailPath: thumbPath })
-          } catch {
-            // Non-critical: thumbnail generation can fail silently
-          }
+        // Apply thumbnail path from worker result
+        if (workerResult.thumbnailPath) {
+          libraryRepo.update(libItem.id, {
+            customCoverPath: workerResult.thumbnailPath,
+            thumbnailPath: workerResult.thumbnailPath
+          })
         }
       }
 
