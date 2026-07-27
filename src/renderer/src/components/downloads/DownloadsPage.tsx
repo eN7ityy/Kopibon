@@ -1,13 +1,55 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import type { DownloadQueueItem } from '../../types/api.types'
 import DownloadItem from './DownloadItem'
 import EmptyState from '../shared/EmptyState'
 import LoadingSkeleton from '../shared/LoadingSkeleton'
 
+interface GalleryInfo {
+  title: string
+  thumbnailUrl: string | null
+  pageCount: number
+}
+
 export default function DownloadsPage(): React.JSX.Element {
   const [activeDownloads, setActiveDownloads] = useState<DownloadQueueItem[]>([])
   const [queuedItems, setQueuedItems] = useState<DownloadQueueItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [galleryInfoMap, setGalleryInfoMap] = useState<Record<number, GalleryInfo>>({})
+  const fetchedGalleryIds = useRef<Set<number>>(new Set())
+
+  const fetchGalleryInfo = useCallback(async (galleryId: number): Promise<GalleryInfo | null> => {
+    if (fetchedGalleryIds.current.has(galleryId)) return null
+    fetchedGalleryIds.current.add(galleryId)
+
+    try {
+      const result = await window.api.getGallery(galleryId)
+      if (result.success && result.data) {
+        const g = result.data
+        return {
+          title: g.title.pretty,
+          thumbnailUrl: g.cover?.path ? `https://t.nhentai.net/${g.cover.path}` : null,
+          pageCount: g.num_pages
+        }
+      }
+    } catch {
+      // Fall through to library check
+    }
+
+    try {
+      const libResult = await window.api.library.getByGalleryId(galleryId)
+      if (libResult.success && libResult.data) {
+        return {
+          title: libResult.data.customTitle || `Gallery #${galleryId}`,
+          thumbnailUrl: null,
+          pageCount: 0
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    return { title: `Gallery #${galleryId}`, thumbnailUrl: null, pageCount: 0 }
+  }, [])
 
   const fetchDownloads = useCallback(async () => {
     try {
@@ -32,12 +74,30 @@ export default function DownloadsPage(): React.JSX.Element {
 
       setActiveDownloads(allActive)
       setQueuedItems(allQueued)
+
+      // Fetch gallery info for items that don't have it yet
+      const allItems = [...allActive, ...allQueued]
+      const newIds = allItems
+        .map((i) => i.galleryId)
+        .filter((id) => !galleryInfoMap[id])
+
+      if (newIds.length > 0) {
+        const infos = await Promise.all(newIds.map((id) => fetchGalleryInfo(id)))
+        const updates: Record<number, GalleryInfo> = {}
+        for (let i = 0; i < newIds.length; i++) {
+          const info = infos[i]
+          if (info) updates[newIds[i]] = info
+        }
+        if (Object.keys(updates).length > 0) {
+          setGalleryInfoMap((prev) => ({ ...prev, ...updates }))
+        }
+      }
     } catch (err) {
       console.error('Failed to fetch downloads:', err)
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [fetchGalleryInfo, galleryInfoMap])
 
   // Initial fetch and polling
   useEffect(() => {
@@ -78,6 +138,22 @@ export default function DownloadsPage(): React.JSX.Element {
 
   const handleResumeAll = async (): Promise<void> => {
     await window.api.downloads.resumeAll()
+    fetchDownloads()
+  }
+
+  const handleClearQueue = async (): Promise<void> => {
+    // Remove all queued, paused, failed, and completed items
+    const statuses = ['queued', 'paused', 'failed', 'completed']
+    for (const status of statuses) {
+      const result = await window.api.downloads.getByStatus(status)
+      if (result.success && result.data) {
+        for (const item of result.data) {
+          await window.api.downloads.remove(item.id)
+        }
+      }
+    }
+    fetchedGalleryIds.current.clear()
+    setGalleryInfoMap({})
     fetchDownloads()
   }
 
@@ -122,6 +198,12 @@ export default function DownloadsPage(): React.JSX.Element {
               >
                 Resume All
               </button>
+              <button
+                onClick={handleClearQueue}
+                className="px-3 py-1.5 rounded-lg text-sm bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
+              >
+                Clear Queue
+              </button>
             </div>
           )}
         </div>
@@ -148,6 +230,7 @@ export default function DownloadsPage(): React.JSX.Element {
                   <DownloadItem
                     key={item.id}
                     item={item}
+                    galleryInfo={galleryInfoMap[item.galleryId]}
                     onPause={handlePause}
                     onResume={handleResume}
                     onCancel={handleCancel}
@@ -169,6 +252,7 @@ export default function DownloadsPage(): React.JSX.Element {
                   <DownloadItem
                     key={item.id}
                     item={item}
+                    galleryInfo={galleryInfoMap[item.galleryId]}
                     onPause={handlePause}
                     onResume={handleResume}
                     onCancel={handleCancel}

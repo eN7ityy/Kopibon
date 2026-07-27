@@ -368,7 +368,9 @@ export class DownloadManager {
 
       // Rotate through servers
       const serverIndex = attempt % servers.length
-      const server = servers[serverIndex]
+      const rawServer = servers[serverIndex]
+      // Strip protocol prefix if present (CDN may return https://host or just host)
+      const server = rawServer.replace(/^https?:\/\//, '')
       const url = `https://${server}/galleries/${mediaId}/${pageNumber}.${imageType}`
 
       try {
@@ -431,6 +433,10 @@ export class DownloadManager {
       return false
     }
     active.paused = true
+    // Update DB so the UI can reflect the paused state
+    downloadRepo.update(queueId, {
+      status: 'paused'
+    } as Parameters<typeof downloadRepo.update>[1])
     return true
   }
 
@@ -441,6 +447,10 @@ export class DownloadManager {
     const active = this.activeDownloads.get(queueId)
     if (active) {
       active.paused = false
+      // Update DB so the UI can reflect the downloading state
+      downloadRepo.update(queueId, {
+        status: 'downloading'
+      } as Parameters<typeof downloadRepo.update>[1])
       return true
     }
 

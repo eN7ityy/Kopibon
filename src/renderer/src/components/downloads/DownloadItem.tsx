@@ -1,12 +1,20 @@
+import { useState } from 'react'
 import type {
   DownloadQueueItem,
   DownloadProgressEvent
 } from '../../types/api.types'
 import DownloadProgressBar from './DownloadProgress'
 
+interface GalleryInfo {
+  title: string
+  thumbnailUrl: string | null
+  pageCount: number
+}
+
 interface DownloadItemProps {
   item: DownloadQueueItem
   progress?: DownloadProgressEvent
+  galleryInfo?: GalleryInfo
   onPause: (id: number) => void
   onResume: (id: number) => void
   onCancel: (id: number) => void
@@ -16,11 +24,14 @@ interface DownloadItemProps {
 export default function DownloadItem({
   item,
   progress,
+  galleryInfo,
   onPause,
   onResume,
   onCancel,
   onRetry
 }: DownloadItemProps): React.JSX.Element {
+  const [imgError, setImgError] = useState(false)
+
   const isActive =
     item.status === 'downloading' || item.status === 'converting'
   const isPaused = item.status === 'paused'
@@ -28,18 +39,30 @@ export default function DownloadItem({
   const isFailed = item.status === 'failed'
   const isCompleted = item.status === 'completed'
 
+  const title = progress?.title || galleryInfo?.title || `Gallery #${item.galleryId}`
+  const pageCount = progress?.totalPages || galleryInfo?.pageCount || 0
+
   return (
     <div className="flex items-start gap-4 p-4 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
       {/* Thumbnail */}
-      <div className="w-16 h-20 rounded bg-gray-200 dark:bg-gray-700 flex-shrink-0 flex items-center justify-center text-gray-400">
-        <span className="text-2xl">📖</span>
+      <div className="w-16 h-20 rounded bg-gray-200 dark:bg-gray-700 flex-shrink-0 flex items-center justify-center overflow-hidden">
+        {galleryInfo?.thumbnailUrl && !imgError ? (
+          <img
+            src={galleryInfo.thumbnailUrl}
+            alt={title}
+            onError={() => setImgError(true)}
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <span className="text-2xl">📖</span>
+        )}
       </div>
 
       {/* Info */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between mb-1">
           <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
-            {progress?.title || `Gallery #${item.galleryId}`}
+            {title}
           </h4>
           <span
             className={`text-xs font-medium ml-2 flex-shrink-0 px-2 py-0.5 rounded-full ${
@@ -91,7 +114,7 @@ export default function DownloadItem({
         {/* Page count for queued/paused */}
         {(isQueued || isPaused) && (
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            Waiting to start...
+            {pageCount > 0 ? `${pageCount} pages · ` : ''}Waiting to start...
           </p>
         )}
 

@@ -78,8 +78,8 @@ export default function SearchPage(): React.JSX.Element {
   )
 
   const performSearch = useCallback(
-    async (page: number, append = false) => {
-      const trimmedQuery = store.query.trim()
+    async (page: number, append = false, overrideQuery?: string) => {
+      const trimmedQuery = (overrideQuery ?? store.query).trim()
       if (!trimmedQuery) return
 
       if (page === 1) {
@@ -164,11 +164,8 @@ export default function SearchPage(): React.JSX.Element {
     store.setQuery(query)
     // Scroll to top of results
     resultsContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
-
-    // Defer search to next tick so store state is updated
-    setTimeout(() => {
-      performSearch(1, false)
-    }, 0)
+    // Pass query explicitly to avoid stale closure
+    performSearch(1, false, query)
   }
 
   const refreshSingleDownloadStatus = useCallback(
