@@ -231,6 +231,14 @@ export default function LibraryPage(): React.JSX.Element {
     setSelectionTick((t) => t + 1)
   }, [])
 
+  // Checkbox click: enter select mode + toggle
+  const handleCheckboxToggle = useCallback((id: number) => {
+    if (!selectMode) {
+      setSelectMode(true)
+    }
+    toggleSelect(id)
+  }, [selectMode, toggleSelect])
+
   const toggleSelectAll = () => {
     if (selectedIds.size === filteredItems.length) {
       setSelectedIds(new Set())
@@ -695,7 +703,7 @@ export default function LibraryPage(): React.JSX.Element {
                 key={item.id}
                 item={item}
                 selected={selectedIds.has(item.id)}
-                onToggleSelect={toggleSelect}
+                onToggleSelect={handleCheckboxToggle}
                 onClick={(id) => {
                   if (selectMode) {
                     toggleSelect(id)
