@@ -128,6 +128,11 @@ const api = {
     ipcRenderer.on('library:newItem', handler)
     return () => ipcRenderer.removeListener('library:newItem', handler)
   },
+  onLibraryNewItems: (callback: (items: Array<{ id: number; title: string; artist: string }>) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, items: Array<{ id: number; title: string; artist: string }>) => callback(items)
+    ipcRenderer.on('library:newItems', handler)
+    return () => ipcRenderer.removeListener('library:newItems', handler)
+  },
   onLibraryScanPaused: (callback: () => void) => {
     const handler = () => callback()
     ipcRenderer.on('library:scanPaused', handler)

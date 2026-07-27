@@ -153,34 +153,37 @@ export default function LibraryPage(): React.JSX.Element {
       setError(err)
     })
 
-    // Live item streaming: append new items to grid in real-time
-    const unsubNewItem = window.api.onLibraryNewItem((item) => {
+    // Live item streaming: append batched new items in a single state update
+    const unsubNewItems = window.api.onLibraryNewItems((batch) => {
       setItems((prev) => {
-        const exists = prev.some((i) => i.id === item.id)
-        if (exists) return prev
-        const newItem: LibraryItemData = {
-          id: item.id,
-          galleryId: null,
-          isCustom: 0,
-          customTitle: item.title,
-          customTags: null,
-          customLanguage: null,
-          customDate: null,
-          customCoverPath: null,
-          filePath: '',
-          fileSize: null,
-          format: 'pdf',
-          primaryArtist: item.artist,
-          seriesName: null,
-          seriesIndex: null,
-          language: null,
-          publisher: null,
-          description: null,
-          readProgress: 0,
-          addedAt: Date.now(),
-          updatedAt: Date.now()
+        const existingIds = new Set(prev.map((i) => i.id))
+        const newItems: LibraryItemData[] = []
+        for (const item of batch) {
+          if (existingIds.has(item.id)) continue
+          newItems.push({
+            id: item.id,
+            galleryId: null,
+            isCustom: 0,
+            customTitle: item.title,
+            customTags: null,
+            customLanguage: null,
+            customDate: null,
+            customCoverPath: null,
+            filePath: '',
+            fileSize: null,
+            format: 'pdf',
+            primaryArtist: item.artist,
+            seriesName: null,
+            seriesIndex: null,
+            language: null,
+            publisher: null,
+            description: null,
+            readProgress: 0,
+            addedAt: Date.now(),
+            updatedAt: Date.now()
+          })
         }
-        return [newItem, ...prev]
+        return newItems.length > 0 ? [...newItems, ...prev] : prev
       })
     })
 
@@ -197,7 +200,7 @@ export default function LibraryPage(): React.JSX.Element {
       unsubProgress()
       unsubComplete()
       unsubError()
-      unsubNewItem()
+      unsubNewItems()
       unsubPaused()
       unsubCancelled()
       unsubError()

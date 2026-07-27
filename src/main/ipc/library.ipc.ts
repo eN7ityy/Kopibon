@@ -127,8 +127,14 @@ export function registerLibraryIpc(): void {
     const workerPath = pathJoin(__dirname, 'services/library-scanner.worker.js')
     scanWorker = new Worker(workerPath)
 
-    scanWorker.on('message', (msg: { type: string; current?: number; total?: number; status?: string; item?: { id: number; title: string; artist: string }; result?: { total: number; newItems: number; removedItems: number; errors: string[]; cancelled: boolean }; message?: string }) => {
+    scanWorker.on('message', (msg: { type: string; current?: number; total?: number; status?: string; item?: { id: number; title: string; artist: string }; items?: Array<{ id: number; title: string; artist: string }>; result?: { total: number; newItems: number; removedItems: number; errors: string[]; cancelled: boolean }; message?: string }) => {
       switch (msg.type) {
+        case 'newItems':
+          // Send batched items as a single event to avoid flooding the renderer
+          if (msg.items) {
+            win.webContents.send('library:newItems', msg.items)
+          }
+          break
         case 'progress':
           win.webContents.send('library:scanProgress', { current: msg.current, total: msg.total, status: msg.status })
           break

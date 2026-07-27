@@ -30,6 +30,7 @@ type WorkerCommand =
 type WorkerEvent =
   | { type: 'progress'; current: number; total: number; status: string }
   | { type: 'newItem'; item: { id: number; title: string; artist: string } }
+  | { type: 'newItems'; items: Array<{ id: number; title: string; artist: string }> }
   | { type: 'complete'; result: { total: number; newItems: number; removedItems: number; errors: string[]; cancelled: boolean } }
   | { type: 'error'; message: string }
   | { type: 'paused' }
@@ -484,7 +485,19 @@ async function runScan(): Promise<void> {
 
   send({ type: 'progress', current: 0, total, status: `Starting scan of ${total} items...` })
 
-  // Phase 4: Process queue
+  // Phase 4: Process queue with batched newItem events
+  let newItemBatch: Array<{ id: number; title: string; artist: string }> = []
+  let lastBatchFlush = Date.now()
+  const BATCH_SIZE = 25
+  const BATCH_INTERVAL_MS = 500
+
+  function flushNewItemBatch(): void {
+    if (newItemBatch.length === 0) return
+    send({ type: 'newItems', items: newItemBatch })
+    newItemBatch = []
+    lastBatchFlush = Date.now()
+  }
+
   for (const item of queueItems) {
     // Check pause/cancel
     if (state === 'cancelled') {
@@ -512,10 +525,11 @@ async function runScan(): Promise<void> {
 
     if (result.status === 'new') {
       newItems++
-      send({
-        type: 'newItem',
-        item: { id: result.id!, title: result.title || 'Unknown', artist: result.artist || 'Unknown' }
-      })
+      newItemBatch.push({ id: result.id!, title: result.title || 'Unknown', artist: result.artist || 'Unknown' })
+      // Flush batch when it reaches size threshold or time interval
+      if (newItemBatch.length >= BATCH_SIZE || Date.now() - lastBatchFlush >= BATCH_INTERVAL_MS) {
+        flushNewItemBatch()
+      }
     } else if (result.status === 'skipped') {
       skippedItems++
     } else {
@@ -533,6 +547,9 @@ async function runScan(): Promise<void> {
       })
     }
   }
+
+  // Flush remaining new items
+  flushNewItemBatch()
 
   // Phase 5: Detect removed items
   let removedItems = 0
