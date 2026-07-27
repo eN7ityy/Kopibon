@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, uniqueIndex, index } from 'drizzle-orm/sqlite-core'
+import { sqliteTable, text, integer, real, uniqueIndex, index } from 'drizzle-orm/sqlite-core'
 
 // ─── Gallery ─────────────────────────────────────────────────────────────────
 
@@ -35,6 +35,10 @@ export const libraryItem = sqliteTable('library_item', {
   format: text('format').notNull().default('pdf'),
   primaryArtist: text('primary_artist').notNull(),
   seriesName: text('series_name'),
+  seriesIndex: real('series_index'),
+  language: text('language'),
+  publisher: text('publisher'),
+  description: text('description'),
   readProgress: integer('read_progress').notNull().default(0),
   fileMtime: integer('file_mtime'),
   thumbnailPath: text('thumbnail_path'),

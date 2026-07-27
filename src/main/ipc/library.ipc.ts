@@ -217,7 +217,7 @@ export function registerLibraryIpc(): void {
 
   // ─── Series Assignment ─────────────────────────────────────────────
 
-  ipcMain.handle('library:assignSeries', async (_event, ids: number[], seriesName: string) => {
+  ipcMain.handle('library:assignSeries', async (_event, ids: number[], seriesName: string, seriesIndex?: number) => {
     try {
       const errors: string[] = []
       let updated = 0
@@ -258,15 +258,16 @@ export function registerLibraryIpc(): void {
               renameSync(item.filePath, newPath)
               libraryRepo.update(id, {
                 seriesName,
+                seriesIndex: seriesIndex ?? undefined,
                 filePath: newPath
-              })
+              } as Record<string, unknown>)
             } catch (moveErr) {
               errors.push(`Failed to move file for item ${id}: ${String(moveErr)}`)
-              libraryRepo.update(id, { seriesName })
+              libraryRepo.update(id, { seriesName, seriesIndex: seriesIndex ?? undefined } as Record<string, unknown>)
             }
           } else {
             // Already in a subdirectory — just update DB
-            libraryRepo.update(id, { seriesName })
+            libraryRepo.update(id, { seriesName, seriesIndex: seriesIndex ?? undefined } as Record<string, unknown>)
           }
 
           updated++

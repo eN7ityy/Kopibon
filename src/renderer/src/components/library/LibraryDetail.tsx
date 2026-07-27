@@ -37,6 +37,7 @@ export default function LibraryDetail({
   const [editing, setEditing] = useState(false)
   const [editTitle, setEditTitle] = useState('')
   const [editSeries, setEditSeries] = useState('')
+  const [editVolume, setEditVolume] = useState('')
   const [editTags, setEditTags] = useState<string[]>([])
   const [tagInput, setTagInput] = useState('')
   const [editLanguage, setEditLanguage] = useState('')
@@ -53,6 +54,7 @@ export default function LibraryDetail({
     if (item) {
       setEditTitle(item.customTitle || '')
       setEditSeries(item.seriesName || '')
+      setEditVolume(item.seriesIndex != null ? String(item.seriesIndex) : '')
       setEditTags(item.customTags ? item.customTags.split(',').map(t => t.trim()).filter(Boolean) : [])
       setEditLanguage(item.customLanguage || '')
       setEditing(false)
@@ -109,7 +111,8 @@ export default function LibraryDetail({
         customTitle: editTitle,
         customTags: editTags.join(', '),
         customLanguage: editLanguage,
-        seriesName: editSeries
+        seriesName: editSeries,
+        seriesIndex: editVolume.trim() ? parseFloat(editVolume.trim()) : null
       }, libraryRoot)
       if (result.success) {
         setEditing(false)
@@ -168,11 +171,32 @@ export default function LibraryDetail({
 
             {/* Series with autocomplete */}
             {editing ? (
-              <div><label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Series</label>
-                <AutocompleteInput kind="series" value={editSeries} onChange={setEditSeries} placeholder="Search series..." />
+              <div className="grid grid-cols-3 gap-2">
+                <div className="col-span-2">
+                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Series</label>
+                  <AutocompleteInput kind="series" value={editSeries} onChange={setEditSeries} placeholder="Search series..." />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Volume</label>
+                  <input
+                    type="number"
+                    step="any"
+                    min="0"
+                    value={editVolume}
+                    onChange={(e) => setEditVolume(e.target.value)}
+                    placeholder="1"
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
               </div>
             ) : item.seriesName ? (
-              <div><span className="text-xs font-medium text-gray-500 dark:text-gray-400">Series</span><p className="text-sm text-blue-600 dark:text-blue-400">{item.seriesName}</p></div>
+              <div>
+                <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Series</span>
+                <p className="text-sm text-blue-600 dark:text-blue-400">
+                  {item.seriesName}
+                  {item.seriesIndex != null && <span className="text-gray-400 ml-1">Vol. {item.seriesIndex}</span>}
+                </p>
+              </div>
             ) : null}
 
             {/* Language with dropdown + free-text */}

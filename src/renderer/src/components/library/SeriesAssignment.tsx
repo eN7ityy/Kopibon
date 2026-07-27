@@ -20,6 +20,7 @@ export default function SeriesAssignment({
   onAssigned
 }: SeriesAssignmentProps): React.JSX.Element | null {
   const [seriesName, setSeriesName] = useState('')
+  const [volumeNumber, setVolumeNumber] = useState('')
   const [applying, setApplying] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -36,7 +37,8 @@ export default function SeriesAssignment({
 
     try {
       const ids = items.map((item) => item.id)
-      const result = await window.api.library.assignSeries(ids, seriesName.trim())
+      const volNum = volumeNumber.trim() ? parseFloat(volumeNumber.trim()) : undefined
+      const result = await window.api.library.assignSeries(ids, seriesName.trim(), volNum)
 
       if (result.success) {
         onAssigned()
@@ -79,6 +81,22 @@ export default function SeriesAssignment({
               value={seriesName}
               onChange={setSeriesName}
               placeholder="Search or type a series name..."
+            />
+          </div>
+
+          {/* Volume number */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Volume Number
+            </label>
+            <input
+              type="number"
+              step="any"
+              min="0"
+              value={volumeNumber}
+              onChange={(e) => setVolumeNumber(e.target.value)}
+              placeholder="e.g. 1, 1.5..."
+              className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
             />
           </div>
 

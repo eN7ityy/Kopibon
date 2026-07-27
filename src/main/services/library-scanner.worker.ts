@@ -41,6 +41,11 @@ interface PdfMetadata {
   tags: string[]
   galleryId: number | null
   creationDate: Date | null
+  seriesName: string | null
+  seriesIndex: number | null
+  language: string | null
+  publisher: string | null
+  description: string | null
 }
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -83,12 +88,66 @@ function send(event: WorkerEvent): void {
 
 // ─── PDF Metadata ────────────────────────────────────────────────────────────
 
+// ─── XMP Extraction ──────────────────────────────────────────────────────────
+
+const XMP_SERIES_REGEX = /<calibre:series[^>]*>([^<]+)<\/calibre:series>/i
+const XMP_SERIES_INDEX_REGEX = /<ns0:series_index[^>]*>([^<]+)<\/ns0:series_index>/i
+const XMP_SERIES_INDEX_ALT_REGEX = /<calibreSI:series_index[^>]*>([^<]+)<\/calibreSI:series_index>/i
+const XMP_LANGUAGE_REGEX = /<dc:language[^>]*>([^<]+)<\/dc:language>/i
+const XMP_PUBLISHER_REGEX = /<dc:publisher[^>]*>([^<]+)<\/dc:publisher>/i
+const XMP_DESCRIPTION_REGEX = /<dc:description[^>]*>([\s\S]*?)<\/dc:description>/i
+/**
+ * Extract XMP metadata from raw PDF buffer by searching for the XMP packet.
+ * XMP metadata streams in PDF are typically stored uncompressed for compatibility.
+ */
+function extractXmpFromBuffer(buffer: Buffer): Record<string, string> {
+  const result: Record<string, string> = {}
+  try {
+    const str = buffer.toString('latin1')
+    const xmpMatch = str.match(/<x:xmpmeta[^>]*>([\s\S]*?)<\/x:xmpmeta>/i)
+    if (!xmpMatch) return result
+    const xmp = xmpMatch[1]
+
+    // calibre:series (F3)
+    const seriesM = xmp.match(XMP_SERIES_REGEX)
+    if (seriesM) result.seriesName = seriesM[1].trim()
+
+    // series_index in calibre namespace (F2)
+    const siM = xmp.match(XMP_SERIES_INDEX_REGEX)
+    if (siM) result.seriesIndex = siM[1].trim()
+    else {
+      const siAlt = xmp.match(XMP_SERIES_INDEX_ALT_REGEX)
+      if (siAlt) result.seriesIndex = siAlt[1].trim()
+    }
+
+    // dc:language (F4)
+    const langM = xmp.match(XMP_LANGUAGE_REGEX)
+    if (langM) result.language = langM[1].trim()
+
+    // dc:publisher (F5)
+    const pubM = xmp.match(XMP_PUBLISHER_REGEX)
+    if (pubM) result.publisher = pubM[1].trim()
+
+    // dc:description (F6)
+    const descM = xmp.match(XMP_DESCRIPTION_REGEX)
+    if (descM) result.description = descM[1].trim()
+  } catch { /* XMP parse failure is non-fatal */ }
+  return result
+}
+
+// ─── PDF Metadata ────────────────────────────────────────────────────────────
+
 async function extractPdfMetadata(filePath: string): Promise<PdfMetadata> {
-  const metadata: PdfMetadata = { title: null, authors: [], tags: [], galleryId: null, creationDate: null }
+  const metadata: PdfMetadata = {
+    title: null, authors: [], tags: [], galleryId: null, creationDate: null,
+    seriesName: null, seriesIndex: null, language: null, publisher: null, description: null
+  }
   let buffer: Buffer
   try { buffer = readFileSync(filePath) } catch { return metadata }
   let pdfDoc: PDFDocument
   try { pdfDoc = await PDFDocument.load(buffer, { ignoreEncryption: true }) } catch { return metadata }
+
+  // ── Docinfo fields ──────────────────────────────────────────────────
   try { metadata.title = pdfDoc.getTitle() || null } catch { /* */ }
   try { const a = pdfDoc.getAuthor(); if (a) metadata.authors = a.split(',').map(s => s.trim()).filter(Boolean) } catch { /* */ }
   try {
@@ -97,11 +156,48 @@ async function extractPdfMetadata(filePath: string): Promise<PdfMetadata> {
       for (const t of kw.split(',').map(s => s.trim()).filter(Boolean)) {
         const m = t.match(NHENTAI_ID_REGEX)
         if (m) metadata.galleryId = parseInt(m[1], 10)
-        else metadata.tags.push(t)
+        else {
+          // Extract extended metadata from /Keywords tokens
+          const siMatch = t.match(/^series_index:(\d+(?:\.\d+)?)$/i)
+          if (siMatch) { metadata.seriesIndex = parseFloat(siMatch[1]); continue }
+          const csMatch = t.match(/^calibre_series:(.+)$/i)
+          if (csMatch) { metadata.seriesName = csMatch[1].trim(); continue }
+          const langMatch = t.match(/^language:(\w+)$/i)
+          if (langMatch) { metadata.language = langMatch[1].toLowerCase(); continue }
+          const pubMatch = t.match(/^publisher:(.+)$/i)
+          if (pubMatch) { metadata.publisher = pubMatch[1].trim(); continue }
+          metadata.tags.push(t)
+        }
       }
     }
   } catch { /* */ }
   try { const d = pdfDoc.getCreationDate(); if (d) metadata.creationDate = d } catch { /* */ }
+
+  // ── Docinfo Subject (legacy series fallback) ─────────────────────────
+  try {
+    const subject = pdfDoc.getSubject()
+    if (subject && !metadata.seriesName) {
+      metadata.seriesName = subject.trim() || null
+    }
+  } catch { /* */ }
+
+  // ── XMP metadata (primary source for calibre fields) ─────────────────
+  const xmp = extractXmpFromBuffer(buffer)
+
+  // XMP series overrides docinfo Subject
+  if (xmp.seriesName) metadata.seriesName = xmp.seriesName
+
+  // XMP series_index overrides Keywords token
+  if (xmp.seriesIndex) {
+    const parsed = parseFloat(xmp.seriesIndex)
+    if (!isNaN(parsed)) metadata.seriesIndex = parsed
+  }
+
+  // XMP fields (will also populate from Keywords tokens above)
+  if (xmp.language && !metadata.language) metadata.language = xmp.language
+  if (xmp.publisher && !metadata.publisher) metadata.publisher = xmp.publisher
+  if (xmp.description) metadata.description = xmp.description
+
   return metadata
 }
 
@@ -208,23 +304,26 @@ function shouldSkipFile(filePath: string): boolean {
 
 function insertLibraryItem(data: {
   galleryId: number | null; isCustom: number; customTitle: string; customTags: string | null
-  customLanguage: null; customDate: string | null; customCoverPath: string | null
+  customLanguage: string | null; customDate: string | null; customCoverPath: string | null
   filePath: string; fileSize: number; format: string; primaryArtist: string
-  seriesName: string | null; thumbnailPath: string | null; fileMtime: number
+  seriesName: string | null; seriesIndex: number | null
+  language: string | null; publisher: string | null; description: string | null
+  thumbnailPath: string | null; fileMtime: number
   now: number
 }): number {
   if (!db) return 0
   const result = db.prepare(`
     INSERT INTO library_item (gallery_id, is_custom, custom_title, custom_tags,
       custom_language, custom_date, custom_cover_path, file_path, file_size,
-      format, primary_artist, series_name, thumbnail_path, file_mtime,
+      format, primary_artist, series_name, series_index,
+      thumbnail_path, file_mtime,
       read_progress, added_at, updated_at)
-    VALUES (@gid, @ic, @ct, @ctg, @cl, @cd, @ccp, @fp, @fs, @fmt, @pa, @sn, @tp, @fm, 0, @now, @now)
+    VALUES (@gid, @ic, @ct, @ctg, @cl, @cd, @ccp, @fp, @fs, @fmt, @pa, @sn, @si, @tp, @fm, 0, @now, @now)
   `).run({
     gid: data.galleryId, ic: data.isCustom, ct: data.customTitle, ctg: data.customTags,
     cl: data.customLanguage, cd: data.customDate, ccp: data.customCoverPath,
     fp: data.filePath, fs: data.fileSize, fmt: data.format, pa: data.primaryArtist,
-    sn: data.seriesName, tp: data.thumbnailPath, fm: data.fileMtime, now: data.now
+    sn: data.seriesName, si: data.seriesIndex, tp: data.thumbnailPath, fm: data.fileMtime, now: data.now
   })
   return Number(result.lastInsertRowid)
 }
@@ -279,7 +378,9 @@ async function processFile(filePath: string): Promise<{ status: 'new' | 'skipped
     const relPath = relative(currentLibraryRoot, filePath)
     const parts = relPath.replace(/\\/g, '/').split('/')
     const primaryArtist = parts[0] || 'Unknown'
-    const seriesName = parts.length >= 3 ? parts[1] : null
+    // Prefer XMP/Keywords series name over directory-derived
+    const dirSeriesName = parts.length >= 3 ? parts[1] : null
+    const seriesName = metadata.seriesName || dirSeriesName
     const artists = metadata.authors.length > 0 ? metadata.authors : [primaryArtist]
     const title = metadata.title || basename(filePath).replace(/\.pdf$/i, '').replace(/^\[nhentai-\d+\]\s*/, '')
     const isCustom = galleryId ? 0 : 1
@@ -315,10 +416,14 @@ async function processFile(filePath: string): Promise<{ status: 'new' | 'skipped
       galleryId: galleryId || null, isCustom,
       customTitle: title,
       customTags: metadata.tags.length > 0 ? metadata.tags.join(', ') : null,
-      customLanguage: null,
+      customLanguage: metadata.language || null,
       customDate: metadata.creationDate ? metadata.creationDate.toISOString().split('T')[0] : null,
       customCoverPath: thumbnailPath, filePath, fileSize: statInfo.size, format: 'pdf',
       primaryArtist: artists[0] || 'Unknown', seriesName,
+      seriesIndex: metadata.seriesIndex,
+      language: metadata.language,
+      publisher: metadata.publisher,
+      description: metadata.description,
       thumbnailPath, fileMtime: statInfo.mtimeMs, now
     })
 

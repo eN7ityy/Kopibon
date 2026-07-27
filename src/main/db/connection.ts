@@ -91,7 +91,13 @@ function runMigrations(sqlite: Database.Database): void {
       format TEXT NOT NULL DEFAULT 'pdf',
       primary_artist TEXT NOT NULL,
       series_name TEXT,
+      series_index REAL,
+      language TEXT,
+      publisher TEXT,
+      description TEXT,
       read_progress INTEGER NOT NULL DEFAULT 0,
+      file_mtime INTEGER,
+      thumbnail_path TEXT,
       added_at INTEGER NOT NULL DEFAULT (unixepoch()),
       updated_at INTEGER NOT NULL DEFAULT (unixepoch())
     );
@@ -179,6 +185,18 @@ function runMigrations(sqlite: Database.Database): void {
   }
   if (!colNames.has('thumbnail_path')) {
     sqlite.exec('ALTER TABLE library_item ADD COLUMN thumbnail_path TEXT')
+  }
+  if (!colNames.has('series_index')) {
+    sqlite.exec('ALTER TABLE library_item ADD COLUMN series_index REAL')
+  }
+  if (!colNames.has('language')) {
+    sqlite.exec('ALTER TABLE library_item ADD COLUMN language TEXT')
+  }
+  if (!colNames.has('publisher')) {
+    sqlite.exec('ALTER TABLE library_item ADD COLUMN publisher TEXT')
+  }
+  if (!colNames.has('description')) {
+    sqlite.exec('ALTER TABLE library_item ADD COLUMN description TEXT')
   }
 }
 

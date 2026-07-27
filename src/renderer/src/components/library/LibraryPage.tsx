@@ -158,6 +158,10 @@ export default function LibraryPage(): React.JSX.Element {
           format: 'pdf',
           primaryArtist: item.artist,
           seriesName: null,
+          seriesIndex: null,
+          language: null,
+          publisher: null,
+          description: null,
           readProgress: 0,
           addedAt: Date.now(),
           updatedAt: Date.now()

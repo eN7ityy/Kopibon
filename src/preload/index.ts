@@ -76,8 +76,8 @@ const api = {
     autocompleteArtists: (query: string) => ipcRenderer.invoke('library:autocompleteArtists', query),
     autocompleteSeries: (query: string) => ipcRenderer.invoke('library:autocompleteSeries', query),
     autocompleteTags: (query: string) => ipcRenderer.invoke('library:autocompleteTags', query),
-    assignSeries: (ids: number[], seriesName: string) =>
-      ipcRenderer.invoke('library:assignSeries', ids, seriesName),
+    assignSeries: (ids: number[], seriesName: string, seriesIndex?: number) =>
+      ipcRenderer.invoke('library:assignSeries', ids, seriesName, seriesIndex),
     delete: (id: number) => ipcRenderer.invoke('library:delete', id),
     deleteFile: (id: number) => ipcRenderer.invoke('library:deleteFile', id),
     getThumbnail: (id: number) => ipcRenderer.invoke('library:getThumbnail', id),

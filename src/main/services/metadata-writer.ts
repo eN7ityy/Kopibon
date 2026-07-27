@@ -84,9 +84,27 @@ export async function embedMetadata(
     pdfDoc.setAuthor(artistNames.join(', '))
   }
 
-  // Set keywords: tag names + nhentai:{id} token
+  // Set keywords: tag names + nhentai:{id} token + extended metadata tokens
   const tagNames = metadata.tags.map((t) => t.name)
   const keywordTokens = [...tagNames, `nhentai:${metadata.id}`]
+
+  // F2: series_index fallback token
+  if (metadata.seriesIndex != null) {
+    keywordTokens.push(`series_index:${metadata.seriesIndex}`)
+  }
+  // F3: calibre_series fallback token (written alongside XMP attempt)
+  if (metadata.seriesName) {
+    keywordTokens.push(`calibre_series:${metadata.seriesName}`)
+  }
+  // F4: language fallback token
+  if (metadata.language) {
+    keywordTokens.push(`language:${metadata.language}`)
+  }
+  // F5: publisher fallback token
+  if (metadata.publisher) {
+    keywordTokens.push(`publisher:${metadata.publisher}`)
+  }
+
   pdfDoc.setKeywords(keywordTokens)
 
   // Set creation date from upload date

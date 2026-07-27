@@ -16,6 +16,10 @@ export interface LibraryItemData {
   format: string
   primaryArtist: string
   seriesName: string | null
+  seriesIndex: number | null
+  language: string | null
+  publisher: string | null
+  description: string | null
   readProgress: number
   addedAt: number
   updatedAt: number
