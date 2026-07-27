@@ -8,15 +8,15 @@ export interface SearchResult {
     japanese: string | null
     pretty: string
   }
-  images: {
-    cover: { t: string; w: number; h: number }
-    pages: Array<{ t: string; w: number; h: number }>
-    thumbnail: { t: string; w: number; h: number }
+  images?: {
+    cover?: { t: string; w: number; h: number }
+    pages?: Array<{ t: string; w: number; h: number }>
+    thumbnail?: { t: string; w: number; h: number }
   }
   num_pages: number
   num_favorites: number
   upload_date: number
-  tags: Array<{
+  tags?: Array<{
     id: number
     type: string
     name: string

@@ -15,22 +15,26 @@ export default function GalleryCard({
 }: GalleryCardProps): React.JSX.Element {
   const [imgError, setImgError] = useState(false)
 
+  const mediaId = gallery.media_id ?? String(gallery.id)
+  const title = gallery.title?.pretty ?? `#${gallery.id}`
+
   // Build cover thumbnail URL from the gallery data
   const coverUrl = gallery.images?.cover
-    ? `https://t.nhentai.net/galleries/${gallery.media_id}/cover.${gallery.images.cover.t}`
+    ? `https://t.nhentai.net/galleries/${mediaId}/cover.${gallery.images.cover.t}`
     : null
 
   // Build thumbnail fallback
   const thumbUrl = gallery.images?.thumbnail
-    ? `https://t.nhentai.net/galleries/${gallery.media_id}/thumb.${gallery.images.thumbnail.t}`
+    ? `https://t.nhentai.net/galleries/${mediaId}/thumb.${gallery.images.thumbnail.t}`
     : null
 
-  const artistNames = gallery.tags
+  const tags = gallery.tags ?? []
+  const artistNames = tags
     .filter((t) => t.type === 'artist')
     .map((t) => t.name)
     .join(', ')
 
-  const languageTag = gallery.tags.find((t) => t.type === 'language')
+  const languageTag = tags.find((t) => t.type === 'language')
 
   return (
     <button
@@ -43,7 +47,7 @@ export default function GalleryCard({
         {coverUrl && !imgError ? (
           <img
             src={coverUrl}
-            alt={gallery.title.pretty}
+            alt={title}
             loading="lazy"
             onError={() => setImgError(true)}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
@@ -51,7 +55,7 @@ export default function GalleryCard({
         ) : thumbUrl && !imgError ? (
           <img
             src={thumbUrl}
-            alt={gallery.title.pretty}
+            alt={title}
             loading="lazy"
             onError={() => setImgError(true)}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
@@ -79,7 +83,7 @@ export default function GalleryCard({
       <div className="p-3 space-y-1.5">
         {/* Title */}
         <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100 line-clamp-2 leading-snug">
-          {gallery.title.pretty}
+          {title}
         </h3>
 
         {/* Artist */}
