@@ -187,7 +187,7 @@ export default function LibraryDetail({
         <div className="px-6 py-4 space-y-6">
           {thumbDataUrl && (
             <div className="aspect-[3/4] max-w-[200px] mx-auto rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-700">
-              <img src={thumbDataUrl} alt={detail.customTitle || 'Cover'} className="w-full h-full object-cover" />
+              <img src={thumbDataUrl} alt={detail.customTitle || 'Cover'} draggable={false} className="w-full h-full object-cover" />
             </div>
           )}
 
