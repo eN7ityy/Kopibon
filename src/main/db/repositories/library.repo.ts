@@ -88,6 +88,75 @@ export const libraryRepo = {
     db.delete(libraryItem).where(eq(libraryItem.id, id)).run()
   },
 
+  findPaginated(params: {
+    offset: number
+    limit: number
+    sortField?: 'added' | 'title' | 'artist'
+    searchQuery?: string
+    artistFilters?: string[]
+    seriesFilters?: string[]
+    tagFilters?: string[]
+    showUnmatchedOnly?: boolean
+  }): { items: LibraryItem[]; total: number } {
+    const db = getDatabase()
+    const conditions: string[] = []
+
+    if (params.searchQuery) {
+      const q = params.searchQuery.replace(/'/g, "''")
+      conditions.push(
+        `(li.custom_title LIKE '%${q}%' OR li.primary_artist LIKE '%${q}%' OR li.series_name LIKE '%${q}%')`
+      )
+    }
+    if (params.artistFilters && params.artistFilters.length > 0) {
+      const escaped = params.artistFilters.map((a) => `'${a.replace(/'/g, "''")}'`).join(',')
+      conditions.push(`li.primary_artist IN (${escaped})`)
+    }
+    if (params.seriesFilters && params.seriesFilters.length > 0) {
+      const escaped = params.seriesFilters.map((s) => `'${s.replace(/'/g, "''")}'`).join(',')
+      conditions.push(`li.series_name IN (${escaped})`)
+    }
+    if (params.tagFilters && params.tagFilters.length > 0) {
+      const tagConditions = params.tagFilters.map((t) => {
+        const escaped = t.replace(/'/g, "''")
+        return `li.custom_tags LIKE '%${escaped}%'`
+      })
+      conditions.push(`(${tagConditions.join(' OR ')})`)
+    }
+    if (params.showUnmatchedOnly) {
+      conditions.push(`(li.gallery_id IS NULL OR li.gallery_id = 0)`)
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
+
+    let orderClause: string
+    switch (params.sortField) {
+      case 'title':
+        orderClause = 'ORDER BY li.custom_title COLLATE NOCASE ASC'
+        break
+      case 'artist':
+        orderClause = 'ORDER BY li.primary_artist COLLATE NOCASE ASC'
+        break
+      case 'added':
+      default:
+        orderClause = 'ORDER BY li.added_at DESC'
+        break
+    }
+
+    const totalRow = db
+      .get<{ count: number }>(
+        sql`SELECT COUNT(*) as count FROM library_item li ${sql.raw(whereClause)}`
+      )
+    const total = totalRow?.count ?? 0
+
+    const items = db
+      .all<LibraryItem>(
+        sql`SELECT li.* FROM library_item li ${sql.raw(whereClause)} ${sql.raw(orderClause)} LIMIT ${params.limit} OFFSET ${params.offset}`
+      )
+      .map((row) => row as unknown as LibraryItem)
+
+    return { items, total }
+  },
+
   count(): number {
     const db = getDatabase()
     const result = db

@@ -57,6 +57,28 @@ export function registerLibraryIpc(): void {
     }
   })
 
+  ipcMain.handle('library:getPaginated', async (_event, params: {
+    offset: number; limit: number; sortField?: string; searchQuery?: string
+    artistFilters?: string[]; seriesFilters?: string[]; tagFilters?: string[]
+    showUnmatchedOnly?: boolean
+  }) => {
+    try {
+      const result = libraryRepo.findPaginated({
+        offset: params.offset,
+        limit: params.limit,
+        sortField: params.sortField as 'added' | 'title' | 'artist' | undefined,
+        searchQuery: params.searchQuery,
+        artistFilters: params.artistFilters,
+        seriesFilters: params.seriesFilters,
+        tagFilters: params.tagFilters,
+        showUnmatchedOnly: params.showUnmatchedOnly
+      })
+      return { success: true, data: result }
+    } catch (error) {
+      return { success: false, error: String(error) }
+    }
+  })
+
   ipcMain.handle('library:search', async (_event, query: string) => {
     try {
       const items = libraryRepo.searchByTitle(query)

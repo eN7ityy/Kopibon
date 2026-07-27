@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import { VirtuosoGrid } from 'react-virtuoso'
 import type { LibraryItemData } from './LibraryCard'
 import LibraryCard from './LibraryCard'
 import SeriesAssignment from './SeriesAssignment'
@@ -10,7 +11,7 @@ import LoadingSkeleton from '../shared/LoadingSkeleton'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-type SortField = 'added' | 'title' | 'artist' | 'pages'
+type SortField = 'added' | 'title' | 'artist'
 
 interface ScanProgress {
   current: number
@@ -18,21 +19,40 @@ interface ScanProgress {
   status: string
 }
 
+// ─── Hooks ───────────────────────────────────────────────────────────────────
+
+function useDebounce<T>(value: T, delay: number): T {
+  const [debounced, setDebounced] = useState(value)
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value), delay)
+    return () => clearTimeout(timer)
+  }, [value, delay])
+  return debounced
+}
+
+// ─── Constants ───────────────────────────────────────────────────────────────
+
+const PAGE_SIZE = 100
+
 // ─── Library Page ────────────────────────────────────────────────────────────
 
 export default function LibraryPage(): React.JSX.Element {
-  // Data state
+  // Paginated data
   const [items, setItems] = useState<LibraryItemData[]>([])
+  const [totalCount, setTotalCount] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const currentOffset = useRef(0)
 
-  // Artist/series lists for filters
+  // Artist/series/tag lists for filters (still load all names for filter UI)
   const [artistNames, setArtistNames] = useState<string[]>([])
   const [seriesNames, setSeriesNames] = useState<string[]>([])
   const [tagNames, setTagNames] = useState<string[]>([])
 
   // UI state
   const [searchQuery, setSearchQuery] = useState('')
+  const debouncedSearch = useDebounce(searchQuery, 150)
   const [sortField, setSortField] = useState<SortField>('added')
   const [selectedArtistFilters, setSelectedArtistFilters] = useState<Set<string>>(new Set())
   const [selectedSeriesFilters, setSelectedSeriesFilters] = useState<Set<string>>(new Set())
@@ -42,7 +62,7 @@ export default function LibraryPage(): React.JSX.Element {
 
   // Selection state (for batch operations)
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
-  const [, setSelectionTick] = useState(0) // version counter to force re-render on Set mutations
+  const [, setSelectionTick] = useState(0)
   const [selectMode, setSelectMode] = useState(false)
   const [showSeriesModal, setShowSeriesModal] = useState(false)
   const [showCustomForm, setShowCustomForm] = useState(false)
@@ -54,44 +74,84 @@ export default function LibraryPage(): React.JSX.Element {
   const [scanProgress, setScanProgress] = useState<ScanProgress | null>(null)
   const [lastScan, setLastScan] = useState<{ scannedAt: number; newItems: number; totalItems: number } | null>(null)
 
+  // Path accessibility
   const [pathAccessible, setPathAccessible] = useState<boolean | null>(null)
 
-  // ─── Data Fetching ─────────────────────────────────────────────────────────
+  // ─── Fetch page from DB ────────────────────────────────────────────────────
 
-  const fetchData = useCallback(async () => {
-    setLoading(true)
-    setError(null)
+  const fetchPage = useCallback(async (offset: number, replace: boolean) => {
+    if (replace) {
+      setLoading(true)
+      setError(null)
+    } else {
+      setLoadingMore(true)
+    }
+
     try {
-      const [itemsResult, artistResult, seriesResult, tagResult] = await Promise.all([
-        window.api.library.getAll(),
-        window.api.library.getAllArtistNames(),
-        window.api.library.getAllSeriesNames(),
-        window.api.library.getAllTagNames()
-      ])
+      const result = await window.api.library.getPaginated({
+        offset,
+        limit: PAGE_SIZE,
+        sortField,
+        searchQuery: debouncedSearch || undefined,
+        artistFilters: selectedArtistFilters.size > 0 ? [...selectedArtistFilters] : undefined,
+        seriesFilters: selectedSeriesFilters.size > 0 ? [...selectedSeriesFilters] : undefined,
+        tagFilters: selectedTagFilters.size > 0 ? [...selectedTagFilters] : undefined,
+        showUnmatchedOnly: showUnmatchedOnly || undefined
+      })
 
-      if (itemsResult.success) {
-        setItems(itemsResult.data as unknown as LibraryItemData[])
+      if (result.success && result.data) {
+        const newItems = result.data.items as unknown as LibraryItemData[]
+        setTotalCount(result.data.total)
+        currentOffset.current = offset + newItems.length
+
+        if (replace) {
+          setItems(newItems)
+        } else {
+          setItems((prev) => {
+            const existingIds = new Set(prev.map((i) => i.id))
+            const unique = newItems.filter((item) => !existingIds.has(item.id))
+            return [...prev, ...unique]
+          })
+        }
       } else {
-        setError(itemsResult.error || 'Failed to load library items')
-      }
-
-      if (artistResult.success) {
-        setArtistNames(artistResult.data as string[])
-      }
-
-      if (seriesResult.success) {
-        setSeriesNames(seriesResult.data as string[])
-      }
-
-      if (tagResult.success) {
-        setTagNames(tagResult.data as string[])
+        if (replace) setError(result.error || 'Failed to load library')
       }
     } catch (err) {
-      setError(String(err))
+      if (replace) setError(String(err))
     } finally {
       setLoading(false)
+      setLoadingMore(false)
     }
+  }, [sortField, debouncedSearch, selectedArtistFilters, selectedSeriesFilters, selectedTagFilters, showUnmatchedOnly])
+
+  // ─── Load more (infinite scroll) ───────────────────────────────────────────
+
+  const loadMore = useCallback(() => {
+    if (loadingMore || items.length >= totalCount) return
+    fetchPage(currentOffset.current, false)
+  }, [loadingMore, items.length, totalCount, fetchPage])
+
+  // ─── Reset and fetch when filters/sort/search change ───────────────────────
+
+  useEffect(() => {
+    fetchPage(0, true)
+  }, [fetchPage]) // fetchPage already depends on sortField, debouncedSearch, filters
+
+  // ─── Initial filter data load ──────────────────────────────────────────────
+
+  useEffect(() => {
+    Promise.all([
+      window.api.library.getAllArtistNames(),
+      window.api.library.getAllSeriesNames(),
+      window.api.library.getAllTagNames()
+    ]).then(([artistsR, seriesR, tagsR]) => {
+      if (artistsR.success) setArtistNames(artistsR.data as string[])
+      if (seriesR.success) setSeriesNames(seriesR.data as string[])
+      if (tagsR.success) setTagNames(tagsR.data as string[])
+    }).catch(() => {})
   }, [])
+
+  // ─── Scan status ───────────────────────────────────────────────────────────
 
   const fetchScanStatus = useCallback(async () => {
     try {
@@ -106,12 +166,15 @@ export default function LibraryPage(): React.JSX.Element {
           })
         }
       }
-    } catch {
-      // ignore
-    }
+    } catch { /* ignore */ }
   }, [])
 
-  // Check library path accessibility when items change
+  useEffect(() => {
+    fetchScanStatus()
+  }, [fetchScanStatus])
+
+  // ─── Path accessibility check ──────────────────────────────────────────────
+
   useEffect(() => {
     if (items.length === 0) { setPathAccessible(null); return }
     const firstItem = items[0]
@@ -122,18 +185,12 @@ export default function LibraryPage(): React.JSX.Element {
     }).catch(() => setPathAccessible(null))
   }, [items])
 
-  // Initial load
-  useEffect(() => {
-    fetchData()
-    fetchScanStatus()
-  }, [fetchData, fetchScanStatus])
-
   // ─── Scan Event Listeners ──────────────────────────────────────────────────
 
   useEffect(() => {
     const unsubProgress = window.api.onLibraryScanProgress((progress) => {
       setScanProgress(progress)
-      setScanPaused(false) // any progress means scan is running, clear paused state
+      setScanPaused(false)
     })
     const unsubComplete = window.api.onLibraryScanComplete((result) => {
       setScanning(false)
@@ -144,7 +201,8 @@ export default function LibraryPage(): React.JSX.Element {
         newItems: result.newItems,
         totalItems: result.total
       })
-      fetchData()
+      // Refresh data after scan completes
+      fetchPage(0, true)
     })
     const unsubError = window.api.onLibraryScanError((err) => {
       setScanning(false)
@@ -153,7 +211,7 @@ export default function LibraryPage(): React.JSX.Element {
       setError(err)
     })
 
-    // Live item streaming: append batched new items in a single state update
+    // Live item streaming: prepend batched new items during active scan
     const unsubNewItems = window.api.onLibraryNewItems((batch) => {
       setItems((prev) => {
         const existingIds = new Set(prev.map((i) => i.id))
@@ -183,13 +241,15 @@ export default function LibraryPage(): React.JSX.Element {
             updatedAt: Date.now()
           })
         }
-        return newItems.length > 0 ? [...newItems, ...prev] : prev
+        if (newItems.length > 0) {
+          setTotalCount((t) => t + newItems.length)
+          return [...newItems, ...prev]
+        }
+        return prev
       })
     })
 
-    const unsubPaused = window.api.onLibraryScanPaused(() => {
-      setScanPaused(true)
-    })
+    const unsubPaused = window.api.onLibraryScanPaused(() => setScanPaused(true))
     const unsubCancelled = window.api.onLibraryScanCancelled(() => {
       setScanning(false)
       setScanPaused(false)
@@ -203,9 +263,8 @@ export default function LibraryPage(): React.JSX.Element {
       unsubNewItems()
       unsubPaused()
       unsubCancelled()
-      unsubError()
     }
-  }, [fetchData])
+  }, [fetchPage])
 
   // ─── Rescan ────────────────────────────────────────────────────────────────
 
@@ -220,42 +279,28 @@ export default function LibraryPage(): React.JSX.Element {
     }
   }
 
-  const handlePauseScan = async () => {
-    try { await window.api.library.pauseScan() } catch { /* */ }
-  }
-
-  const handleResumeScan = async () => {
-    try { await window.api.library.resumeScan() } catch { /* */ }
-  }
-
-  const handleCancelScan = async () => {
-    try { await window.api.library.cancelScan() } catch { /* */ }
-  }
+  const handlePauseScan = async () => { try { await window.api.library.pauseScan() } catch { /* */ } }
+  const handleResumeScan = async () => { try { await window.api.library.resumeScan() } catch { /* */ } }
+  const handleCancelScan = async () => { try { await window.api.library.cancelScan() } catch { /* */ } }
 
   // ─── Selection ─────────────────────────────────────────────────────────────
 
   const toggleSelect = useCallback((id: number) => {
     setSelectedIds((prev) => {
       const next = new Set(prev)
-      if (next.has(id)) {
-        next.delete(id)
-      } else {
-        next.add(id)
-      }
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
       return next
     })
     setSelectionTick((t) => t + 1)
   }, [])
 
-  // Checkbox click: enter select mode + toggle
   const handleCheckboxToggle = useCallback((id: number) => {
-    if (!selectMode) {
-      setSelectMode(true)
-    }
+    if (!selectMode) setSelectMode(true)
     toggleSelect(id)
   }, [selectMode, toggleSelect])
 
-  // ─── Batch Actions ──────────────────────────────────────────────────────────
+  // ─── Batch Actions ─────────────────────────────────────────────────────────
 
   const handleBatchRemove = async () => {
     const ids = [...selectedIds]
@@ -264,7 +309,7 @@ export default function LibraryPage(): React.JSX.Element {
     }
     setSelectedIds(new Set())
     setSelectionTick((t) => t + 1)
-    fetchData()
+    fetchPage(0, true)
   }
 
   const handleBatchDelete = async () => {
@@ -274,98 +319,34 @@ export default function LibraryPage(): React.JSX.Element {
     }
     setSelectedIds(new Set())
     setSelectionTick((t) => t + 1)
-    fetchData()
+    fetchPage(0, true)
   }
 
   const handleBatchUnassignSeries = async () => {
     const ids = [...selectedIds]
     for (const id of ids) {
-      try {
-        await window.api.library.updateMetadata(id, { seriesName: null, seriesIndex: null })
-      } catch { /* */ }
+      try { await window.api.library.updateMetadata(id, { seriesName: null, seriesIndex: null }) } catch { /* */ }
     }
     setSelectedIds(new Set())
     setSelectionTick((t) => t + 1)
-    fetchData()
+    fetchPage(0, true)
   }
 
   const toggleSelectAll = () => {
-    if (selectedIds.size === filteredItems.length) {
+    if (selectedIds.size === items.length) {
       setSelectedIds(new Set())
     } else {
-      setSelectedIds(new Set(filteredItems.map((i) => i.id)))
+      setSelectedIds(new Set(items.map((i) => i.id)))
     }
     setSelectionTick((t) => t + 1)
   }
-
-  // ─── Filtering & Sorting ───────────────────────────────────────────────────
-
-  const filteredItems = useMemo(() => {
-    let result = [...items]
-
-    // Search filter
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase()
-      result = result.filter((item) => {
-        const title = (item.customTitle || '').toLowerCase()
-        const artist = (item.primaryArtist || '').toLowerCase()
-        const series = (item.seriesName || '').toLowerCase()
-        return title.includes(q) || artist.includes(q) || series.includes(q)
-      })
-    }
-
-    // Artist filters
-    if (selectedArtistFilters.size > 0) {
-      result = result.filter((item) =>
-        selectedArtistFilters.has(item.primaryArtist)
-      )
-    }
-
-    // Series filters
-    if (selectedSeriesFilters.size > 0) {
-      result = result.filter((item) =>
-        item.seriesName ? selectedSeriesFilters.has(item.seriesName) : false
-      )
-    }
-
-    // Tag filters
-    if (selectedTagFilters.size > 0) {
-      result = result.filter((item) => {
-        const itemTags = (item.customTags || '').split(',').map(t => t.trim()).filter(Boolean)
-        return itemTags.some(t => selectedTagFilters.has(t))
-      })
-    }
-
-    // Unmatched only
-    if (showUnmatchedOnly) {
-      result = result.filter((item) => item.galleryId === null || item.galleryId === 0)
-    }
-
-    // Sort
-    result.sort((a, b) => {
-      switch (sortField) {
-        case 'title':
-          return (a.customTitle || '').localeCompare(b.customTitle || '')
-        case 'artist':
-          return (a.primaryArtist || '').localeCompare(b.primaryArtist || '')
-        case 'pages':
-          return 0 // Page count not directly available; fallback to date
-        case 'added':
-        default:
-          return (b.addedAt || 0) - (a.addedAt || 0)
-      }
-    })
-
-    return result
-  }, [items, searchQuery, selectedArtistFilters, selectedSeriesFilters, showUnmatchedOnly, sortField])
 
   // ─── Filter Toggles ────────────────────────────────────────────────────────
 
   const toggleArtistFilter = (artist: string) => {
     setSelectedArtistFilters((prev) => {
       const next = new Set(prev)
-      if (next.has(artist)) next.delete(artist)
-      else next.add(artist)
+      if (next.has(artist)) { next.delete(artist) } else { next.add(artist) }
       return next
     })
   }
@@ -373,8 +354,7 @@ export default function LibraryPage(): React.JSX.Element {
   const toggleSeriesFilter = (series: string) => {
     setSelectedSeriesFilters((prev) => {
       const next = new Set(prev)
-      if (next.has(series)) next.delete(series)
-      else next.add(series)
+      if (next.has(series)) { next.delete(series) } else { next.add(series) }
       return next
     })
   }
@@ -382,8 +362,7 @@ export default function LibraryPage(): React.JSX.Element {
   const toggleTagFilter = (tag: string) => {
     setSelectedTagFilters((prev) => {
       const next = new Set(prev)
-      if (next.has(tag)) next.delete(tag)
-      else next.add(tag)
+      if (next.has(tag)) { next.delete(tag) } else { next.add(tag) }
       return next
     })
   }
@@ -392,13 +371,25 @@ export default function LibraryPage(): React.JSX.Element {
 
   const formatDate = (ts: number): string => {
     return new Date(ts).toLocaleDateString(undefined, {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+      year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
     })
   }
+
+  // ─── Virtuoso Grid List Component ──────────────────────────────────────────
+
+  const virtuosoList = useMemo(() => {
+    return React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
+      (props, ref) => (
+        <div
+          ref={ref}
+          {...props}
+          className={
+            `grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 ${props.className || ''}`
+          }
+        />
+      )
+    )
+  }, [])
 
   // ─── Loading State ─────────────────────────────────────────────────────────
 
@@ -426,15 +417,14 @@ export default function LibraryPage(): React.JSX.Element {
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Library</h1>
         </div>
-        <ErrorState
-          message={error}
-          onRetry={fetchData}
-        />
+        <ErrorState message={error} onRetry={() => fetchPage(0, true)} />
       </div>
     )
   }
 
   // ─── Main Render ───────────────────────────────────────────────────────────
+
+  const hasMore = items.length < totalCount
 
   return (
     <div className="flex flex-col h-full">
@@ -442,8 +432,8 @@ export default function LibraryPage(): React.JSX.Element {
       <div className="mb-4">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Library</h1>
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          {items.length > 0
-            ? `${items.length} items in library`
+          {totalCount > 0
+            ? `${totalCount} items in library`
             : 'Browse your downloaded doujinshi collection'}
           {lastScan && (
             <span className="ml-2 text-xs text-gray-400">
@@ -457,16 +447,11 @@ export default function LibraryPage(): React.JSX.Element {
       {error && (
         <div className="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 text-sm flex items-center justify-between">
           <span>⚠️ {error}</span>
-          <button
-            onClick={() => setError(null)}
-            className="ml-2 text-red-500 hover:text-red-700 dark:hover:text-red-300"
-          >
-            ✕
-          </button>
+          <button onClick={() => setError(null)} className="ml-2 text-red-500 hover:text-red-700 dark:hover:text-red-300">✕</button>
         </div>
       )}
 
-      {/* Offline warning — only shown when library path is confirmed inaccessible */}
+      {/* Path inaccessible warning */}
       {items.length > 0 && pathAccessible === false && (
         <div className="mb-3 p-2 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 text-xs">
           ⚠️ Library storage is not accessible. The network drive may be disconnected. Showing cached metadata only.
@@ -492,65 +477,30 @@ export default function LibraryPage(): React.JSX.Element {
         )}
         {scanPaused && (
           <>
-            <button onClick={handleResumeScan} className="px-4 py-2 rounded-lg bg-green-600 text-white font-medium text-sm hover:bg-green-700 transition-colors flex items-center gap-2">
-              ▶ Resume Scan
-            </button>
+            <button onClick={handleResumeScan} className="px-4 py-2 rounded-lg bg-green-600 text-white font-medium text-sm hover:bg-green-700 transition-colors flex items-center gap-2">▶ Resume Scan</button>
             <button onClick={handleCancelScan} className="px-3 py-2 rounded-lg bg-red-600 text-white font-medium text-sm hover:bg-red-700 transition-colors">✕ Cancel</button>
           </>
         )}
 
-        {/* Add Custom button */}
-        <button
-          onClick={() => setShowCustomForm(true)}
-          className="px-4 py-2 rounded-lg bg-green-600 text-white font-medium text-sm hover:bg-green-700 transition-colors"
-        >
+        <button onClick={() => setShowCustomForm(true)} className="px-4 py-2 rounded-lg bg-green-600 text-white font-medium text-sm hover:bg-green-700 transition-colors">
           + Add Custom
         </button>
 
-        {/* Select mode toggle */}
         {items.length > 0 && (
           <button
-            onClick={() => {
-              setSelectMode(!selectMode)
-              if (selectMode) { setSelectedIds(new Set()); setSelectionTick((t) => t + 1) }
-            }}
-            className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-              selectMode
-                ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
-                : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
-            }`}
+            onClick={() => { setSelectMode(!selectMode); if (selectMode) { setSelectedIds(new Set()); setSelectionTick((t) => t + 1) } }}
+            className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${selectMode ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
           >
             {selectMode ? `Selected (${selectedIds.size})` : 'Select'}
           </button>
         )}
 
-        {/* Batch actions (when in select mode) */}
         {selectMode && selectedIds.size > 0 && (
           <>
-            <button
-              onClick={() => setShowSeriesModal(true)}
-              className="px-3 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors"
-            >
-              Assign Series
-            </button>
-            <button
-              onClick={handleBatchUnassignSeries}
-              className="px-3 py-2 rounded-lg bg-gray-600 text-white text-sm font-medium hover:bg-gray-700 transition-colors"
-            >
-              Unassign Series
-            </button>
-            <button
-              onClick={handleBatchRemove}
-              className="px-3 py-2 rounded-lg bg-orange-600 text-white text-sm font-medium hover:bg-orange-700 transition-colors"
-            >
-              Remove from Library
-            </button>
-            <button
-              onClick={handleBatchDelete}
-              className="px-3 py-2 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700 transition-colors"
-            >
-              Delete Files
-            </button>
+            <button onClick={() => setShowSeriesModal(true)} className="px-3 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors">Assign Series</button>
+            <button onClick={handleBatchUnassignSeries} className="px-3 py-2 rounded-lg bg-gray-600 text-white text-sm font-medium hover:bg-gray-700 transition-colors">Unassign Series</button>
+            <button onClick={handleBatchRemove} className="px-3 py-2 rounded-lg bg-orange-600 text-white text-sm font-medium hover:bg-orange-700 transition-colors">Remove from Library</button>
+            <button onClick={handleBatchDelete} className="px-3 py-2 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700 transition-colors">Delete Files</button>
           </>
         )}
 
@@ -579,23 +529,16 @@ export default function LibraryPage(): React.JSX.Element {
           <option value="added">Date Added</option>
           <option value="title">Title</option>
           <option value="artist">Artist</option>
-          <option value="pages">Page Count</option>
         </select>
 
         {/* Filters toggle */}
         <button
           onClick={() => setShowFilters(!showFilters)}
-          className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-            showFilters || selectedArtistFilters.size > 0 || selectedSeriesFilters.size > 0 || showUnmatchedOnly
-              ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400'
-              : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
-          }`}
+          className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${showFilters || selectedArtistFilters.size > 0 || selectedSeriesFilters.size > 0 || showUnmatchedOnly ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
         >
           🔍 Filters
           {(selectedArtistFilters.size > 0 || selectedSeriesFilters.size > 0 || showUnmatchedOnly) && (
-            <span className="ml-1 text-xs">
-              ({selectedArtistFilters.size + selectedSeriesFilters.size + (showUnmatchedOnly ? 1 : 0)})
-            </span>
+            <span className="ml-1 text-xs">({selectedArtistFilters.size + selectedSeriesFilters.size + (showUnmatchedOnly ? 1 : 0)})</span>
           )}
         </button>
       </div>
@@ -605,21 +548,10 @@ export default function LibraryPage(): React.JSX.Element {
         <div className="mb-4">
           <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
             <span>{scanProgress.status}</span>
-            <span>
-              {scanProgress.total > 0
-                ? `${scanProgress.current}/${scanProgress.total}`
-                : '...'}
-            </span>
+            <span>{scanProgress.total > 0 ? `${scanProgress.current}/${scanProgress.total}` : '...'}</span>
           </div>
           <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-            <div
-              className="bg-purple-600 h-2 rounded-full transition-all duration-300"
-              style={{
-                width: scanProgress.total > 0
-                  ? `${(scanProgress.current / scanProgress.total) * 100}%`
-                  : '10%'
-              }}
-            />
+            <div className="bg-purple-600 h-2 rounded-full transition-all duration-300" style={{ width: scanProgress.total > 0 ? `${(scanProgress.current / scanProgress.total) * 100}%` : '10%' }} />
           </div>
         </div>
       )}
@@ -628,42 +560,28 @@ export default function LibraryPage(): React.JSX.Element {
       {showFilters && (
         <div className="mb-4 p-4 rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700">
           <div className="flex flex-wrap gap-6">
-            {/* Artist filters */}
             {artistNames.length > 0 && (
               <div>
                 <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Artists</h4>
                 <div className="max-h-40 overflow-y-auto space-y-1">
                   {artistNames.slice(0, 50).map((artist) => (
                     <label key={artist} className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 cursor-pointer hover:text-gray-900 dark:hover:text-gray-200">
-                      <input
-                        type="checkbox"
-                        checked={selectedArtistFilters.has(artist)}
-                        onChange={() => toggleArtistFilter(artist)}
-                        className="w-3.5 h-3.5 rounded border-gray-400 text-purple-600 focus:ring-purple-500"
-                      />
+                      <input type="checkbox" checked={selectedArtistFilters.has(artist)} onChange={() => toggleArtistFilter(artist)} className="w-3.5 h-3.5 rounded border-gray-400 text-purple-600 focus:ring-purple-500" />
                       {artist}
                     </label>
                   ))}
-                  {artistNames.length > 50 && (
-                    <p className="text-xs text-gray-400">...and {artistNames.length - 50} more</p>
-                  )}
+                  {artistNames.length > 50 && <p className="text-xs text-gray-400">...and {artistNames.length - 50} more</p>}
                 </div>
               </div>
             )}
 
-            {/* Series filters */}
             {seriesNames.length > 0 && (
               <div>
                 <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Series</h4>
                 <div className="max-h-40 overflow-y-auto space-y-1">
                   {seriesNames.slice(0, 50).map((series) => (
                     <label key={series} className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 cursor-pointer hover:text-gray-900 dark:hover:text-gray-200">
-                      <input
-                        type="checkbox"
-                        checked={selectedSeriesFilters.has(series)}
-                        onChange={() => toggleSeriesFilter(series)}
-                        className="w-3.5 h-3.5 rounded border-gray-400 text-purple-600 focus:ring-purple-500"
-                      />
+                      <input type="checkbox" checked={selectedSeriesFilters.has(series)} onChange={() => toggleSeriesFilter(series)} className="w-3.5 h-3.5 rounded border-gray-400 text-purple-600 focus:ring-purple-500" />
                       {series}
                     </label>
                   ))}
@@ -671,19 +589,13 @@ export default function LibraryPage(): React.JSX.Element {
               </div>
             )}
 
-            {/* Tags filters */}
             {tagNames.length > 0 && (
               <div>
                 <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Tags</h4>
                 <div className="max-h-40 overflow-y-auto space-y-1">
                   {tagNames.slice(0, 50).map((tag) => (
                     <label key={tag} className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 cursor-pointer hover:text-gray-900 dark:hover:text-gray-200">
-                      <input
-                        type="checkbox"
-                        checked={selectedTagFilters.has(tag)}
-                        onChange={() => toggleTagFilter(tag)}
-                        className="w-3.5 h-3.5 rounded border-gray-400 text-purple-600 focus:ring-purple-500"
-                      />
+                      <input type="checkbox" checked={selectedTagFilters.has(tag)} onChange={() => toggleTagFilter(tag)} className="w-3.5 h-3.5 rounded border-gray-400 text-purple-600 focus:ring-purple-500" />
                       {tag}
                     </label>
                   ))}
@@ -691,31 +603,17 @@ export default function LibraryPage(): React.JSX.Element {
               </div>
             )}
 
-            {/* Unmatched toggle */}
             <div>
               <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Other</h4>
               <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 cursor-pointer hover:text-gray-900 dark:hover:text-gray-200">
-                <input
-                  type="checkbox"
-                  checked={showUnmatchedOnly}
-                  onChange={() => setShowUnmatchedOnly(!showUnmatchedOnly)}
-                  className="w-3.5 h-3.5 rounded border-gray-400 text-purple-600 focus:ring-purple-500"
-                />
+                <input type="checkbox" checked={showUnmatchedOnly} onChange={() => setShowUnmatchedOnly(!showUnmatchedOnly)} className="w-3.5 h-3.5 rounded border-gray-400 text-purple-600 focus:ring-purple-500" />
                 Unmatched only
               </label>
             </div>
           </div>
 
-          {/* Clear all filters */}
           {(selectedArtistFilters.size > 0 || selectedSeriesFilters.size > 0 || showUnmatchedOnly) && (
-            <button
-              onClick={() => {
-                setSelectedArtistFilters(new Set())
-                setSelectedSeriesFilters(new Set())
-                setShowUnmatchedOnly(false)
-              }}
-              className="mt-3 text-xs text-purple-600 dark:text-purple-400 hover:underline"
-            >
+            <button onClick={() => { setSelectedArtistFilters(new Set()); setSelectedSeriesFilters(new Set()); setShowUnmatchedOnly(false) }} className="mt-3 text-xs text-purple-600 dark:text-purple-400 hover:underline">
               Clear all filters
             </button>
           )}
@@ -726,68 +624,54 @@ export default function LibraryPage(): React.JSX.Element {
       {selectMode && items.length > 0 && (
         <div className="mb-3 flex items-center gap-3">
           <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={selectedIds.size === filteredItems.length && filteredItems.length > 0}
-              onChange={toggleSelectAll}
-              className="w-4 h-4 rounded border-gray-400 text-purple-600 focus:ring-purple-500"
-            />
-            Select all ({filteredItems.length})
+            <input type="checkbox" checked={selectedIds.size === items.length && items.length > 0} onChange={toggleSelectAll} className="w-4 h-4 rounded border-gray-400 text-purple-600 focus:ring-purple-500" />
+            Select all ({items.length})
           </label>
         </div>
       )}
 
       {/* Content area */}
       {items.length === 0 ? (
-        <EmptyState
-          icon="📚"
-          title="Library is empty"
-          description="Download your first doujin or add a custom entry to get started"
-          actionLabel="Rescan Library"
-          onAction={handleRescan}
-        />
-      ) : filteredItems.length === 0 ? (
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-center text-gray-400 dark:text-gray-500 max-w-sm px-4">
-            <span className="text-5xl block mb-4">🔍</span>
-            <p className="text-lg font-medium text-gray-600 dark:text-gray-300">No matching items</p>
-            <p className="text-sm mt-1">Try adjusting your search or filters</p>
-            <button
-              onClick={() => {
-                setSearchQuery('')
-                setSelectedArtistFilters(new Set())
-                setSelectedSeriesFilters(new Set())
-                setShowUnmatchedOnly(false)
-              }}
-              className="mt-4 px-4 py-2 rounded-lg bg-purple-600 text-white font-medium text-sm hover:bg-purple-700 transition-colors"
-            >
-              Clear all filters
-            </button>
-          </div>
-        </div>
+        <EmptyState icon="📚" title="Library is empty" description="Download your first doujin or add a custom entry to get started" actionLabel="Rescan Library" onAction={handleRescan} />
       ) : (
-        <div className="flex-1 overflow-y-auto">
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-            {filteredItems.map((item) => (
-              <LibraryCard
-                key={item.id}
-                item={item}
-                selected={selectedIds.has(item.id)}
-                onToggleSelect={handleCheckboxToggle}
-                onClick={(id) => {
-                  if (selectMode) {
-                    toggleSelect(id)
-                  } else {
-                    const found = items.find((i) => i.id === id)
-                    if (found) setDetailItem(found)
-                  }
-                }}
-                onContextMenu={() => {
-                  // Right-click context menu is handled in LibraryCard itself
-                }}
-              />
-            ))}
-          </div>
+        <div className="flex-1">
+          <VirtuosoGrid
+            totalCount={items.length}
+            endReached={loadMore}
+            overscan={400}
+            useWindowScroll={false}
+            components={{
+              List: virtuosoList as any,
+              Footer: hasMore
+                ? () => (
+                    <div className="flex justify-center py-4">
+                      <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+                    </div>
+                  )
+                : undefined as any
+            }}
+            itemContent={(index) => {
+              const item = items[index]
+              if (!item) return null
+              return (
+                <LibraryCard
+                  key={item.id}
+                  item={item}
+                  selected={selectedIds.has(item.id)}
+                  onToggleSelect={handleCheckboxToggle}
+                  onClick={(id) => {
+                    if (selectMode) {
+                      toggleSelect(id)
+                    } else {
+                      const found = items.find((i) => i.id === id)
+                      if (found) setDetailItem(found)
+                    }
+                  }}
+                />
+              )
+            }}
+            style={{ height: '100%' }}
+          />
         </div>
       )}
 
@@ -800,7 +684,7 @@ export default function LibraryPage(): React.JSX.Element {
           setShowSeriesModal(false)
           setSelectedIds(new Set())
           setSelectMode(false)
-          fetchData()
+          fetchPage(0, true)
         }}
       />
 
@@ -811,7 +695,7 @@ export default function LibraryPage(): React.JSX.Element {
         onClose={() => setShowCustomForm(false)}
         onCreated={() => {
           setShowCustomForm(false)
-          fetchData()
+          fetchPage(0, true)
         }}
       />
 
@@ -822,10 +706,10 @@ export default function LibraryPage(): React.JSX.Element {
         onClose={() => setDetailItem(null)}
         onDeleted={() => {
           setDetailItem(null)
-          fetchData()
+          fetchPage(0, true)
         }}
         onUpdated={() => {
-          fetchData()
+          fetchPage(0, true)
         }}
       />
     </div>

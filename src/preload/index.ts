@@ -61,6 +61,11 @@ const api = {
   library: {
     getAll: () => ipcRenderer.invoke('library:getAll'),
     getById: (id: number) => ipcRenderer.invoke('library:getById', id),
+    getPaginated: (params: {
+      offset: number; limit: number; sortField?: string; searchQuery?: string
+      artistFilters?: string[]; seriesFilters?: string[]; tagFilters?: string[]
+      showUnmatchedOnly?: boolean
+    }) => ipcRenderer.invoke('library:getPaginated', params),
     getByGalleryId: (galleryId: number) => ipcRenderer.invoke('library:getByGalleryId', galleryId),
     search: (query: string) => ipcRenderer.invoke('library:search', query),
     getArtists: (libraryItemId: number) => ipcRenderer.invoke('library:getArtists', libraryItemId),
