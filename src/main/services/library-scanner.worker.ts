@@ -364,6 +364,7 @@ function markQueueItem(filePath: string, status: string, error?: string): void {
 async function processFile(filePath: string): Promise<{ status: 'new' | 'skipped' | 'error'; title?: string; artist?: string; id?: number }> {
   // Incremental skip
   if (shouldSkipFile(filePath)) {
+    log(`SKIP (unchanged) ${filePath}`)
     markQueueItem(filePath, 'completed')
     return { status: 'skipped' }
   }
@@ -391,6 +392,7 @@ async function processFile(filePath: string): Promise<{ status: 'new' | 'skipped
     if (galleryId) {
       const row = db!.prepare('SELECT id, file_path, file_mtime, file_size FROM library_item WHERE gallery_id = ?').get(galleryId) as any
       if (row) {
+        log(`SKIP (exists by gallery #${galleryId}) ${filePath}`)
         updateLibraryItemMtime(row.id, filePath, statInfo.mtimeMs, statInfo.size)
         markQueueItem(filePath, 'completed')
         return { status: 'skipped' }
@@ -399,6 +401,7 @@ async function processFile(filePath: string): Promise<{ status: 'new' | 'skipped
 
     const rowByPath = db!.prepare('SELECT id FROM library_item WHERE file_path = ?').get(filePath) as any
     if (rowByPath) {
+      log(`SKIP (exists by path) ${filePath}`)
       updateLibraryItemMtime(rowByPath.id, filePath, statInfo.mtimeMs, statInfo.size)
       markQueueItem(filePath, 'completed')
       return { status: 'skipped' }
@@ -436,10 +439,13 @@ async function processFile(filePath: string): Promise<{ status: 'new' | 'skipped
         metadata.tags)
     }
 
+    log(`NEW [${artists[0]}] "${title}" ${filePath}`)
     markQueueItem(filePath, 'completed')
     return { status: 'new', title, artist: artists[0], id: newId }
   } catch (err) {
-    markQueueItem(filePath, 'failed', String(err))
+    const errMsg = err instanceof Error ? err.message : String(err)
+    log(`ERROR ${filePath}: ${errMsg}`)
+    markQueueItem(filePath, 'failed', errMsg)
     return { status: 'error' }
   }
 }
