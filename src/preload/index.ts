@@ -1,0 +1,64 @@
+import { contextBridge, ipcRenderer } from 'electron'
+import { electronAPI } from '@electron-toolkit/preload'
+
+// ─── Typed API exposed to renderer ───────────────────────────────────────────
+
+const api = {
+  // Search & Gallery
+  search: (query: string, options?: Record<string, unknown>) =>
+    ipcRenderer.invoke('api:search', query, options),
+  getGallery: (id: number) => ipcRenderer.invoke('api:getGallery', id),
+  getCdnConfig: () => ipcRenderer.invoke('api:getCdnConfig'),
+  getApiConfig: () => ipcRenderer.invoke('api:getConfig'),
+  setApiKey: (key: string | null) => ipcRenderer.invoke('api:setApiKey', key),
+
+  // Downloads
+  downloads: {
+    getAll: () => ipcRenderer.invoke('download:getAll'),
+    getById: (id: number) => ipcRenderer.invoke('download:getById', id),
+    getByStatus: (status: string) => ipcRenderer.invoke('download:getByStatus', status),
+    addToQueue: (galleryId: number, outputFormat?: string, outputDirectory?: string) =>
+      ipcRenderer.invoke('download:addToQueue', galleryId, outputFormat, outputDirectory),
+    remove: (id: number) => ipcRenderer.invoke('download:remove', id),
+    getPages: (queueId: number) => ipcRenderer.invoke('download:getPages', queueId),
+    getStatusCounts: () => ipcRenderer.invoke('download:getStatusCounts')
+  },
+
+  // Library
+  library: {
+    getAll: () => ipcRenderer.invoke('library:getAll'),
+    getById: (id: number) => ipcRenderer.invoke('library:getById', id),
+    getByGalleryId: (galleryId: number) => ipcRenderer.invoke('library:getByGalleryId', galleryId),
+    search: (query: string) => ipcRenderer.invoke('library:search', query),
+    getArtists: (libraryItemId: number) => ipcRenderer.invoke('library:getArtists', libraryItemId),
+    getAllArtistNames: () => ipcRenderer.invoke('library:getAllArtistNames'),
+    count: () => ipcRenderer.invoke('library:count')
+  },
+
+  // Settings
+  settings: {
+    get: (key: string) => ipcRenderer.invoke('settings:get', key),
+    getAll: () => ipcRenderer.invoke('settings:getAll'),
+    set: (key: string, value: string) => ipcRenderer.invoke('settings:set', key, value),
+    setAll: (settings: Record<string, string>) => ipcRenderer.invoke('settings:setAll', settings),
+    delete: (key: string) => ipcRenderer.invoke('settings:delete', key)
+  }
+}
+
+export type Api = typeof api
+
+// ─── Expose to renderer ─────────────────────────────────────────────────────
+
+if (process.contextIsolated) {
+  try {
+    contextBridge.exposeInMainWorld('electron', electronAPI)
+    contextBridge.exposeInMainWorld('api', api)
+  } catch (error) {
+    console.error('Failed to expose API:', error)
+  }
+} else {
+  // @ts-ignore
+  window.electron = electronAPI
+  // @ts-ignore
+  window.api = api
+}

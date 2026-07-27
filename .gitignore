@@ -1,0 +1,18 @@
+node_modules/
+dist/
+out/
+.env
+*.log
+.eslintcache
+.DS_Store
+
+# Keep old Python project files as reference, don't track in new project
+.venv/
+Logs/
+oldScripts/
+scripts/
+
+# IDE
+.idea/
+*.swp
+*.swo
