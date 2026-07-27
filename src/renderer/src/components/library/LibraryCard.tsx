@@ -124,6 +124,7 @@ export default function LibraryCard({
       {/* Clickable area */}
       <button
         onClick={() => onClick(item.id)}
+        onDragStart={(e) => e.preventDefault()}
         onContextMenu={handleContextMenu}
         className="text-left w-full"
       >
@@ -133,6 +134,7 @@ export default function LibraryCard({
             <img
               src={coverSrc}
               alt={title}
+              draggable={false}
               loading="lazy"
               onError={() => setImgError(true)}
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"

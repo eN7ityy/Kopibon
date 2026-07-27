@@ -26,6 +26,7 @@ export default function GalleryCard({
   return (
     <button
       onClick={() => onClick(gallery.id)}
+      onDragStart={(e) => e.preventDefault()}
       className="group relative rounded-lg overflow-hidden bg-white dark:bg-gray-850 border border-gray-200 dark:border-gray-700 hover:border-purple-400 dark:hover:border-purple-500 hover:shadow-lg transition-all duration-200 text-left w-full"
       style={{ backgroundColor: 'var(--card-bg, rgb(30 41 59))' }}
     >
@@ -35,6 +36,7 @@ export default function GalleryCard({
           <img
             src={thumbUrl}
             alt={title}
+            draggable={false}
             loading="lazy"
             onError={() => setImgError(true)}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
