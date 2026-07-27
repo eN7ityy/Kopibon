@@ -15,6 +15,13 @@ export function getDbPath(): string {
   return DB_PATH
 }
 
+export function getRawDatabase(): Database.Database {
+  if (!sqlite) {
+    initDatabase()
+  }
+  return sqlite!
+}
+
 export function getDbDir(): string {
   return DB_DIR
 }

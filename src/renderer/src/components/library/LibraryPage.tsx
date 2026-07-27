@@ -149,6 +149,14 @@ export default function LibraryPage(): React.JSX.Element {
     }
   }
 
+  const handleCancelScan = async () => {
+    try {
+      await window.api.library.cancelScan()
+    } catch {
+      // ignore
+    }
+  }
+
   // ─── Selection ─────────────────────────────────────────────────────────────
 
   const toggleSelect = useCallback((id: number) => {
@@ -331,13 +339,12 @@ export default function LibraryPage(): React.JSX.Element {
 
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-3 mb-4">
-        {/* Rescan button */}
+        {/* Rescan / Cancel Scan button */}
         <button
-          onClick={handleRescan}
-          disabled={scanning}
+          onClick={scanning ? handleCancelScan : handleRescan}
           className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors flex items-center gap-2 ${
             scanning
-              ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+              ? 'bg-red-600 text-white hover:bg-red-700'
               : 'bg-purple-600 text-white hover:bg-purple-700'
           }`}
         >
@@ -347,7 +354,7 @@ export default function LibraryPage(): React.JSX.Element {
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
               </svg>
-              Scanning...
+              Cancel Scan
             </>
           ) : (
             '🔄 Rescan Library'

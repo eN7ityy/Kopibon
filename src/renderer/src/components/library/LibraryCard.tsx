@@ -80,14 +80,14 @@ export default function LibraryCard({
     onContextMenu?.(item.id, e)
   }
 
-  const handleContextAction = (action: 'open' | 'folder' | 'delete'): void => {
+  const handleContextAction = (action: 'open' | 'folder' | 'remove' | 'deleteFile'): void => {
     setContextMenu({ visible: false, x: 0, y: 0 })
     if (action === 'open') {
       window.api.shell.openPath(item.filePath)
     } else if (action === 'folder') {
       window.api.shell.showItemInFolder(item.filePath)
     }
-    // delete is handled by the parent via onContextMenu
+    // remove/deleteFile are handled by selecting the item (via onContextMenu callback to parent)
   }
 
   return (
@@ -178,10 +178,16 @@ export default function LibraryCard({
           </button>
           <div className="border-t border-gray-200 dark:border-gray-700 my-1" />
           <button
-            onClick={() => handleContextAction('delete')}
+            onClick={() => handleContextAction('remove')}
+            className="w-full text-left px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-orange-600 dark:text-orange-400 flex items-center gap-2"
+          >
+            <span>📋</span> Remove from Library
+          </button>
+          <button
+            onClick={() => handleContextAction('deleteFile')}
             className="w-full text-left px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-red-600 dark:text-red-400 flex items-center gap-2"
           >
-            <span>🗑️</span> Delete
+            <span>🗑️</span> Delete File
           </button>
         </div>
       )}

@@ -19,6 +19,12 @@ export default function SettingsPage(): React.JSX.Element {
   const [keyInput, setKeyInput] = useState('')
   const [validation, setValidation] = useState<ValidationState>({ status: 'idle' })
 
+  // Reset state
+  const [resetConfirm, setResetConfirm] = useState('')
+  const [resetting, setResetting] = useState(false)
+  const [resetError, setResetError] = useState<string | null>(null)
+  const [resetSuccess, setResetSuccess] = useState(false)
+
   console.log('[SettingsPage] Rendering. keyInput:', keyInput, 'apiKey:', settings.apiKey, 'auth:', auth.loggedIn, 'window.api:', typeof window.api?.auth)
 
   // Load the current key from the store on mount
@@ -51,6 +57,26 @@ export default function SettingsPage(): React.JSX.Element {
     setValidation({ status: 'idle' })
     settings.setApiKey(null)
     auth.clearAuth()
+  }
+
+  const handleResetLibrary = async (): Promise<void> => {
+    if (resetConfirm !== 'DELETE ALL') return
+    setResetting(true)
+    setResetError(null)
+    try {
+      const result = await window.api.library.reset()
+      if (result.success) {
+        setResetSuccess(true)
+        setResetConfirm('')
+        setTimeout(() => setResetSuccess(false), 3000)
+      } else {
+        setResetError(result.error || 'Reset failed')
+      }
+    } catch (err) {
+      setResetError(String(err))
+    } finally {
+      setResetting(false)
+    }
   }
 
   return (
@@ -203,6 +229,41 @@ export default function SettingsPage(): React.JSX.Element {
                 <option value="dark">Dark</option>
               </select>
             </div>
+          </div>
+        </section>
+
+        {/* Reset Library */}
+        <section>
+          <h2 className="text-lg font-semibold text-red-600 dark:text-red-400 mb-3">Reset Library</h2>
+          <div className="p-4 rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 space-y-3">
+            <p className="text-sm text-red-700 dark:text-red-400">
+              This will permanently delete all library items from the database. Files on disk are <strong>not</strong> affected.
+            </p>
+            <div>
+              <label className="block text-xs font-medium text-red-600 dark:text-red-400 mb-1">
+                Type <code className="font-mono bg-red-100 dark:bg-red-900/40 px-1 rounded">DELETE ALL</code> to confirm
+              </label>
+              <input
+                type="text"
+                value={resetConfirm}
+                onChange={(e) => setResetConfirm(e.target.value)}
+                placeholder="DELETE ALL"
+                className="w-full px-3 py-2 rounded-lg border border-red-300 dark:border-red-700 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-red-500"
+              />
+            </div>
+            {resetError && (
+              <p className="text-xs text-red-500">{resetError}</p>
+            )}
+            {resetSuccess && (
+              <p className="text-xs text-green-600 dark:text-green-400">✓ Library reset successfully</p>
+            )}
+            <button
+              onClick={handleResetLibrary}
+              disabled={resetConfirm !== 'DELETE ALL' || resetting}
+              className="px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {resetting ? 'Resetting...' : 'Reset Library'}
+            </button>
           </div>
         </section>
 

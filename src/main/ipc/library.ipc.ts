@@ -1,11 +1,13 @@
 import { ipcMain, BrowserWindow } from 'electron'
 import { libraryRepo } from '../db/repositories/library.repo'
 import { scanLibrary } from '../services/library-scanner'
+import type { ScanCancelToken } from '../services/library-scanner'
 import { setSeries, embedMetadata } from '../services/metadata-writer'
 import { renameSync, mkdirSync, existsSync } from 'fs'
 import { dirname, join, basename } from 'path'
 
 let isScanning = false
+let currentScanCancelToken: ScanCancelToken | null = null
 
 export function registerLibraryIpc(): void {
   ipcMain.handle('library:getAll', async () => {
@@ -93,21 +95,44 @@ export function registerLibraryIpc(): void {
     }
 
     isScanning = true
+    currentScanCancelToken = { cancelled: false }
 
-    // Run scan asynchronously, sending progress to the renderer
+    // Run scan asynchronously with cancel support, sending progress to renderer
     scanLibrary(libraryRoot, (progress) => {
       win.webContents.send('library:scanProgress', progress)
-    })
+    }, currentScanCancelToken)
       .then((result) => {
         isScanning = false
+        currentScanCancelToken = null
         win.webContents.send('library:scanComplete', result)
       })
       .catch((error) => {
         isScanning = false
+        currentScanCancelToken = null
         win.webContents.send('library:scanError', String(error))
       })
 
     return { success: true, data: { scanning: true } }
+  })
+
+  ipcMain.handle('library:cancelScan', async () => {
+    if (currentScanCancelToken) {
+      currentScanCancelToken.cancelled = true
+    }
+    return { success: true }
+  })
+
+  ipcMain.handle('library:reset', async () => {
+    try {
+      const { getRawDatabase } = await import('../db/connection')
+      const rawDb = getRawDatabase()
+      rawDb.exec('DELETE FROM library_item_artist')
+      rawDb.exec('DELETE FROM library_item')
+      rawDb.exec('DELETE FROM library_scan_log')
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: String(error) }
+    }
   })
 
   ipcMain.handle('library:getScanStatus', async () => {
@@ -332,6 +357,20 @@ export function registerLibraryIpc(): void {
 
   ipcMain.handle('library:delete', async (_event, id: number) => {
     try {
+      libraryRepo.delete(id)
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: String(error) }
+    }
+  })
+
+  ipcMain.handle('library:deleteFile', async (_event, id: number) => {
+    try {
+      const { unlinkSync, existsSync } = await import('fs')
+      const item = libraryRepo.findById(id)
+      if (item && existsSync(item.filePath)) {
+        try { unlinkSync(item.filePath) } catch { /* file may be locked */ }
+      }
       libraryRepo.delete(id)
       return { success: true }
     } catch (error) {

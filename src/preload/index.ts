@@ -67,12 +67,15 @@ const api = {
     getAllSeriesNames: () => ipcRenderer.invoke('library:getAllSeriesNames'),
     count: () => ipcRenderer.invoke('library:count'),
     scan: (libraryRoot: string) => ipcRenderer.invoke('library:scan', libraryRoot),
+    cancelScan: () => ipcRenderer.invoke('library:cancelScan'),
     getScanStatus: () => ipcRenderer.invoke('library:getScanStatus'),
+    reset: () => ipcRenderer.invoke('library:reset'),
     autocompleteArtists: (query: string) => ipcRenderer.invoke('library:autocompleteArtists', query),
     autocompleteSeries: (query: string) => ipcRenderer.invoke('library:autocompleteSeries', query),
     assignSeries: (ids: number[], seriesName: string) =>
       ipcRenderer.invoke('library:assignSeries', ids, seriesName),
     delete: (id: number) => ipcRenderer.invoke('library:delete', id),
+    deleteFile: (id: number) => ipcRenderer.invoke('library:deleteFile', id),
     updateMetadata: (id: number, metadata: Record<string, string | number | null>) =>
       ipcRenderer.invoke('library:updateMetadata', id, metadata),
     addCustom: (metadata: Record<string, unknown>, libraryRoot: string) =>
