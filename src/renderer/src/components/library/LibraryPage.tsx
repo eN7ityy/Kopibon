@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import type { LibraryItemData } from './LibraryCard'
 import LibraryCard from './LibraryCard'
+import SeriesAssignment from './SeriesAssignment'
 import EmptyState from '../shared/EmptyState'
 import ErrorState from '../shared/ErrorState'
 import LoadingSkeleton from '../shared/LoadingSkeleton'
@@ -38,6 +39,7 @@ export default function LibraryPage(): React.JSX.Element {
   // Selection state (for batch operations)
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [selectMode, setSelectMode] = useState(false)
+  const [showSeriesModal, setShowSeriesModal] = useState(false)
 
   // Scan state
   const [scanning, setScanning] = useState(false)
@@ -377,16 +379,12 @@ export default function LibraryPage(): React.JSX.Element {
 
         {/* Batch actions (when in select mode) */}
         {selectMode && selectedIds.size > 0 && (
-          <>
-            <button
-              onClick={() => {
-                // T4 — assign series
-              }}
-              className="px-3 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors"
-            >
-              Assign Series
-            </button>
-          </>
+          <button
+            onClick={() => setShowSeriesModal(true)}
+            className="px-3 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors"
+          >
+            Assign Series
+          </button>
         )}
 
         <div className="flex-1" />
@@ -609,6 +607,19 @@ export default function LibraryPage(): React.JSX.Element {
           </div>
         </div>
       )}
+
+      {/* Series Assignment Modal */}
+      <SeriesAssignment
+        isOpen={showSeriesModal}
+        items={items.filter((item) => selectedIds.has(item.id))}
+        onClose={() => setShowSeriesModal(false)}
+        onAssigned={() => {
+          setShowSeriesModal(false)
+          setSelectedIds(new Set())
+          setSelectMode(false)
+          fetchData()
+        }}
+      />
     </div>
   )
 }

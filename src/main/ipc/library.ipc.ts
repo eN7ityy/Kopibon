@@ -1,6 +1,9 @@
 import { ipcMain, BrowserWindow } from 'electron'
 import { libraryRepo } from '../db/repositories/library.repo'
 import { scanLibrary } from '../services/library-scanner'
+import { setSeries } from '../services/metadata-writer'
+import { renameSync, mkdirSync, existsSync } from 'fs'
+import { dirname, join, basename } from 'path'
 
 let isScanning = false
 
@@ -140,10 +143,66 @@ export function registerLibraryIpc(): void {
 
   ipcMain.handle('library:assignSeries', async (_event, ids: number[], seriesName: string) => {
     try {
+      const errors: string[] = []
+      let updated = 0
+
       for (const id of ids) {
-        libraryRepo.update(id, { seriesName })
+        const item = libraryRepo.findById(id)
+        if (!item) {
+          errors.push(`Item ${id} not found`)
+          continue
+        }
+
+        try {
+          // 1. Embed series into PDF metadata
+          try {
+            await setSeries(item.filePath, seriesName)
+          } catch (err) {
+            errors.push(`Failed to embed series in PDF for item ${id}: ${String(err)}`)
+            // Continue — DB update is still valid
+          }
+
+          // 2. Move file if currently in artist root (no series dir)
+          const currentDir = dirname(item.filePath)
+          const fileName = basename(item.filePath)
+
+          // Check if file is directly under artist dir (no series subdir)
+          // The structure is: {libraryRoot}/{artist}/{series?}/{file}
+          // If the current dir's basename matches the primary artist, we need to create series subdir
+          const parentDirName = basename(currentDir)
+
+          if (parentDirName === item.primaryArtist || !item.seriesName) {
+            // File is in artist root — move to series subdirectory
+            const seriesDir = join(currentDir, seriesName)
+            if (!existsSync(seriesDir)) {
+              mkdirSync(seriesDir, { recursive: true })
+            }
+            const newPath = join(seriesDir, fileName)
+            try {
+              renameSync(item.filePath, newPath)
+              libraryRepo.update(id, {
+                seriesName,
+                filePath: newPath
+              })
+            } catch (moveErr) {
+              errors.push(`Failed to move file for item ${id}: ${String(moveErr)}`)
+              libraryRepo.update(id, { seriesName })
+            }
+          } else {
+            // Already in a subdirectory — just update DB
+            libraryRepo.update(id, { seriesName })
+          }
+
+          updated++
+        } catch (err) {
+          errors.push(`Error processing item ${id}: ${String(err)}`)
+        }
       }
-      return { success: true, data: { updated: ids.length } }
+
+      return {
+        success: true,
+        data: { updated, errors: errors.length > 0 ? errors : undefined }
+      }
     } catch (error) {
       return { success: false, error: String(error) }
     }

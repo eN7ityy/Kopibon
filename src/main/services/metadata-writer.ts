@@ -90,3 +90,37 @@ export async function embedMetadata(
     // Non-critical if cleanup fails
   }
 }
+
+/**
+ * Set the series name on an existing PDF by writing to /Subject.
+ * This is a lightweight metadata operation — it does NOT rewrite the
+ * full document, only the docinfo.
+ *
+ * @param pdfPath - Full path to the PDF file to modify
+ * @param seriesName - Series name to embed (empty string to clear)
+ */
+export async function setSeries(
+  pdfPath: string,
+  seriesName: string
+): Promise<void> {
+  const existingBytes = readFileSync(pdfPath)
+  const pdfDoc = await PDFDocument.load(existingBytes)
+
+  pdfDoc.setSubject(seriesName || '')
+  pdfDoc.setProducer('Doujin-Downloader')
+
+  // Save to temporary file, then move over original
+  const tempPath = join(tmpdir(), `pdf-series-${randomUUID()}.pdf`)
+  const modifiedBytes = await pdfDoc.save()
+  writeFileSync(tempPath, modifiedBytes)
+
+  const backupPath = pdfPath + '.bak'
+  renameSync(pdfPath, backupPath)
+  renameSync(tempPath, pdfPath)
+
+  try {
+    unlinkSync(backupPath)
+  } catch {
+    // Non-critical
+  }
+}
