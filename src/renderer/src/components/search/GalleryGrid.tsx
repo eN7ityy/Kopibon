@@ -1,8 +1,8 @@
-import type { SearchResult, DownloadStatus } from '../../types/api.types'
+import type { GalleryListItem, DownloadStatus } from '../../types/api.types'
 import GalleryCard from './GalleryCard'
 
 interface GalleryGridProps {
-  galleries: Array<{ gallery: SearchResult; downloadStatus: DownloadStatus }>
+  galleries: Array<{ gallery: GalleryListItem; downloadStatus: DownloadStatus }>
   onGalleryClick: (id: number) => void
 }
 

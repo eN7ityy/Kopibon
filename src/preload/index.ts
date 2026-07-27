@@ -5,10 +5,8 @@ import { electronAPI } from '@electron-toolkit/preload'
 
 const api = {
   // Search & Gallery
-  search: (
-    query: string,
-    options?: { page?: number; sort?: string; language?: string; category?: string }
-  ) => ipcRenderer.invoke('api:search', query, options),
+  search: (query: string, options?: { page?: number; sort?: string }) =>
+    ipcRenderer.invoke('api:search', query, options),
   getGallery: (id: number) => ipcRenderer.invoke('api:getGallery', id),
   getCdnConfig: () => ipcRenderer.invoke('api:getCdnConfig'),
   getApiConfig: () => ipcRenderer.invoke('api:getConfig'),

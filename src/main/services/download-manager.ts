@@ -157,11 +157,11 @@ export class DownloadManager {
           pageCount: gallery.num_pages,
           favoritesCount: gallery.num_favorites,
           uploadDate: gallery.upload_date,
-          thumbnailUrl: gallery.images?.thumbnail
-            ? `https://t.nhentai.net/galleries/${gallery.media_id}/thumb.${gallery.images.thumbnail.t}`
+          thumbnailUrl: gallery.thumbnail
+            ? `https://t.nhentai.net/${gallery.thumbnail.path}`
             : null,
-          coverUrl: gallery.images?.cover
-            ? `https://t.nhentai.net/galleries/${gallery.media_id}/cover.${gallery.images.cover.t}`
+          coverUrl: gallery.cover
+            ? `https://t.nhentai.net/${gallery.cover.path}`
             : null,
           rawTagsJson: JSON.stringify(gallery.tags),
           rawJson: JSON.stringify(gallery),
@@ -175,7 +175,7 @@ export class DownloadManager {
 
       // Step 2: Fetch CDN servers
       const cdn = await client.getCdnConfig()
-      const servers = [cdn.image_server, ...cdn.servers].filter(Boolean)
+      const servers = [...cdn.image_servers].filter(Boolean)
 
       // Step 3: Insert page records
       for (let i = 1; i <= totalPages; i++) {
@@ -221,11 +221,12 @@ export class DownloadManager {
         const batch = pageItems.slice(batchStart, batchStart + CONCURRENT_PAGES)
         const batchResults = await Promise.allSettled(
           batch.map(async (page) => {
-            const imageType = gallery.images?.pages?.[page.pageNumber - 1]?.t || 'j'
+            const pageInfo = gallery.pages?.[page.pageNumber - 1]
+            const ext = pageInfo?.path?.split('.').pop() || 'jpg'
             return this.downloadPageWithRetry(
               page.pageNumber,
               gallery.media_id,
-              imageType,
+              ext,
               servers,
               downloadDir,
               active,

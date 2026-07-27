@@ -49,7 +49,6 @@ export default function GalleryDetailPanel({
       if (result.success && result.data) {
         setDetail(result.data)
 
-        // Check download status
         const libResult = await window.api.library.getByGalleryId(galleryId)
         if (libResult.success && libResult.data) {
           setDownloadStatus('in_library')
@@ -78,7 +77,6 @@ export default function GalleryDetailPanel({
     fetchDetail()
   }, [fetchDetail])
 
-  // Handle escape key
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') onClose()
@@ -87,28 +85,24 @@ export default function GalleryDetailPanel({
     return () => document.removeEventListener('keydown', handleEscape)
   }, [onClose])
 
-  const coverUrl = detail?.images?.cover
-    ? `https://t.nhentai.net/galleries/${detail.media_id}/cover.${detail.images.cover.t}`
+  // Cover URL: path from cover object, prefixed with standard thumbnail CDN
+  const coverUrl = detail?.cover?.path
+    ? `https://t.nhentai.net/${detail.cover.path}`
     : null
 
   const isInLibrary = downloadStatus === 'in_library'
 
   const handleTagClick = (tagName: string): void => {
-    // Navigate to search with this tag — for now open in browser
-    window.api.shell.openExternal(`https://nhentai.net/tag/${encodeURIComponent(tagName.replace(/\s+/g, '-').toLowerCase())}/`)
+    window.api.shell.openExternal(
+      `https://nhentai.net/tag/${encodeURIComponent(tagName.replace(/\s+/g, '-').toLowerCase())}/`
+    )
   }
 
   return (
     <>
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-black/50 z-40 transition-opacity"
-        onClick={onClose}
-      />
+      <div className="fixed inset-0 bg-black/50 z-40 transition-opacity" onClick={onClose} />
 
-      {/* Panel */}
-      <div className="fixed right-0 top-0 h-full w-full max-w-lg bg-white dark:bg-gray-900 shadow-2xl z-50 overflow-y-auto transform transition-transform duration-300 animate-slide-in">
-        {/* Close button */}
+      <div className="fixed right-0 top-0 h-full w-full max-w-lg bg-white dark:bg-gray-900 shadow-2xl z-50 overflow-y-auto">
         <button
           onClick={onClose}
           className="absolute top-4 right-4 z-10 p-2 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-500 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
@@ -118,16 +112,12 @@ export default function GalleryDetailPanel({
           </svg>
         </button>
 
-        {loading && (
-          <LoadingSkeleton variant="detail" />
-        )}
+        {loading && <LoadingSkeleton variant="detail" />}
 
         {error && !loading && (
           <div className="p-6 text-center">
             <span className="text-5xl block mb-4">😕</span>
-            <p className="text-lg font-medium text-red-500 dark:text-red-400">
-              {error}
-            </p>
+            <p className="text-lg font-medium text-red-500 dark:text-red-400">{error}</p>
             <button
               onClick={fetchDetail}
               className="mt-4 px-4 py-2 rounded-lg bg-purple-600 text-white font-medium hover:bg-purple-700 transition-colors"
@@ -155,15 +145,11 @@ export default function GalleryDetailPanel({
               )}
             </div>
 
-            {/* Download status */}
             <div className="flex items-center justify-between mb-4">
               <StatusBadge status={downloadStatus} size="md" />
-              <span className="text-sm text-gray-500 dark:text-gray-400">
-                {detail.num_pages} pages
-              </span>
+              <span className="text-sm text-gray-500 dark:text-gray-400">{detail.num_pages} pages</span>
             </div>
 
-            {/* Title */}
             <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-2">
               {detail.title.pretty}
             </h2>
@@ -223,9 +209,7 @@ export default function GalleryDetailPanel({
               </div>
               <div className="flex justify-between">
                 <span>Uploaded</span>
-                <span className="font-medium text-gray-900 dark:text-gray-100">
-                  {formatDate(detail.upload_date)}
-                </span>
+                <span className="font-medium text-gray-900 dark:text-gray-100">{formatDate(detail.upload_date)}</span>
               </div>
               <div className="flex justify-between">
                 <span>Favorites</span>
@@ -258,9 +242,7 @@ export default function GalleryDetailPanel({
 
               <button
                 onClick={() => {
-                  if (!isInLibrary) {
-                    onAddToQueue(galleryId)
-                  }
+                  if (!isInLibrary) onAddToQueue(galleryId)
                 }}
                 disabled={isInLibrary}
                 className="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"

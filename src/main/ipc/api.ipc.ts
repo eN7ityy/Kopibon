@@ -1,18 +1,16 @@
 import { ipcMain } from 'electron'
-import { getApiClient, type SearchParams } from '../services/api-client'
+import { getApiClient } from '../services/api-client'
 
 export function registerApiIpc(): void {
   const client = getApiClient()
 
   ipcMain.handle(
     'api:search',
-    async (_event, query: string, options?: { page?: number; sort?: string; language?: string; category?: string }) => {
+    async (_event, query: string, options?: { page?: number; sort?: string }) => {
       try {
         const results = await client.searchGalleries(query, {
           page: options?.page,
-          sort: options?.sort as SearchParams['sort'],
-          language: options?.language,
-          category: options?.category
+          sort: options?.sort as 'date' | 'popular' | 'popular-today' | 'popular-week' | 'popular-month' | undefined
         })
         return { success: true, data: results }
       } catch (error) {
@@ -53,10 +51,6 @@ export function registerApiIpc(): void {
     return { success: true }
   })
 
-  /**
-   * Get paginated favorites for the authenticated user.
-   * Requires a valid API key.
-   */
   ipcMain.handle('api:getFavorites', async (_event, page: number, query?: string) => {
     try {
       const results = await client.getFavorites(page, query)
@@ -66,10 +60,6 @@ export function registerApiIpc(): void {
     }
   })
 
-  /**
-   * Get user profile — used to validate a key from the renderer without
-   * the full auth:validateKey flow (e.g., checking a key that was already saved).
-   */
   ipcMain.handle('api:getUser', async () => {
     try {
       const user = await client.getUser()

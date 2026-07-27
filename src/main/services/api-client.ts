@@ -1,73 +1,85 @@
 import { RateLimiter } from './rate-limiter'
 
-// ─── Types ───────────────────────────────────────────────────────────────────
+// ─── Types (matching openapi_documentation.json) ─────────────────────────────
 
 export interface SearchParams {
   query: string
   page?: number
-  sort?: 'recent' | 'popular' | 'popular-today' | 'popular-week' | 'popular-month' | 'popular-year'
-  language?: string
-  category?: string
+  sort?: 'date' | 'popular' | 'popular-today' | 'popular-week' | 'popular-month'
 }
 
-export interface SearchResult {
+export interface GalleryListItem {
   id: number
   media_id: string
-  title: {
-    english: string
-    japanese: string | null
-    pretty: string
-  }
-  images: {
-    cover: { t: string; w: number; h: number }
-    pages: Array<{ t: string; w: number; h: number }>
-    thumbnail: { t: string; w: number; h: number }
-  }
+  english_title: string
+  japanese_title: string | null
+  thumbnail: string
+  thumbnail_width: number
+  thumbnail_height: number
   num_pages: number
   num_favorites: number
-  upload_date: number
-  tags: Array<{
-    id: number
-    type: string
-    name: string
-    url: string
-  }>
+  tag_ids: number[]
+  blacklisted: boolean
 }
 
 export interface SearchResponse {
-  result: SearchResult[]
+  result: GalleryListItem[]
   num_pages: number
   per_page: number
+  total?: number | null
+}
+
+export interface CoverInfo {
+  path: string
+  width: number
+  height: number
+}
+
+export interface PageInfo {
+  number: number
+  path: string
+  width: number
+  height: number
+  thumbnail: string
+  thumbnail_width: number
+  thumbnail_height: number
+}
+
+export interface TagResponse {
+  id: number
+  type: string
+  name: string
+  slug: string
+  url: string
+  count: number
+  description?: string | null
+  is_community?: boolean | null
+  pending_describe_id?: string | null
+}
+
+export interface GalleryTitle {
+  english: string
+  japanese: string | null
+  pretty: string
 }
 
 export interface GalleryDetail {
   id: number
   media_id: string
-  title: {
-    english: string
-    japanese: string | null
-    pretty: string
-  }
-  images: {
-    cover: { t: string; w: number; h: number }
-    pages: Array<{ t: string; w: number; h: number }>
-    thumbnail: { t: string; w: number; h: number }
-  }
+  title: GalleryTitle
+  cover: CoverInfo
+  thumbnail: CoverInfo
   scanlator: string
   upload_date: number
-  tags: Array<{
-    id: number
-    type: string
-    name: string
-    url: string
-  }>
+  tags: TagResponse[]
   num_pages: number
   num_favorites: number
+  pages: PageInfo[]
 }
 
 export interface CdnConfig {
-  image_server: string
-  servers: string[]
+  image_servers: string[]
+  thumb_servers: string[]
 }
 
 export interface ApiConfig {
@@ -81,7 +93,7 @@ export interface UserProfile {
 }
 
 export interface FavoritesResponse {
-  result: SearchResult[]
+  result: GalleryListItem[]
   num_pages: number
   per_page: number
 }
@@ -123,7 +135,6 @@ export class ApiClient {
 
     if (!response.ok) {
       if (response.status === 429) {
-        // Rate limited — wait and retry once
         await new Promise((r) => setTimeout(r, 5000))
         await this.rateLimiter.acquire()
         const retryResponse = await fetch(url, { headers: this.getHeaders() })
@@ -145,9 +156,7 @@ export class ApiClient {
     const params = new URLSearchParams()
     params.set('query', query)
     if (options.page) params.set('page', String(options.page))
-    if (options.sort) params.set('sort', options.sort)
-    if (options.language) params.set('language', options.language)
-    if (options.category) params.set('category', options.category)
+    if (options.sort && options.sort !== 'date') params.set('sort', options.sort)
 
     return this.request<SearchResponse>(`/search?${params.toString()}`)
   }
@@ -157,7 +166,6 @@ export class ApiClient {
   }
 
   async getCdnConfig(): Promise<CdnConfig> {
-    // Cache for 1 hour
     const now = Date.now()
     if (this.cdnConfig && now - this.cdnConfigFetchedAt < 3_600_000) {
       return this.cdnConfig
@@ -172,18 +180,10 @@ export class ApiClient {
     return this.request<ApiConfig>('/config')
   }
 
-  /**
-   * Get user profile — used to validate an API key.
-   * Requires a valid API key to be set.
-   */
   async getUser(): Promise<UserProfile> {
     return this.request<UserProfile>('/user')
   }
 
-  /**
-   * Get paginated favorites list for the authenticated user.
-   * Requires a valid API key to be set.
-   */
   async getFavorites(page = 1, query?: string): Promise<FavoritesResponse> {
     const params = new URLSearchParams()
     params.set('page', String(page))
@@ -192,21 +192,35 @@ export class ApiClient {
   }
 
   /**
-   * Build the image URL for a given gallery page.
+   * Build the image URL for a given gallery page using the first image server.
    */
-  async getImageUrl(galleryId: number, pageNumber: number, imageType: string): Promise<string> {
+  async getImageUrl(
+    mediaId: string,
+    pageNumber: number,
+    pagePath: string
+  ): Promise<string> {
     const cdn = await this.getCdnConfig()
-    const server = cdn.image_server || cdn.servers[0]
-    return `https://${server}/galleries/${galleryId}/${pageNumber}.${imageType}`
+    const server = cdn.image_servers[0]
+    // pagePath is like "1234.jpg" but we use the page number + extension from path
+    const ext = pagePath.split('.').pop() || 'jpg'
+    return `https://${server}/galleries/${mediaId}/${pageNumber}.${ext}`
   }
 
   /**
-   * Build the thumbnail URL for a given gallery.
+   * Build the thumbnail URL using the first thumb server.
    */
-  async getThumbnailUrl(galleryId: number, imageType: string): Promise<string> {
-    const cdn = await this.getCdnConfig()
-    const server = cdn.image_server || cdn.servers[0]
-    return `https://${server}/galleries/${galleryId}/thumb.${imageType}`
+  getThumbnailUrl(_mediaId: string, thumbPath: string): string {
+    // thumbnail field from GalleryListItem is a full URL or needs server prefix
+    // The API returns thumbnail as a URL path like "galleries/{media_id}/thumb.jpg"
+    // We construct: https://t{n}.nhentai.net/{path}
+    return `https://t.nhentai.net/${thumbPath}`
+  }
+
+  /**
+   * Build the cover URL using the first thumb server.
+   */
+  getCoverUrl(_mediaId: string, coverPath: string): string {
+    return `https://t.nhentai.net/${coverPath}`
   }
 }
 

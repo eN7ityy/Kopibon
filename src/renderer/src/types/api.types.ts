@@ -1,100 +1,82 @@
-// ─── nhentai API Response Types (shared with renderer) ──────────────────────
+// ─── nhentai API Response Types (matching openapi_documentation.json) ───────
 
-export interface SearchResult {
+export interface GalleryListItem {
   id: number
   media_id: string
-  title: {
-    english: string
-    japanese: string | null
-    pretty: string
-  }
-  images?: {
-    cover?: { t: string; w: number; h: number }
-    pages?: Array<{ t: string; w: number; h: number }>
-    thumbnail?: { t: string; w: number; h: number }
-  }
+  english_title: string
+  japanese_title: string | null
+  thumbnail: string
+  thumbnail_width: number
+  thumbnail_height: number
   num_pages: number
   num_favorites: number
-  upload_date: number
-  tags?: Array<{
-    id: number
-    type: string
-    name: string
-    url: string
-  }>
+  tag_ids: number[]
+  blacklisted: boolean
 }
 
 export interface SearchResponse {
-  result: SearchResult[]
+  result: GalleryListItem[]
   num_pages: number
   per_page: number
+  total?: number | null
+}
+
+export interface CoverInfo {
+  path: string
+  width: number
+  height: number
+}
+
+export interface PageInfo {
+  number: number
+  path: string
+  width: number
+  height: number
+  thumbnail: string
+  thumbnail_width: number
+  thumbnail_height: number
+}
+
+export interface TagResponse {
+  id: number
+  type: string
+  name: string
+  slug: string
+  url: string
+  count: number
+}
+
+export interface GalleryTitle {
+  english: string
+  japanese: string | null
+  pretty: string
 }
 
 export interface GalleryDetail {
   id: number
   media_id: string
-  title: {
-    english: string
-    japanese: string | null
-    pretty: string
-  }
-  images: {
-    cover: { t: string; w: number; h: number }
-    pages: Array<{ t: string; w: number; h: number }>
-    thumbnail: { t: string; w: number; h: number }
-  }
+  title: GalleryTitle
+  cover: CoverInfo
+  thumbnail: CoverInfo
   scanlator: string
   upload_date: number
-  tags: Array<{
-    id: number
-    type: string
-    name: string
-    url: string
-  }>
+  tags: TagResponse[]
   num_pages: number
   num_favorites: number
+  pages: PageInfo[]
 }
 
 export interface CdnConfig {
-  image_server: string
-  servers: string[]
-}
-
-export interface SearchParams {
-  query: string
-  page?: number
-  sort?: 'recent' | 'popular' | 'popular-today' | 'popular-week' | 'popular-month' | 'popular-year'
-  language?: string
-  category?: string
+  image_servers: string[]
+  thumb_servers: string[]
 }
 
 export const SORT_OPTIONS = [
-  { value: 'recent', label: 'Recent' },
+  { value: '', label: 'Date' },
   { value: 'popular', label: 'Popular (All-Time)' },
   { value: 'popular-today', label: 'Popular (Today)' },
   { value: 'popular-week', label: 'Popular (Week)' },
-  { value: 'popular-month', label: 'Popular (Month)' },
-  { value: 'popular-year', label: 'Popular (Year)' }
-] as const
-
-export const LANGUAGE_OPTIONS = [
-  { value: '', label: 'Any' },
-  { value: 'english', label: 'English' },
-  { value: 'japanese', label: 'Japanese' },
-  { value: 'chinese', label: 'Chinese' }
-] as const
-
-export const CATEGORY_OPTIONS = [
-  { value: '', label: 'Any' },
-  { value: 'doujinshi', label: 'Doujinshi' },
-  { value: 'manga', label: 'Manga' },
-  { value: 'artist-cg', label: 'Artist CG' },
-  { value: 'game-cg', label: 'Game CG' },
-  { value: 'imageset', label: 'Imageset' },
-  { value: 'cosplay', label: 'Cosplay' },
-  { value: 'asian-porn', label: 'Asian Porn' },
-  { value: 'western', label: 'Western' },
-  { value: 'non-h', label: 'Non-H' }
+  { value: 'popular-month', label: 'Popular (Month)' }
 ] as const
 
 export type DownloadStatus = 'not_downloaded' | 'in_library' | 'queued' | 'downloading' | 'completed' | 'failed'

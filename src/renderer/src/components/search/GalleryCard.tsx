@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import type { SearchResult, DownloadStatus } from '../../types/api.types'
+import type { GalleryListItem, DownloadStatus } from '../../types/api.types'
 import StatusBadge from '../shared/StatusBadge'
 
 interface GalleryCardProps {
-  gallery: SearchResult
+  gallery: GalleryListItem
   downloadStatus: DownloadStatus
   onClick: (id: number) => void
 }
@@ -15,26 +15,13 @@ export default function GalleryCard({
 }: GalleryCardProps): React.JSX.Element {
   const [imgError, setImgError] = useState(false)
 
-  const mediaId = gallery.media_id ?? String(gallery.id)
-  const title = gallery.title?.pretty ?? `#${gallery.id}`
+  const title = gallery.english_title || gallery.japanese_title || `#${gallery.id}`
 
-  // Build cover thumbnail URL from the gallery data
-  const coverUrl = gallery.images?.cover
-    ? `https://t.nhentai.net/galleries/${mediaId}/cover.${gallery.images.cover.t}`
+  // Thumbnail: the API returns a path like "galleries/{media_id}/thumb.jpg"
+  // We prefix with the standard thumbnail CDN base
+  const thumbUrl = gallery.thumbnail
+    ? `https://t.nhentai.net/${gallery.thumbnail}`
     : null
-
-  // Build thumbnail fallback
-  const thumbUrl = gallery.images?.thumbnail
-    ? `https://t.nhentai.net/galleries/${mediaId}/thumb.${gallery.images.thumbnail.t}`
-    : null
-
-  const tags = gallery.tags ?? []
-  const artistNames = tags
-    .filter((t) => t.type === 'artist')
-    .map((t) => t.name)
-    .join(', ')
-
-  const languageTag = tags.find((t) => t.type === 'language')
 
   return (
     <button
@@ -44,15 +31,7 @@ export default function GalleryCard({
     >
       {/* Cover image */}
       <div className="aspect-[3/4] bg-gray-200 dark:bg-gray-700 relative overflow-hidden">
-        {coverUrl && !imgError ? (
-          <img
-            src={coverUrl}
-            alt={title}
-            loading="lazy"
-            onError={() => setImgError(true)}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-          />
-        ) : thumbUrl && !imgError ? (
+        {thumbUrl && !imgError ? (
           <img
             src={thumbUrl}
             alt={title}
@@ -68,15 +47,8 @@ export default function GalleryCard({
 
         {/* Page count badge */}
         <span className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-1.5 py-0.5 rounded font-medium">
-          {gallery.num_pages}p
+          {gallery.num_pages || 0}p
         </span>
-
-        {/* Language badge */}
-        {languageTag && (
-          <span className="absolute top-2 left-2 bg-purple-600/90 text-white text-xs px-1.5 py-0.5 rounded font-medium">
-            {languageTag.name}
-          </span>
-        )}
       </div>
 
       {/* Info section */}
@@ -86,16 +58,11 @@ export default function GalleryCard({
           {title}
         </h3>
 
-        {/* Artist */}
-        {artistNames && (
-          <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{artistNames}</p>
-        )}
-
         {/* Status badge */}
         <div className="flex items-center justify-between pt-1">
           <StatusBadge status={downloadStatus} size="sm" />
           <span className="text-xs text-gray-400 dark:text-gray-500">
-            {gallery.num_pages} pages
+            {gallery.num_pages || 0} pages
           </span>
         </div>
       </div>
