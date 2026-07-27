@@ -7,6 +7,7 @@ import { registerApiIpc } from './ipc/api.ipc'
 import { registerDownloadIpc } from './ipc/download.ipc'
 import { registerLibraryIpc } from './ipc/library.ipc'
 import { registerSettingsIpc } from './ipc/settings.ipc'
+import { registerAuthIpc, restoreAuthFromDb } from './ipc/auth.ipc'
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -57,6 +58,10 @@ app.whenReady().then(() => {
   registerDownloadIpc()
   registerLibraryIpc()
   registerSettingsIpc()
+  registerAuthIpc()
+
+  // Restore any previously-validated API key from the DB
+  restoreAuthFromDb()
 
   createWindow()
 

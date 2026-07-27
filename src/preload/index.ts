@@ -11,6 +11,22 @@ const api = {
   getCdnConfig: () => ipcRenderer.invoke('api:getCdnConfig'),
   getApiConfig: () => ipcRenderer.invoke('api:getConfig'),
   setApiKey: (key: string | null) => ipcRenderer.invoke('api:setApiKey', key),
+  getFavorites: (page: number, query?: string) =>
+    ipcRenderer.invoke('api:getFavorites', page, query),
+  getUser: () => ipcRenderer.invoke('api:getUser'),
+
+  // Auth
+  auth: {
+    validateKey: (key: string) => ipcRenderer.invoke('auth:validateKey', key),
+    getAuthStatus: () => ipcRenderer.invoke('auth:getAuthStatus'),
+    setKey: (key: string) => ipcRenderer.invoke('auth:setKey', key),
+    clearKey: () => ipcRenderer.invoke('auth:clearKey')
+  },
+
+  // Shell
+  shell: {
+    openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', url)
+  },
 
   // Downloads
   downloads: {

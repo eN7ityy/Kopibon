@@ -74,6 +74,18 @@ export interface ApiConfig {
   max_requests_per_minute: number
 }
 
+export interface UserProfile {
+  id: number
+  username: string
+  email: string | null
+}
+
+export interface FavoritesResponse {
+  result: SearchResult[]
+  num_pages: number
+  per_page: number
+}
+
 // ─── Client ─────────────────────────────────────────────────────────────────
 
 const BASE_URL = 'https://nhentai.net/api/v2'
@@ -156,6 +168,25 @@ export class ApiClient {
 
   async getConfig(): Promise<ApiConfig> {
     return this.request<ApiConfig>('/config')
+  }
+
+  /**
+   * Get user profile — used to validate an API key.
+   * Requires a valid API key to be set.
+   */
+  async getUser(): Promise<UserProfile> {
+    return this.request<UserProfile>('/user')
+  }
+
+  /**
+   * Get paginated favorites list for the authenticated user.
+   * Requires a valid API key to be set.
+   */
+  async getFavorites(page = 1, query?: string): Promise<FavoritesResponse> {
+    const params = new URLSearchParams()
+    params.set('page', String(page))
+    if (query) params.set('query', query)
+    return this.request<FavoritesResponse>(`/user/favorites?${params.toString()}`)
   }
 
   /**

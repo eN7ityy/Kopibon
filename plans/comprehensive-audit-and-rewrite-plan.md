@@ -98,16 +98,16 @@ The rewrite is a **lightweight, focused download tool for doujinshi** — not a 
 ### 3.1 Endpoint Usage (Prioritized)
 
 ```
-CORE (always used, no auth required):
+CORE (always built in, login optional for use):
 ├── GET /api/v2/galleries/{id}        → Gallery detail with tags, pages, metadata
 ├── GET /api/v2/cdn                   → Image server list
 ├── GET /api/v2/search                → Text search with filters
-└── GET /api/v2/config                → Rate limit awareness
+├── GET /api/v2/config                → Rate limit awareness
+├── GET /api/v2/user                  → Validate key, show profile (built always, login optional)
+└── GET /api/v2/user/favorites        → Paginated favorites list (built always, login optional)
 
-ENHANCED (available when API key configured):
-├── GET /api/v2/user                  → Validate key, show profile
-├── GET /api/v2/user/favorites        → Paginated favorites list
-├── POST/DELETE /api/v2/user/favorites/{id} → Sync favorites
+ENHANCED (requires API key, implemented when needed):
+├── POST/DELETE /api/v2/user/favorites/{id} → Sync favorites (future)
 └── GET /api/v2/galleries/{id}/related → Discovery
 
 OPTIONAL (nice-to-have):
@@ -540,15 +540,17 @@ doujin-downloader/
 │             │                                            │
 │  🔍 Search  │         Content Area                       │
 │  📚 Library │         (Search, Library,                   │
-│  ⬇️ Queue   │          Gallery Detail,                    │
-│  ⚙️ Settings│          Settings)                          │
-│             │                                            │
+│  ⭐ Favorites│          Favorites, Gallery Detail,         │
+│  ⬇️ Queue   │          Downloads, Settings)               │
+│  ⚙️ Settings│                                            │
 │             │                                            │
 │             │                                            │
 ├─────────────┴────────────────────────────────────────────┤
-│  ⬇️ 2 active · 5 queued · 1,234 in library               │
+│  ⬇️ 2 active · 5 queued · 1,234 in library  nhentai.net ↗│
 └──────────────────────────────────────────────────────────┘
 ```
+
+Favorites is conditionally shown in the sidebar only when the user is logged in with a valid API key. The rest of the app functions fully without authentication — search, download, library, and settings all work anonymously.
 
 ### 6.2 Primary Views
 
@@ -815,6 +817,8 @@ At read time, the library scanner extracts the ID by regex-matching `nhentai:(\d
 
 | Task | Description |
 |------|-------------|
+| P2.0a | Login UI: Settings page "Nhentai Account" section with API key input, validate-and-save via `GET /api/v2/user`, green/red status, clear button. Auth IPC handlers and preload exposure |
+| P2.0b | Favorites page: gallery grid matching SearchPage pattern, paginated via `GET /api/v2/user/favorites?page={n}`, search-within-favorites, conditional sidebar item (only when logged in), `/favorites` route with auth guard |
 | P2.1 | Search page: search bar, gallery grid, infinite scroll, gallery cards with download status |
 | P2.2 | Gallery detail panel: metadata display, tag chips, download button |
 | P2.3 | Download manager: queue persistence, concurrent downloads (configurable slots), per-page retry with CDN rotation |
@@ -906,6 +910,7 @@ At read time, the library scanner extracts the ID by regex-matching `nhentai:(\d
 | 1 | Concurrent download slots | 3 simultaneous downloads, each with up to 3 parallel page fetches. Total: 9 concurrent CDN connections max. CDN requests do not consume API rate limit; API calls (metadata fetch, search) are rate-limited separately via token bucket. |
 | 2 | PDF naming convention | `[nhentai-{id}] {safe_title}.pdf`. The title is truncated at 120 characters (leaving room for the ID prefix, extension, and directory path) to stay within filesystem limits. The truncation preserves whole words where possible and appends no ellipsis — it simply cuts at the last space before the limit. |
 | 3 | Library path | Default: `/mnt/bragi/Kavita/Doujins/`. App data (SQLite database, settings, download temp files, logs) stored separately at `~/.config/doujin-downloader/` following the XDG Base Directory Specification. |
+| 4 | Login is always built, never required | The app has full login/auth capability built into the codebase (API client, rate limiter, IPC handlers, settings UI), but never requires a key for basic usage. Search, download, and library all work anonymously. Favorites tab is hidden from the sidebar when not logged in. The validated key is stored in `app_settings` table as `nhentai_api_key`. Rate limiter auto-upgrades from 30 req/min anonymous to the `/api/v2/config` value (default 60) when a key is present. |
 
 ## Part 12: All Questions Resolved
 

@@ -44,4 +44,30 @@ export function registerApiIpc(): void {
     client.setApiKey(key)
     return { success: true }
   })
+
+  /**
+   * Get paginated favorites for the authenticated user.
+   * Requires a valid API key.
+   */
+  ipcMain.handle('api:getFavorites', async (_event, page: number, query?: string) => {
+    try {
+      const results = await client.getFavorites(page, query)
+      return { success: true, data: results }
+    } catch (error) {
+      return { success: false, error: String(error) }
+    }
+  })
+
+  /**
+   * Get user profile — used to validate a key from the renderer without
+   * the full auth:validateKey flow (e.g., checking a key that was already saved).
+   */
+  ipcMain.handle('api:getUser', async () => {
+    try {
+      const user = await client.getUser()
+      return { success: true, data: user }
+    } catch (error) {
+      return { success: false, error: String(error) }
+    }
+  })
 }

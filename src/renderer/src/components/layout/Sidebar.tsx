@@ -1,27 +1,38 @@
 import { NavLink, useLocation } from 'react-router-dom'
 import { useEffect } from 'react'
 import { useUiStore } from '../../stores/ui.store'
+import { useAuthStore } from '../../stores/auth.store'
 
 interface NavItem {
   to: string
   label: string
   icon: string
+  requiresAuth?: boolean
 }
 
 const navItems: NavItem[] = [
   { to: '/search', label: 'Search', icon: '🔍' },
   { to: '/library', label: 'Library', icon: '📚' },
+  { to: '/favorites', label: 'Favorites', icon: '⭐', requiresAuth: true },
   { to: '/downloads', label: 'Downloads', icon: '⬇️' },
   { to: '/settings', label: 'Settings', icon: '⚙️' }
 ]
 
 export default function Sidebar(): React.JSX.Element {
   const { sidebarCollapsed, setActiveRoute, theme, setTheme } = useUiStore()
+  const auth = useAuthStore()
   const location = useLocation()
 
   useEffect(() => {
     setActiveRoute(location.pathname)
   }, [location.pathname, setActiveRoute])
+
+  // Load auth status on mount
+  useEffect(() => {
+    if (!auth.loaded) {
+      auth.loadAuthFromMain()
+    }
+  }, [auth])
 
   const cycleTheme = (): void => {
     const order: Array<'light' | 'dark' | 'system'> = ['light', 'dark', 'system']
@@ -49,22 +60,24 @@ export default function Sidebar(): React.JSX.Element {
 
       {/* Navigation */}
       <nav className="flex-1 py-4 space-y-1 px-2">
-        {navItems.map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                isActive
-                  ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
-                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-800'
-              }`
-            }
-          >
-            <span className="text-xl flex-shrink-0">{item.icon}</span>
-            {!sidebarCollapsed && <span className="truncate">{item.label}</span>}
-          </NavLink>
-        ))}
+        {navItems
+          .filter((item) => !item.requiresAuth || auth.loggedIn)
+          .map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                  isActive
+                    ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
+                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-800'
+                }`
+              }
+            >
+              <span className="text-xl flex-shrink-0">{item.icon}</span>
+              {!sidebarCollapsed && <span className="truncate">{item.label}</span>}
+            </NavLink>
+          ))}
       </nav>
 
       {/* Theme Toggle */}

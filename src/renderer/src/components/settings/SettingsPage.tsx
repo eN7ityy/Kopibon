@@ -1,11 +1,55 @@
+import { useState, useEffect } from 'react'
 import { useSettingsStore } from '../../stores/settings.store'
 import { useUiStore } from '../../stores/ui.store'
+import { useAuthStore } from '../../stores/auth.store'
 import type { ThemeMode } from '../../stores/ui.store'
 import type { OutputFormat } from '../../stores/settings.store'
+
+type ValidationState =
+  | { status: 'idle' }
+  | { status: 'validating' }
+  | { status: 'valid'; username: string }
+  | { status: 'invalid'; error: string }
 
 export default function SettingsPage(): React.JSX.Element {
   const settings = useSettingsStore()
   const ui = useUiStore()
+  const auth = useAuthStore()
+
+  const [keyInput, setKeyInput] = useState('')
+  const [validation, setValidation] = useState<ValidationState>({ status: 'idle' })
+
+  // Load the current key from the store on mount
+  useEffect(() => {
+    if (settings.apiKey) {
+      setKeyInput(settings.apiKey)
+      if (auth.loggedIn && auth.username) {
+        setValidation({ status: 'valid', username: auth.username })
+      }
+    }
+  }, [settings.apiKey, auth.loggedIn, auth.username])
+
+  const handleValidateAndSave = async (): Promise<void> => {
+    if (!keyInput.trim()) return
+    setValidation({ status: 'validating' })
+
+    const result = await window.api.auth.validateKey(keyInput.trim())
+    if (result.success) {
+      setValidation({ status: 'valid', username: result.data.username })
+      settings.setApiKey(keyInput.trim())
+      auth.setAuth(true, result.data.username)
+    } else {
+      setValidation({ status: 'invalid', error: result.error || 'Invalid API key' })
+    }
+  }
+
+  const handleClearKey = async (): Promise<void> => {
+    await window.api.auth.clearKey()
+    setKeyInput('')
+    setValidation({ status: 'idle' })
+    settings.setApiKey(null)
+    auth.clearAuth()
+  }
 
   return (
     <div className="flex flex-col h-full max-w-2xl">
@@ -38,23 +82,61 @@ export default function SettingsPage(): React.JSX.Element {
           </div>
         </section>
 
-        {/* API */}
+        {/* Nhentai Account */}
         <section>
-          <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-3">API</h2>
+          <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-3">
+            Nhentai Account
+          </h2>
           <div className="space-y-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                API Key (optional)
+                API Key
               </label>
-              <input
-                type="password"
-                value={settings.apiKey ?? ''}
-                onChange={(e) => settings.setApiKey(e.target.value || null)}
-                placeholder="Enter nhentai API key for higher rate limits"
-                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500"
-              />
+              <div className="flex gap-2">
+                <input
+                  type="password"
+                  value={keyInput}
+                  onChange={(e) => {
+                    setKeyInput(e.target.value)
+                    if (validation.status !== 'idle') setValidation({ status: 'idle' })
+                  }}
+                  placeholder="Enter your nhentai API key"
+                  className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                />
+                <button
+                  onClick={handleValidateAndSave}
+                  disabled={validation.status === 'validating' || !keyInput.trim()}
+                  className="px-4 py-2 rounded-lg bg-purple-600 text-white font-medium hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {validation.status === 'validating' ? 'Validating...' : 'Validate & Save'}
+                </button>
+              </div>
+
+              {/* Validation result */}
+              {validation.status === 'valid' && (
+                <p className="mt-2 text-sm text-green-600 dark:text-green-400 flex items-center gap-1">
+                  <span>✓</span>
+                  <span>Connected as {validation.username}</span>
+                </p>
+              )}
+              {validation.status === 'invalid' && (
+                <p className="mt-2 text-sm text-red-600 dark:text-red-400 flex items-center gap-1">
+                  <span>✗</span>
+                  <span>{validation.error}</span>
+                </p>
+              )}
+
+              {validation.status === 'valid' && (
+                <button
+                  onClick={handleClearKey}
+                  className="mt-2 text-sm text-red-600 dark:text-red-400 hover:underline"
+                >
+                  Clear Key
+                </button>
+              )}
+
               <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
-                Increases rate limits from 30 to higher tier
+                Login is optional. Provides access to favorites and higher rate limits.
               </p>
             </div>
           </div>
