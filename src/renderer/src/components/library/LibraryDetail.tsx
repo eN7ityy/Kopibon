@@ -42,6 +42,7 @@ export default function LibraryDetail({
   const [saving, setSaving] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState<'none' | 'remove' | 'deleteFile'>('none')
   const [deleting, setDeleting] = useState(false)
+  const [thumbDataUrl, setThumbDataUrl] = useState<string | null>(null)
 
   // Autocomplete suggestions for tags
   const [tagSuggestions, setTagSuggestions] = useState<string[]>([])
@@ -56,6 +57,13 @@ export default function LibraryDetail({
       setEditing(false)
       setDeleteConfirm('none')
       setTagInput('')
+      // Fetch thumbnail
+      setThumbDataUrl(null)
+      if (item.customCoverPath) {
+        window.api.library.getThumbnail(item.id).then((r) => {
+          if (r.success && r.data) setThumbDataUrl(r.data)
+        }).catch(() => {})
+      }
     }
   }, [item])
 
@@ -64,9 +72,9 @@ export default function LibraryDetail({
   const fetchTagSuggestions = useCallback(async (query: string) => {
     if (!query.trim()) { setTagSuggestions([]); setShowTagSuggestions(false); return }
     try {
-      const result = await window.api.library.autocompleteArtists(query)
+      const result = await window.api.library.autocompleteTags(query)
       if (result.success && Array.isArray(result.data)) {
-        const names = (result.data as string[]).slice(0, 5)
+        const names = (result.data as string[]).slice(0, 8)
         setTagSuggestions(names)
         setShowTagSuggestions(names.length > 0)
       }
@@ -137,9 +145,9 @@ export default function LibraryDetail({
         </div>
 
         <div className="px-6 py-4 space-y-6">
-          {item.customCoverPath && (
+          {thumbDataUrl && (
             <div className="aspect-[3/4] max-w-[200px] mx-auto rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-700">
-              <img src={`file://${item.customCoverPath}`} alt={item.customTitle || 'Cover'} className="w-full h-full object-cover" />
+              <img src={thumbDataUrl} alt={item.customTitle || 'Cover'} className="w-full h-full object-cover" />
             </div>
           )}
 

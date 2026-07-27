@@ -150,6 +150,14 @@ export const libraryRepo = {
     return Array.from(tagSet).sort()
   },
 
+  autocompleteTags(query: string): string[] {
+    const allNames = this.getAllTagNames()
+    const lower = query.toLowerCase()
+    return allNames
+      .filter((name) => name.toLowerCase().includes(lower))
+      .slice(0, 10)
+  },
+
   // ─── Autocomplete ─────────────────────────────────────────────────
 
   autocompleteArtists(query: string): string[] {

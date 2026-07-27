@@ -73,6 +73,7 @@ const api = {
     reset: () => ipcRenderer.invoke('library:reset'),
     autocompleteArtists: (query: string) => ipcRenderer.invoke('library:autocompleteArtists', query),
     autocompleteSeries: (query: string) => ipcRenderer.invoke('library:autocompleteSeries', query),
+    autocompleteTags: (query: string) => ipcRenderer.invoke('library:autocompleteTags', query),
     assignSeries: (ids: number[], seriesName: string) =>
       ipcRenderer.invoke('library:assignSeries', ids, seriesName),
     delete: (id: number) => ipcRenderer.invoke('library:delete', id),

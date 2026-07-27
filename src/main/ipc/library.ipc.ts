@@ -173,6 +173,15 @@ export function registerLibraryIpc(): void {
     }
   })
 
+  ipcMain.handle('library:autocompleteTags', async (_event, query: string) => {
+    try {
+      const names = libraryRepo.autocompleteTags(query)
+      return { success: true, data: names }
+    } catch (error) {
+      return { success: false, error: String(error) }
+    }
+  })
+
   // ─── Series Assignment ─────────────────────────────────────────────
 
   ipcMain.handle('library:assignSeries', async (_event, ids: number[], seriesName: string) => {
