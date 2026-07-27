@@ -104,7 +104,7 @@ export function registerLibraryIpc(): void {
     }
 
     isScanning = true
-    const workerPath = pathJoin(__dirname, '../services/library-scanner.worker.js')
+    const workerPath = pathJoin(__dirname, 'services/library-scanner.worker.js')
     scanWorker = new Worker(workerPath)
 
     scanWorker.on('message', (msg: { type: string; current?: number; total?: number; status?: string; item?: { id: number; title: string; artist: string }; result?: { total: number; newItems: number; removedItems: number; errors: string[]; cancelled: boolean }; message?: string }) => {
