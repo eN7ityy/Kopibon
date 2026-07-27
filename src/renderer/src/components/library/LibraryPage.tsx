@@ -42,6 +42,7 @@ export default function LibraryPage(): React.JSX.Element {
 
   // Selection state (for batch operations)
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
+  const [, setSelectionTick] = useState(0) // version counter to force re-render on Set mutations
   const [selectMode, setSelectMode] = useState(false)
   const [showSeriesModal, setShowSeriesModal] = useState(false)
   const [showCustomForm, setShowCustomForm] = useState(false)
@@ -227,6 +228,7 @@ export default function LibraryPage(): React.JSX.Element {
       }
       return next
     })
+    setSelectionTick((t) => t + 1)
   }, [])
 
   const toggleSelectAll = () => {
@@ -235,6 +237,7 @@ export default function LibraryPage(): React.JSX.Element {
     } else {
       setSelectedIds(new Set(filteredItems.map((i) => i.id)))
     }
+    setSelectionTick((t) => t + 1)
   }
 
   // ─── Filtering & Sorting ───────────────────────────────────────────────────
@@ -451,7 +454,7 @@ export default function LibraryPage(): React.JSX.Element {
           <button
             onClick={() => {
               setSelectMode(!selectMode)
-              if (selectMode) setSelectedIds(new Set())
+              if (selectMode) { setSelectedIds(new Set()); setSelectionTick((t) => t + 1) }
             }}
             className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
               selectMode
