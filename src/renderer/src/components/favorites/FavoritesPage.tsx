@@ -1,33 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../stores/auth.store'
-
-interface SearchResult {
-  id: number
-  media_id: string
-  title: {
-    english: string
-    japanese: string | null
-    pretty: string
-  }
-  images: {
-    cover: { t: string; w: number; h: number }
-    pages: Array<{ t: string; w: number; h: number }>
-    thumbnail: { t: string; w: number; h: number }
-  }
-  num_pages: number
-  num_favorites: number
-  upload_date: number
-  tags: Array<{
-    id: number
-    type: string
-    name: string
-    url: string
-  }>
-}
+import type { GalleryListItem } from '../../types/api.types'
 
 interface FavoritesResponse {
-  result: SearchResult[]
+  result: GalleryListItem[]
   num_pages: number
   per_page: number
 }
@@ -78,20 +55,14 @@ export default function FavoritesPage(): React.JSX.Element {
     setPage(1)
   }
 
-  const getCoverUrl = (gallery: SearchResult): string => {
-    // Use the official nhentai CDN pattern
-    const ext = gallery.images.cover.t === 'j' ? 'jpg' : 'png'
-    return `https://i.nhentai.net/galleries/${gallery.media_id}/thumb.${ext}`
+  const getCoverUrl = (gallery: GalleryListItem): string => {
+    return gallery.thumbnail
+      ? `https://t.nhentai.net/${gallery.thumbnail}`
+      : ''
   }
 
-  const getArtistName = (gallery: SearchResult): string => {
-    const artistTag = gallery.tags.find((t) => t.type === 'artist')
-    return artistTag?.name ?? 'Unknown'
-  }
-
-  const getLanguageBadge = (gallery: SearchResult): string | null => {
-    const langTag = gallery.tags.find((t) => t.type === 'language')
-    return langTag?.name ?? null
+  const getTitle = (gallery: GalleryListItem): string => {
+    return gallery.english_title || gallery.japanese_title || `#${gallery.id}`
   }
 
   if (!auth.loaded) {
@@ -200,7 +171,7 @@ export default function FavoritesPage(): React.JSX.Element {
                 <div className="aspect-[3/4] overflow-hidden bg-gray-100 dark:bg-gray-900">
                   <img
                     src={getCoverUrl(gallery)}
-                    alt={gallery.title.pretty}
+                    alt={getTitle(gallery)}
                     draggable={false}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                     loading="lazy"
@@ -210,25 +181,15 @@ export default function FavoritesPage(): React.JSX.Element {
                 {/* Info overlay at bottom */}
                 <div className="p-2.5">
                   <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
-                    {gallery.title.pretty}
+                    {getTitle(gallery)}
                   </h3>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">
-                    {getArtistName(gallery)}
-                  </p>
                   <div className="flex items-center justify-between mt-1.5">
                     <span className="text-xs text-gray-400 dark:text-gray-500">
                       {gallery.num_pages}p
                     </span>
-                    <div className="flex items-center gap-1.5">
-                      {getLanguageBadge(gallery) && (
-                        <span className="text-[10px] uppercase px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
-                          {getLanguageBadge(gallery)}
-                        </span>
-                      )}
-                      <span className="text-xs text-gray-400 dark:text-gray-500">
-                        ★ {gallery.num_favorites}
-                      </span>
-                    </div>
+                    <span className="text-xs text-gray-400 dark:text-gray-500">
+                      ★ {gallery.num_favorites}
+                    </span>
                   </div>
                 </div>
               </div>
