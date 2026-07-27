@@ -267,10 +267,7 @@ function populateQueue(filePaths: string[]): void {
     for (const fp of filePaths) stmt.run(fp, 'pending')
   })
   tx()
-  log(`QUEUE populated ${filePaths.length} paths (${filePaths.filter(fp => {
-    const row = db!.prepare('SELECT status FROM scan_queue WHERE file_path = ?').get(fp) as { status: string } | undefined
-    return row?.status === 'pending'
-  }).length} new pending)`)
+  log(`QUEUE populated ${filePaths.length} paths`)
 }
 
 function resetPausedToPending(): void {
