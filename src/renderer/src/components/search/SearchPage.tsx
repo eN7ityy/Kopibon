@@ -1,92 +1,75 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import type { GalleryListItem, DownloadStatus } from '../../types/api.types'
+import type { DownloadStatus } from '../../types/api.types'
 import { SORT_OPTIONS } from '../../types/api.types'
+import { useSearchStore } from '../../stores/search.store'
 import GalleryGrid from './GalleryGrid'
 import LoadingSkeleton from '../shared/LoadingSkeleton'
 import EmptyState from '../shared/EmptyState'
 import ErrorState from '../shared/ErrorState'
 
-interface SearchState {
-  results: GalleryListItem[]
-  downloadStatuses: Map<number, DownloadStatus>
-  currentPage: number
-  totalPages: number
-  loading: boolean
-  loadingMore: boolean
-  error: string | null
-  rateLimited: boolean
-  rateLimitSeconds: number
-}
-
 export default function SearchPage(): React.JSX.Element {
-  const [query, setQuery] = useState('')
-  const [sort, setSort] = useState<string>('')
-
-  const [state, setState] = useState<SearchState>({
-    results: [],
-    downloadStatuses: new Map(),
-    currentPage: 0,
-    totalPages: 0,
-    loading: false,
-    loadingMore: false,
-    error: null,
-    rateLimited: false,
-    rateLimitSeconds: 0
-  })
-
+  const store = useSearchStore()
+  const [showFilters, setShowFilters] = useState(false)
   const rateLimitTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
+  // Track when sort changes to auto-search (skip initial mount)
+  const prevSortRef = useRef(store.sort)
+
+  // Cleanup rate limit timer
   useEffect(() => {
     return () => {
       if (rateLimitTimerRef.current) clearInterval(rateLimitTimerRef.current)
     }
   }, [])
 
+  // Rate limit countdown
   useEffect(() => {
-    if (state.rateLimited && state.rateLimitSeconds > 0) {
+    if (store.rateLimited && store.rateLimitSeconds > 0) {
       rateLimitTimerRef.current = setInterval(() => {
-        setState((prev) => {
-          const next = prev.rateLimitSeconds - 1
-          if (next <= 0) {
-            if (rateLimitTimerRef.current) clearInterval(rateLimitTimerRef.current)
-            return { ...prev, rateLimited: false, rateLimitSeconds: 0 }
-          }
-          return { ...prev, rateLimitSeconds: next }
-        })
+        store.decrementRateLimit()
       }, 1000)
     }
     return () => {
       if (rateLimitTimerRef.current) clearInterval(rateLimitTimerRef.current)
     }
-  }, [state.rateLimited])
+  }, [store.rateLimited])
+
+  // Auto-search when sort changes and query is non-empty
+  useEffect(() => {
+    if (prevSortRef.current !== store.sort && store.query.trim()) {
+      performSearch(1, false)
+    }
+    prevSortRef.current = store.sort
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [store.sort])
 
   const resolveDownloadStatuses = useCallback(
-    async (results: GalleryListItem[]): Promise<Map<number, DownloadStatus>> => {
+    async (ids: number[]): Promise<Map<number, DownloadStatus>> => {
       const statuses = new Map<number, DownloadStatus>()
 
       await Promise.all(
-        results.map(async (r) => {
+        ids.map(async (id) => {
           try {
-            const libResult = await window.api.library.getByGalleryId(r.id)
+            const libResult = await window.api.library.getByGalleryId(id)
             if (libResult.success && libResult.data) {
-              statuses.set(r.id, 'in_library')
+              statuses.set(id, 'in_library')
               return
             }
 
-            const dlResult = await window.api.downloads.getByGalleryId(r.id)
+            const dlResult = await window.api.downloads.getByGalleryId(id)
             if (dlResult.success && dlResult.data) {
               const dlStatus = dlResult.data.status
-              if (dlStatus === 'downloading') statuses.set(r.id, 'downloading')
-              else if (dlStatus === 'queued') statuses.set(r.id, 'queued')
-              else if (dlStatus === 'completed') statuses.set(r.id, 'completed')
-              else if (dlStatus === 'failed') statuses.set(r.id, 'failed')
-              else statuses.set(r.id, 'not_downloaded')
+              if (dlStatus === 'downloading') statuses.set(id, 'downloading')
+              else if (dlStatus === 'queued') statuses.set(id, 'queued')
+              else if (dlStatus === 'completed') statuses.set(id, 'completed')
+              else if (dlStatus === 'failed') statuses.set(id, 'failed')
+              else statuses.set(id, 'not_downloaded')
               return
             }
 
-            statuses.set(r.id, 'not_downloaded')
+            statuses.set(id, 'not_downloaded')
           } catch {
-            statuses.set(r.id, 'not_downloaded')
+            statuses.set(id, 'not_downloaded')
           }
         })
       )
@@ -98,68 +81,45 @@ export default function SearchPage(): React.JSX.Element {
 
   const performSearch = useCallback(
     async (page: number, append = false) => {
-      const trimmedQuery = query.trim()
+      const trimmedQuery = store.query.trim()
       if (!trimmedQuery) return
 
       if (page === 1) {
-        setState((prev) => ({ ...prev, loading: true, error: null, rateLimited: false }))
+        store.setLoading(true)
       } else {
-        setState((prev) => ({ ...prev, loadingMore: true, error: null }))
+        store.setLoadingMore(true)
       }
 
       try {
         const result = await window.api.search(trimmedQuery, {
           page,
-          sort: sort || undefined
+          sort: store.sort || undefined
         })
 
         if (result.success && result.data) {
           const data = result.data
-          const newResults = append ? [...state.results, ...data.result] : data.result
+          const newResults = append ? [...store.results, ...data.result] : data.result
 
-          const statuses = await resolveDownloadStatuses(newResults)
+          const statuses = await resolveDownloadStatuses(newResults.map((r) => r.id))
 
-          setState((prev) => ({
-            ...prev,
-            results: newResults,
-            downloadStatuses: statuses,
-            currentPage: data.num_pages > 0 ? page : 0,
-            totalPages: data.num_pages,
-            loading: false,
-            loadingMore: false,
-            error: null,
-            rateLimited: false
-          }))
+          if (append) {
+            store.appendResults(data.result, statuses, page)
+          } else {
+            store.setResults(data.result, statuses, page > 0 ? page : 0, data.num_pages)
+          }
         } else {
           const errorMsg = result.error || 'Search failed'
           if (errorMsg.includes('429') || errorMsg.toLowerCase().includes('rate')) {
-            setState((prev) => ({
-              ...prev,
-              loading: false,
-              loadingMore: false,
-              error: errorMsg,
-              rateLimited: true,
-              rateLimitSeconds: 60
-            }))
+            store.setRateLimited(60)
           } else {
-            setState((prev) => ({
-              ...prev,
-              loading: false,
-              loadingMore: false,
-              error: errorMsg
-            }))
+            store.setError(errorMsg)
           }
         }
       } catch (err) {
-        setState((prev) => ({
-          ...prev,
-          loading: false,
-          loadingMore: false,
-          error: err instanceof Error ? err.message : 'Search failed'
-        }))
+        store.setError(err instanceof Error ? err.message : 'Search failed')
       }
     },
-    [query, sort, state.results, resolveDownloadStatuses]
+    [store.query, store.sort, store.results, resolveDownloadStatuses]
   )
 
   const handleSearch = (e: React.FormEvent): void => {
@@ -168,8 +128,8 @@ export default function SearchPage(): React.JSX.Element {
   }
 
   const handleLoadMore = (): void => {
-    if (!state.loadingMore && state.currentPage < state.totalPages) {
-      performSearch(state.currentPage + 1, true)
+    if (!store.loadingMore && store.currentPage < store.totalPages) {
+      performSearch(store.currentPage + 1, true)
     }
   }
 
@@ -178,12 +138,18 @@ export default function SearchPage(): React.JSX.Element {
   }
 
   const handleRetry = (): void => {
-    performSearch(state.currentPage || 1, false)
+    performSearch(store.currentPage || 1, false)
   }
 
-  const hasResults = state.results.length > 0
-  const hasMorePages = state.currentPage < state.totalPages
-  const showLoadMore = hasResults && hasMorePages && !state.loading && !state.loadingMore
+  const handleSortChange = (newSort: string): void => {
+    store.setSort(newSort)
+    setShowFilters(false)
+  }
+
+  const hasResults = store.results.length > 0
+  const hasMorePages = store.currentPage < store.totalPages
+  const showLoadMore = hasResults && hasMorePages && !store.loading && !store.loadingMore
+  const currentSortLabel = SORT_OPTIONS.find((o) => o.value === store.sort)?.label ?? 'Date'
 
   return (
     <div className="flex flex-col h-full">
@@ -194,43 +160,86 @@ export default function SearchPage(): React.JSX.Element {
         </p>
       </div>
 
-      {/* Search bar + Sort */}
-      <form onSubmit={handleSearch} className="flex gap-2 mb-4">
+      {/* Search bar */}
+      <form onSubmit={handleSearch} className="flex gap-2 mb-3">
         <input
           type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          value={store.query}
+          onChange={(e) => store.setQuery(e.target.value)}
           placeholder="Search by title, artist, or tags..."
           className="flex-1 px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
         />
-        <select
-          value={sort}
-          onChange={(e) => setSort(e.target.value)}
-          className="px-3 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-1 focus:ring-purple-500"
+        <button
+          type="button"
+          onClick={() => setShowFilters(!showFilters)}
+          className={`px-3 py-2.5 rounded-lg border transition-colors ${
+            showFilters
+              ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400'
+              : 'border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+          }`}
+          title="Sort & Filters"
         >
-          {SORT_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+          </svg>
+        </button>
         <button
           type="submit"
-          disabled={state.loading}
+          disabled={store.loading}
           className="px-6 py-2.5 rounded-lg bg-purple-600 text-white font-medium hover:bg-purple-700 disabled:opacity-50 transition-colors"
         >
-          {state.loading ? 'Searching...' : 'Search'}
+          {store.loading ? 'Searching...' : 'Search'}
         </button>
       </form>
 
+      {/* Active sort indicator */}
+      {store.sort !== '' && (
+        <div className="mb-3 flex items-center gap-2">
+          <span className="text-xs text-gray-500 dark:text-gray-400">Sorting by:</span>
+          <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 font-medium">
+            {currentSortLabel}
+          </span>
+          <button
+            onClick={() => handleSortChange('')}
+            className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 ml-1"
+          >
+            ✕ reset
+          </button>
+        </div>
+      )}
+
+      {/* Filter panel */}
+      {showFilters && (
+        <div className="mb-4 p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700">
+          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">
+            Sort by
+          </label>
+          <div className="flex flex-wrap gap-2">
+            {SORT_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => handleSortChange(opt.value)}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                  store.sort === opt.value
+                    ? 'bg-purple-600 text-white'
+                    : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Rate limit overlay */}
-      {state.rateLimited && (
+      {store.rateLimited && (
         <div className="mb-4 p-3 rounded-lg bg-orange-100 dark:bg-orange-900/30 border border-orange-300 dark:border-orange-700 flex items-center gap-3">
           <span className="text-xl">⏱️</span>
           <div className="flex-1">
             <p className="text-sm font-medium text-orange-800 dark:text-orange-300">Rate Limited</p>
             <p className="text-xs text-orange-600 dark:text-orange-400">
-              Retrying in {state.rateLimitSeconds}s...
+              Retrying in {store.rateLimitSeconds}s...
             </p>
           </div>
         </div>
@@ -239,19 +248,19 @@ export default function SearchPage(): React.JSX.Element {
       {/* Content area */}
       <div className="flex-1 overflow-y-auto">
         {/* Loading skeleton */}
-        {state.loading && !hasResults && (
+        {store.loading && !hasResults && (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
             <LoadingSkeleton count={12} variant="card" />
           </div>
         )}
 
         {/* Error state */}
-        {state.error && !hasResults && !state.loading && (
-          <ErrorState message={state.error} onRetry={handleRetry} />
+        {store.error && !hasResults && !store.loading && (
+          <ErrorState message={store.error} onRetry={handleRetry} />
         )}
 
         {/* Initial empty state */}
-        {!state.loading && !state.error && !hasResults && state.currentPage === 0 && query.trim() === '' && (
+        {!store.loading && !store.error && !hasResults && store.totalPages === 0 && store.query.trim() === '' && (
           <div className="flex-1 flex items-center justify-center border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-xl">
             <div className="text-center text-gray-400 dark:text-gray-500">
               <span className="text-5xl block mb-3">🔍</span>
@@ -262,7 +271,7 @@ export default function SearchPage(): React.JSX.Element {
         )}
 
         {/* No results */}
-        {!state.loading && !state.error && state.currentPage === 0 && query.trim() !== '' && (
+        {!store.loading && !store.error && store.totalPages === 0 && store.query.trim() !== '' && (
           <EmptyState
             icon="🔍"
             title="No results found"
@@ -274,9 +283,9 @@ export default function SearchPage(): React.JSX.Element {
         {hasResults && (
           <div className="space-y-6">
             <GalleryGrid
-              galleries={state.results.map((g) => ({
+              galleries={store.results.map((g) => ({
                 gallery: g,
-                downloadStatus: state.downloadStatuses.get(g.id) ?? 'not_downloaded'
+                downloadStatus: (store.downloadStatuses[g.id] as DownloadStatus) ?? 'not_downloaded'
               }))}
               onGalleryClick={handleGalleryClick}
             />
@@ -292,7 +301,7 @@ export default function SearchPage(): React.JSX.Element {
               </div>
             )}
 
-            {state.loadingMore && (
+            {store.loadingMore && (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 pb-4">
                 <LoadingSkeleton count={6} variant="card" />
               </div>
