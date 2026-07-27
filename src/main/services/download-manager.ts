@@ -340,10 +340,18 @@ export class DownloadManager {
       const safeTitle = title.replace(/[/\\?%*:|"<>]/g, '_').substring(0, 180)
       const pdfPath = join(outputDir, `[nhentai-${galleryId}] ${safeTitle}.pdf`)
 
+      const compressPdf = settingsRepo.get('compressPdf') !== 'false'
+      const compressQuality = Number(settingsRepo.get('compressionQuality') || '80')
+      const pageSize = (settingsRepo.get('pageSize') || 'Dynamic') === 'Fit to Image' ? 'fit'
+        : (settingsRepo.get('pageSize') || 'Dynamic') === 'Letter' ? 'letter'
+        : (settingsRepo.get('pageSize') || 'Dynamic') === 'A4' ? 'a4'
+        : 'dynamic'
+      const blackBg = settingsRepo.get('blackBackground') !== 'false'
+
       const pdfOptions: PdfOptions = {
-        pageSize: 'dynamic',
-        quality: 90,
-        blackBackground: false
+        pageSize,
+        quality: compressPdf ? Math.max(1, Math.min(95, compressQuality)) : 100,
+        blackBackground: blackBg
       }
 
       const validPaths = downloadedPaths.filter(Boolean) as string[]

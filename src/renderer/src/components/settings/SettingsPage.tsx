@@ -3,7 +3,7 @@ import { useSettingsStore } from '../../stores/settings.store'
 import { useUiStore } from '../../stores/ui.store'
 import { useAuthStore } from '../../stores/auth.store'
 import type { ThemeMode } from '../../stores/ui.store'
-import type { OutputFormat } from '../../stores/settings.store'
+import type { OutputFormat, PageSizeOption } from '../../stores/settings.store'
 
 type ValidationState =
   | { status: 'idle' }
@@ -205,6 +205,68 @@ export default function SettingsPage(): React.JSX.Element {
                 <option value="pdf">PDF</option>
                 <option value="epub">EPUB (coming soon)</option>
               </select>
+            </div>
+
+            <div className="border-t border-gray-200 dark:border-gray-700 pt-3">
+              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">PDF Compression</h3>
+
+              <div className="flex items-center gap-3 mb-3">
+                <input
+                  type="checkbox"
+                  checked={settings.compressPdf}
+                  onChange={(e) => settings.setCompressPdf(e.target.checked)}
+                  className="w-4 h-4 rounded border-gray-400 dark:border-gray-500 text-purple-600 focus:ring-purple-500 bg-white dark:bg-gray-700"
+                />
+                <label className="text-sm text-gray-700 dark:text-gray-300">
+                  Enable Image Compression (JPEG)
+                </label>
+              </div>
+
+              <div className="mb-3">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Quality: {settings.compressionQuality}
+                </label>
+                <input
+                  type="range"
+                  min="1"
+                  max="95"
+                  value={settings.compressionQuality}
+                  onChange={(e) => settings.setCompressionQuality(Number(e.target.value))}
+                  disabled={!settings.compressPdf}
+                  className="w-full accent-purple-600 disabled:opacity-40"
+                />
+                <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                  Higher quality = larger file size (1-95)
+                </p>
+              </div>
+
+              <div className="mb-3">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Page Size
+                </label>
+                <select
+                  value={settings.pageSize}
+                  onChange={(e) => settings.setPageSize(e.target.value as PageSizeOption)}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                >
+                  <option value="Dynamic">Dynamic (1800px width, auto height)</option>
+                  <option value="Fit to Image">Fit to Image (original dimensions)</option>
+                  <option value="Letter">Letter</option>
+                  <option value="A4">A4</option>
+                </select>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  checked={settings.blackBackground}
+                  onChange={(e) => settings.setBlackBackground(e.target.checked)}
+                  className="w-4 h-4 rounded border-gray-400 dark:border-gray-500 text-purple-600 focus:ring-purple-500 bg-white dark:bg-gray-700"
+                />
+                <label className="text-sm text-gray-700 dark:text-gray-300">
+                  Black Background (for Letter/A4)
+                </label>
+              </div>
             </div>
           </div>
         </section>
