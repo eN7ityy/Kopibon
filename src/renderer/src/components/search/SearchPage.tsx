@@ -8,6 +8,23 @@ import LoadingSkeleton from '../shared/LoadingSkeleton'
 import EmptyState from '../shared/EmptyState'
 import ErrorState from '../shared/ErrorState'
 
+interface EntityBanner {
+  type: string
+  name: string
+  nhentaiUrl: string
+}
+
+function parseEntitySearch(query: string): EntityBanner | null {
+  const match = query.trim().match(/^(artist|group|parody|character):"(.+)"$/)
+  if (!match) return null
+
+  const [, type, name] = match
+  const slug = name.replace(/\s+/g, '-').toLowerCase()
+  const nhentaiUrl = `https://nhentai.net/${type}/${encodeURIComponent(slug)}/`
+
+  return { type, name, nhentaiUrl }
+}
+
 export default function SearchPage(): React.JSX.Element {
   const store = useSearchStore()
   const rateLimitTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -224,6 +241,9 @@ export default function SearchPage(): React.JSX.Element {
     return () => { cleanup() }
   }, [])  // eslint-disable-line react-hooks/exhaustive-deps
 
+  // F7: Parse entity search from query for banner display
+  const entityBanner = parseEntitySearch(store.query)
+
   const hasResults = store.results.length > 0
   const hasMultiplePages = store.totalPages > 1
 
@@ -275,6 +295,22 @@ export default function SearchPage(): React.JSX.Element {
               Retrying in {store.rateLimitSeconds}s...
             </p>
           </div>
+        </div>
+      )}
+
+      {/* F7: Entity search banner */}
+      {entityBanner && hasResults && (
+        <div className="mb-4 p-3 rounded-lg bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 flex items-center justify-between">
+          <p className="text-sm text-purple-800 dark:text-purple-300">
+            Showing works by{' '}
+            <strong className="font-semibold">{entityBanner.name}</strong>
+          </p>
+          <button
+            onClick={() => window.api.shell.openExternal(entityBanner.nhentaiUrl)}
+            className="text-xs text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-200 underline transition-colors"
+          >
+            View on nhentai →
+          </button>
         </div>
       )}
 
