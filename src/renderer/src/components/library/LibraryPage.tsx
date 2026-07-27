@@ -40,7 +40,6 @@ export default function LibraryPage(): React.JSX.Element {
   // Paginated data
   const [items, setItems] = useState<LibraryItemData[]>([])
   const [totalCount, setTotalCount] = useState(0)
-  const [gridVersion, setGridVersion] = useState(0)
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -107,14 +106,12 @@ export default function LibraryPage(): React.JSX.Element {
 
         if (replace) {
           setItems(newItems)
-          setGridVersion((v) => v + 1)
         } else {
           setItems((prev) => {
             const existingIds = new Set(prev.map((i) => i.id))
             const unique = newItems.filter((item) => !existingIds.has(item.id))
             return [...prev, ...unique]
           })
-          setGridVersion((v) => v + 1)
         }
       } else {
         if (replace) setError(result.error || 'Failed to load library')
@@ -246,7 +243,6 @@ export default function LibraryPage(): React.JSX.Element {
         }
         if (newItems.length > 0) {
           setTotalCount((t) => t + newItems.length)
-          setGridVersion((v) => v + 1)
           return [...newItems, ...prev]
         }
         return prev
@@ -640,7 +636,6 @@ export default function LibraryPage(): React.JSX.Element {
       ) : (
         <div className="flex-1">
           <VirtuosoGrid
-            key={gridVersion}
             totalCount={items.length}
             endReached={loadMore}
             overscan={400}
