@@ -462,15 +462,18 @@ export function registerLibraryIpc(): void {
       }
 
       // ── Merge metadata for DB update ──────────────────────────────
-      const newTitle = (metadata.customTitle as string | undefined) ?? item.customTitle
-      const newTags = (metadata.customTags as string | undefined) ?? item.customTags
-      const newLanguage = (metadata.customLanguage as string | undefined) ?? item.customLanguage
-      const newDate = (metadata.customDate as string | undefined) ?? item.customDate
-      const newSeriesName = (metadata.seriesName as string | undefined) ?? item.seriesName
-      const newPrimaryArtist = (metadata.primaryArtist as string | undefined) ?? item.primaryArtist
-      const newSeriesIndex = metadata.seriesIndex != null ? Number(metadata.seriesIndex) : undefined
-      const newPublisher = (metadata.publisher as string | undefined) ?? undefined
-      const newDescription = (metadata.description as string | undefined) ?? undefined
+      // Use 'in' check to distinguish explicit null (clear) from undefined (not provided)
+      const newTitle = 'customTitle' in metadata ? (metadata.customTitle as string | null) : item.customTitle
+      const newTags = 'customTags' in metadata ? (metadata.customTags as string | null) : item.customTags
+      const newLanguage = 'customLanguage' in metadata ? (metadata.customLanguage as string | null) : item.customLanguage
+      const newDate = 'customDate' in metadata ? (metadata.customDate as string | null) : item.customDate
+      const newSeriesName = 'seriesName' in metadata ? (metadata.seriesName as string | null) : item.seriesName
+      const newPrimaryArtist = 'primaryArtist' in metadata ? (metadata.primaryArtist as string | null) : item.primaryArtist
+      const newSeriesIndex = 'seriesIndex' in metadata
+        ? (metadata.seriesIndex != null ? Number(metadata.seriesIndex) : null)
+        : (item.seriesIndex ?? null)
+      const newPublisher = 'publisher' in metadata ? (metadata.publisher as string | null) : (item.publisher ?? null)
+      const newDescription = 'description' in metadata ? (metadata.description as string | null) : (item.description ?? null)
 
       // ── Update DB row ─────────────────────────────────────────────
       const dbUpdateData: Record<string, unknown> = {
@@ -482,10 +485,10 @@ export function registerLibraryIpc(): void {
         primaryArtist: newPrimaryArtist,
         updatedAt: Date.now()
       }
-      if (metadata.seriesIndex !== undefined) (dbUpdateData as Record<string, unknown>).seriesIndex = newSeriesIndex
-      if (metadata.publisher !== undefined) (dbUpdateData as Record<string, unknown>).publisher = newPublisher
-      if (metadata.description !== undefined) (dbUpdateData as Record<string, unknown>).description = newDescription
-      libraryRepo.update(id, dbUpdateData as Record<string, unknown>)
+      if ('seriesIndex' in metadata) dbUpdateData.seriesIndex = newSeriesIndex
+      if ('publisher' in metadata) dbUpdateData.publisher = newPublisher
+      if ('description' in metadata) dbUpdateData.description = newDescription
+      libraryRepo.update(id, dbUpdateData)
 
       // ── Re-embed metadata into PDF ────────────────────────────────
       try {

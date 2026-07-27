@@ -261,6 +261,18 @@ export default function LibraryPage(): React.JSX.Element {
     fetchData()
   }
 
+  const handleBatchUnassignSeries = async () => {
+    const ids = [...selectedIds]
+    for (const id of ids) {
+      try {
+        await window.api.library.updateMetadata(id, { seriesName: null, seriesIndex: null })
+      } catch { /* */ }
+    }
+    setSelectedIds(new Set())
+    setSelectionTick((t) => t + 1)
+    fetchData()
+  }
+
   const toggleSelectAll = () => {
     if (selectedIds.size === filteredItems.length) {
       setSelectedIds(new Set())
@@ -504,6 +516,12 @@ export default function LibraryPage(): React.JSX.Element {
               className="px-3 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors"
             >
               Assign Series
+            </button>
+            <button
+              onClick={handleBatchUnassignSeries}
+              className="px-3 py-2 rounded-lg bg-gray-600 text-white text-sm font-medium hover:bg-gray-700 transition-colors"
+            >
+              Unassign Series
             </button>
             <button
               onClick={handleBatchRemove}
