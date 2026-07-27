@@ -5,8 +5,10 @@ import { electronAPI } from '@electron-toolkit/preload'
 
 const api = {
   // Search & Gallery
-  search: (query: string, options?: Record<string, unknown>) =>
-    ipcRenderer.invoke('api:search', query, options),
+  search: (
+    query: string,
+    options?: { page?: number; sort?: string; language?: string; category?: string }
+  ) => ipcRenderer.invoke('api:search', query, options),
   getGallery: (id: number) => ipcRenderer.invoke('api:getGallery', id),
   getCdnConfig: () => ipcRenderer.invoke('api:getCdnConfig'),
   getApiConfig: () => ipcRenderer.invoke('api:getConfig'),
@@ -33,9 +35,16 @@ const api = {
     getAll: () => ipcRenderer.invoke('download:getAll'),
     getById: (id: number) => ipcRenderer.invoke('download:getById', id),
     getByStatus: (status: string) => ipcRenderer.invoke('download:getByStatus', status),
+    getByGalleryId: (galleryId: number) =>
+      ipcRenderer.invoke('download:getByGalleryId', galleryId),
     addToQueue: (galleryId: number, outputFormat?: string, outputDirectory?: string) =>
       ipcRenderer.invoke('download:addToQueue', galleryId, outputFormat, outputDirectory),
     remove: (id: number) => ipcRenderer.invoke('download:remove', id),
+    pause: (id: number) => ipcRenderer.invoke('download:pause', id),
+    resume: (id: number) => ipcRenderer.invoke('download:resume', id),
+    cancel: (id: number) => ipcRenderer.invoke('download:cancel', id),
+    pauseAll: () => ipcRenderer.invoke('download:pauseAll'),
+    resumeAll: () => ipcRenderer.invoke('download:resumeAll'),
     getPages: (queueId: number) => ipcRenderer.invoke('download:getPages', queueId),
     getStatusCounts: () => ipcRenderer.invoke('download:getStatusCounts')
   },

@@ -146,6 +146,8 @@ export class ApiClient {
     params.set('query', query)
     if (options.page) params.set('page', String(options.page))
     if (options.sort) params.set('sort', options.sort)
+    if (options.language) params.set('language', options.language)
+    if (options.category) params.set('category', options.category)
 
     return this.request<SearchResponse>(`/search?${params.toString()}`)
   }

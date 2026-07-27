@@ -18,6 +18,7 @@ import { registerDownloadIpc } from './ipc/download.ipc'
 import { registerLibraryIpc } from './ipc/library.ipc'
 import { registerSettingsIpc } from './ipc/settings.ipc'
 import { registerAuthIpc, restoreAuthFromDb } from './ipc/auth.ipc'
+import { getDownloadManager } from './services/download-manager'
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -72,6 +73,10 @@ app.whenReady().then(() => {
 
   // Restore any previously-validated API key from the DB
   restoreAuthFromDb()
+
+  // Resume any pending downloads from previous session
+  const dm = getDownloadManager()
+  dm.processQueue()
 
   createWindow()
 

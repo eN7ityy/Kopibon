@@ -1,0 +1,502 @@
+import { join } from 'path'
+import { mkdirSync, existsSync } from 'fs'
+import { downloadRepo } from '../db/repositories/download.repo'
+import { galleryRepo } from '../db/repositories/gallery.repo'
+import { getApiClient } from './api-client'
+import { generatePdf, type PdfOptions } from './pdf-generator'
+import { embedMetadata } from './metadata-writer'
+import type { GalleryDetail } from './api-client'
+
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+export interface DownloadProgress {
+  queueId: number
+  galleryId: number
+  title: string
+  status: string
+  totalPages: number
+  completedPages: number
+  percentage: number
+  speedKBps: number
+  etaSeconds: number
+  errorMessage?: string
+}
+
+export type ProgressCallback = (progress: DownloadProgress) => void
+
+interface ActiveDownload {
+  queueId: number
+  galleryId: number
+  cancelRequested: boolean
+  paused: boolean
+}
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const IMAGE_DOWNLOAD_DIR = join(process.env.HOME || '/tmp', '.config', 'doujin-downloader', 'tmp')
+
+// ─── Download Manager ─────────────────────────────────────────────────────────
+
+export class DownloadManager {
+  private activeDownloads: Map<number, ActiveDownload> = new Map()
+  private maxConcurrent: number
+  private progressCallback: ProgressCallback | null = null
+  private processingQueue = false
+
+  constructor(maxConcurrent = 3) {
+    this.maxConcurrent = maxConcurrent
+  }
+
+  setMaxConcurrent(n: number): void {
+    this.maxConcurrent = n
+  }
+
+  onProgress(cb: ProgressCallback): void {
+    this.progressCallback = cb
+  }
+
+  /**
+   * Start processing the download queue. Called on app startup and
+   * when new items are added.
+   */
+  async processQueue(): Promise<void> {
+    if (this.processingQueue) return
+    this.processingQueue = true
+
+    try {
+      while (this.activeDownloads.size < this.maxConcurrent) {
+        const nextItem = this.dequeueNext()
+        if (!nextItem) break
+
+        const active: ActiveDownload = {
+          queueId: nextItem.id,
+          galleryId: nextItem.galleryId,
+          cancelRequested: false,
+          paused: false
+        }
+        this.activeDownloads.set(nextItem.id, active)
+
+        // Fire and forget — errors are handled inside
+        this.downloadItem(active).finally(() => {
+          this.activeDownloads.delete(nextItem.id)
+          // Continue processing queue
+          this.processingQueue = false
+          this.processQueue()
+        })
+      }
+    } finally {
+      this.processingQueue = false
+    }
+  }
+
+  private dequeueNext(): { id: number; galleryId: number } | null {
+    const items = downloadRepo.findByStatus('queued')
+    if (items.length === 0) return null
+
+    // Get highest priority first, then oldest
+    items.sort((a, b) => b.priority - a.priority || a.queuedAt - b.queuedAt)
+    const next = items[0]
+
+    downloadRepo.update(next.id, {
+      status: 'downloading',
+      startedAt: Date.now()
+    } as Parameters<typeof downloadRepo.update>[1])
+
+    return { id: next.id, galleryId: next.galleryId }
+  }
+
+  private emitProgress(
+    queueId: number,
+    galleryId: number,
+    title: string,
+    totalPages: number,
+    completedPages: number,
+    speedKBps: number,
+    etaSeconds: number,
+    status = 'downloading'
+  ): void {
+    if (!this.progressCallback) return
+    this.progressCallback({
+      queueId,
+      galleryId,
+      title,
+      status,
+      totalPages,
+      completedPages,
+      percentage: totalPages > 0 ? Math.round((completedPages / totalPages) * 100) : 0,
+      speedKBps: Math.round(speedKBps * 10) / 10,
+      etaSeconds: Math.round(etaSeconds)
+    })
+  }
+
+  /**
+   * Main download pipeline for a single gallery.
+   */
+  private async downloadItem(active: ActiveDownload): Promise<void> {
+    const { queueId, galleryId } = active
+    const client = getApiClient()
+
+    try {
+      // Step 1: Fetch gallery metadata
+      const existingGallery = galleryRepo.findById(galleryId)
+      let gallery: GalleryDetail
+
+      if (existingGallery) {
+        gallery = JSON.parse(existingGallery.rawJson) as GalleryDetail
+      } else {
+        this.emitProgress(queueId, galleryId, 'Fetching metadata...', 0, 0, 0, 0)
+        gallery = await client.getGallery(galleryId)
+
+        // Cache to DB
+        galleryRepo.upsert({
+          id: gallery.id,
+          mediaId: Number(gallery.media_id),
+          titlePretty: gallery.title.pretty,
+          titleEnglish: gallery.title.english,
+          titleJapanese: gallery.title.japanese,
+          pageCount: gallery.num_pages,
+          favoritesCount: gallery.num_favorites,
+          uploadDate: gallery.upload_date,
+          thumbnailUrl: gallery.images?.thumbnail
+            ? `https://t.nhentai.net/galleries/${gallery.media_id}/thumb.${gallery.images.thumbnail.t}`
+            : null,
+          coverUrl: gallery.images?.cover
+            ? `https://t.nhentai.net/galleries/${gallery.media_id}/cover.${gallery.images.cover.t}`
+            : null,
+          rawTagsJson: JSON.stringify(gallery.tags),
+          rawJson: JSON.stringify(gallery),
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        } as Parameters<typeof galleryRepo.upsert>[0])
+      }
+
+      const title = gallery.title.pretty
+      const totalPages = gallery.num_pages
+
+      // Step 2: Fetch CDN servers
+      const cdn = await client.getCdnConfig()
+      const servers = [cdn.image_server, ...cdn.servers].filter(Boolean)
+
+      // Step 3: Insert page records
+      for (let i = 1; i <= totalPages; i++) {
+        downloadRepo.insertPage({
+          queueId,
+          pageNumber: i,
+          url: '', // Will be set per server during download
+          status: 'pending',
+          retryCount: 0
+        } as Parameters<typeof downloadRepo.insertPage>[0])
+      }
+
+      // Step 4: Ensure temp directory
+      const downloadDir = join(IMAGE_DOWNLOAD_DIR, String(galleryId))
+      if (!existsSync(downloadDir)) {
+        mkdirSync(downloadDir, { recursive: true })
+      }
+
+      // Step 5: Download pages (3 parallel)
+      const pageItems = downloadRepo.getPages(queueId)
+      const downloadedPaths: string[] = new Array(totalPages).fill('')
+      let completedPages = 0
+      let totalBytes = 0
+      const startTime = Date.now()
+
+      // Process pages in batches of 3
+      const CONCURRENT_PAGES = 3
+      for (let batchStart = 0; batchStart < pageItems.length; batchStart += CONCURRENT_PAGES) {
+        if (active.cancelRequested) {
+          downloadRepo.update(queueId, {
+            status: 'failed',
+            errorMessage: 'Cancelled by user'
+          } as Parameters<typeof downloadRepo.update>[1])
+          return
+        }
+
+        // Wait if paused
+        while (active.paused && !active.cancelRequested) {
+          await new Promise((r) => setTimeout(r, 500))
+        }
+        if (active.cancelRequested) break
+
+        const batch = pageItems.slice(batchStart, batchStart + CONCURRENT_PAGES)
+        const batchResults = await Promise.allSettled(
+          batch.map(async (page) => {
+            const imageType = gallery.images?.pages?.[page.pageNumber - 1]?.t || 'j'
+            return this.downloadPageWithRetry(
+              page.pageNumber,
+              gallery.media_id,
+              imageType,
+              servers,
+              downloadDir,
+              active,
+              3
+            )
+          })
+        )
+
+        for (let j = 0; j < batch.length; j++) {
+          const result = batchResults[j]
+          const page = batch[j]
+
+          if (result.status === 'fulfilled' && result.value) {
+            downloadedPaths[page.pageNumber - 1] = result.value
+            completedPages++
+            totalBytes += result.value ? 0 : 0 // We'll track bytes later
+          } else {
+            // Page failed
+            downloadRepo.updatePage(page.id, {
+              status: 'failed',
+              retryCount: 3
+            } as Parameters<typeof downloadRepo.updatePage>[1])
+          }
+
+          const elapsed = (Date.now() - startTime) / 1000
+          const speedKBps = elapsed > 0 ? totalBytes / 1024 / elapsed : 0
+          const remainingPages = totalPages - completedPages
+          const etaSeconds =
+            completedPages > 0
+              ? (elapsed / completedPages) * remainingPages
+              : remainingPages * 2
+
+          this.emitProgress(
+            queueId,
+            galleryId,
+            title,
+            totalPages,
+            completedPages,
+            speedKBps,
+            etaSeconds
+          )
+        }
+      }
+
+      if (active.cancelRequested) {
+        downloadRepo.update(queueId, {
+          status: 'failed',
+          errorMessage: 'Cancelled by user'
+        } as Parameters<typeof downloadRepo.update>[1])
+        return
+      }
+
+      // Check if all pages downloaded
+      const failedCount = totalPages - completedPages
+      if (failedCount > 0) {
+        downloadRepo.update(queueId, {
+          status: 'failed',
+          errorMessage: `${failedCount} pages failed to download`
+        } as Parameters<typeof downloadRepo.update>[1])
+        return
+      }
+
+      // Step 6: Generate PDF
+      this.emitProgress(queueId, galleryId, title, totalPages, completedPages, 0, 0, 'converting')
+      downloadRepo.update(queueId, {
+        status: 'converting'
+      } as Parameters<typeof downloadRepo.update>[1])
+
+      const outputDir =
+        downloadRepo.findById(queueId)?.outputDirectory ||
+        join(process.env.HOME || '/tmp', 'Downloads')
+      const safeTitle = title.replace(/[/\\?%*:|"<>]/g, '_').substring(0, 180)
+      const pdfPath = join(outputDir, `[nhentai-${galleryId}] ${safeTitle}.pdf`)
+
+      const pdfOptions: PdfOptions = {
+        pageSize: 'dynamic',
+        quality: 90,
+        blackBackground: false
+      }
+
+      const validPaths = downloadedPaths.filter(Boolean) as string[]
+      await generatePdf(validPaths, pdfPath, pdfOptions)
+
+      // Step 7: Embed metadata
+      await embedMetadata(pdfPath, {
+        id: gallery.id,
+        title: gallery.title,
+        tags: gallery.tags,
+        uploadDate: gallery.upload_date,
+        numPages: gallery.num_pages
+      })
+
+      // Step 8: Mark complete
+      downloadRepo.update(queueId, {
+        status: 'completed',
+        completedAt: Date.now()
+      } as Parameters<typeof downloadRepo.update>[1])
+
+      this.emitProgress(queueId, galleryId, title, totalPages, totalPages, 0, 0, 'completed')
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err)
+      downloadRepo.update(queueId, {
+        status: 'failed',
+        errorMessage: errorMsg
+      } as Parameters<typeof downloadRepo.update>[1])
+
+      this.emitProgress(queueId, galleryId, 'Error', 0, 0, 0, 0, 'failed')
+    }
+  }
+
+  /**
+   * Download a single page with retry logic across CDN servers.
+   */
+  private async downloadPageWithRetry(
+    pageNumber: number,
+    mediaId: string,
+    imageType: string,
+    servers: string[],
+    downloadDir: string,
+    active: ActiveDownload,
+    maxRetries: number
+  ): Promise<string | null> {
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      if (active.cancelRequested) return null
+
+      // Rotate through servers
+      const serverIndex = attempt % servers.length
+      const server = servers[serverIndex]
+      const url = `https://${server}/galleries/${mediaId}/${pageNumber}.${imageType}`
+
+      try {
+        const controller = new AbortController()
+        const timeout = setTimeout(() => controller.abort(), 30000)
+
+        const response = await fetch(url, {
+          signal: controller.signal,
+          headers: { 'User-Agent': 'Doujin-Downloader/1.0' }
+        })
+
+        clearTimeout(timeout)
+
+        if (!response.ok) {
+          if (response.status === 404) {
+            // Try next server
+            continue
+          }
+          throw new Error(`HTTP ${response.status}`)
+        }
+
+        const buffer = Buffer.from(await response.arrayBuffer())
+        const ext = imageType === 'p' ? 'png' : 'jpg'
+        const filePath = join(downloadDir, `${String(pageNumber).padStart(4, '0')}.${ext}`)
+
+        // Write file
+        const { writeFileSync } = await import('fs')
+        writeFileSync(filePath, buffer)
+
+        return filePath
+      } catch (err) {
+        if (attempt === maxRetries - 1) {
+          console.error(
+            `Failed to download page ${pageNumber} after ${maxRetries} attempts:`,
+            err
+          )
+          return null
+        }
+        // Wait before retry with exponential backoff
+        await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, attempt)))
+      }
+    }
+    return null
+  }
+
+  /**
+   * Pause a download.
+   */
+  pauseDownload(queueId: number): boolean {
+    const active = this.activeDownloads.get(queueId)
+    if (!active) {
+      // Not active, try to pause in queue
+      const item = downloadRepo.findById(queueId)
+      if (item && item.status === 'queued') {
+        downloadRepo.update(queueId, {
+          status: 'paused'
+        } as Parameters<typeof downloadRepo.update>[1])
+        return true
+      }
+      return false
+    }
+    active.paused = true
+    return true
+  }
+
+  /**
+   * Resume a paused download.
+   */
+  resumeDownload(queueId: number): boolean {
+    const active = this.activeDownloads.get(queueId)
+    if (active) {
+      active.paused = false
+      return true
+    }
+
+    const item = downloadRepo.findById(queueId)
+    if (item && item.status === 'paused') {
+      downloadRepo.update(queueId, {
+        status: 'queued'
+      } as Parameters<typeof downloadRepo.update>[1])
+      this.processQueue()
+      return true
+    }
+    return false
+  }
+
+  /**
+   * Cancel a download.
+   */
+  cancelDownload(queueId: number): boolean {
+    const active = this.activeDownloads.get(queueId)
+    if (active) {
+      active.cancelRequested = true
+      return true
+    }
+
+    const item = downloadRepo.findById(queueId)
+    if (item && ['queued', 'paused'].includes(item.status)) {
+      downloadRepo.delete(queueId)
+      downloadRepo.deletePages(queueId)
+      return true
+    }
+    return false
+  }
+
+  /**
+   * Pause all active and queued downloads.
+   */
+  pauseAll(): void {
+    for (const active of this.activeDownloads.values()) {
+      active.paused = true
+    }
+    const queued = downloadRepo.findByStatus('queued')
+    for (const item of queued) {
+      downloadRepo.update(item.id, {
+        status: 'paused'
+      } as Parameters<typeof downloadRepo.update>[1])
+    }
+  }
+
+  /**
+   * Resume all paused downloads.
+   */
+  resumeAll(): void {
+    for (const active of this.activeDownloads.values()) {
+      active.paused = false
+    }
+    const paused = downloadRepo.findByStatus('paused')
+    for (const item of paused) {
+      downloadRepo.update(item.id, {
+        status: 'queued'
+      } as Parameters<typeof downloadRepo.update>[1])
+    }
+    this.processQueue()
+  }
+}
+
+// Singleton
+let instance: DownloadManager | null = null
+
+export function getDownloadManager(): DownloadManager {
+  if (!instance) {
+    instance = new DownloadManager(3)
+  }
+  return instance
+}

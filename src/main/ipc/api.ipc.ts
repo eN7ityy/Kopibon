@@ -1,17 +1,25 @@
 import { ipcMain } from 'electron'
-import { getApiClient } from '../services/api-client'
+import { getApiClient, type SearchParams } from '../services/api-client'
 
 export function registerApiIpc(): void {
   const client = getApiClient()
 
-  ipcMain.handle('api:search', async (_event, query: string, options?: Record<string, unknown>) => {
-    try {
-      const results = await client.searchGalleries(query, options)
-      return { success: true, data: results }
-    } catch (error) {
-      return { success: false, error: String(error) }
+  ipcMain.handle(
+    'api:search',
+    async (_event, query: string, options?: { page?: number; sort?: string; language?: string; category?: string }) => {
+      try {
+        const results = await client.searchGalleries(query, {
+          page: options?.page,
+          sort: options?.sort as SearchParams['sort'],
+          language: options?.language,
+          category: options?.category
+        })
+        return { success: true, data: results }
+      } catch (error) {
+        return { success: false, error: String(error) }
+      }
     }
-  })
+  )
 
   ipcMain.handle('api:getGallery', async (_event, id: number) => {
     try {
