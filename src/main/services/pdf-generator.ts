@@ -35,14 +35,37 @@ export async function generatePdf(
 
   for (const imagePath of imagePaths) {
     const buffer = readFileSync(imagePath)
-    const ext = basename(imagePath).split('.').pop()?.toLowerCase()
 
+    // Detect format from magic bytes rather than file extension
+    // JPEG: starts with FF D8 FF
+    // PNG:   starts with 89 50 4E 47
+    // WebP:  starts with 52 49 46 46 (RIFF) ... 57 45 42 50 (WEBP)
     let image
-    if (ext === 'png') {
+    const isPng = buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47
+    const isJpeg = buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff
+    const isWebP = buffer[0] === 0x52 && buffer[1] === 0x49 && buffer[2] === 0x46 && buffer[3] === 0x46 &&
+      buffer[8] === 0x57 && buffer[9] === 0x45 && buffer[10] === 0x42 && buffer[11] === 0x50
+
+    if (isPng) {
       image = await pdfDoc.embedPng(buffer)
-    } else {
-      // jpg, jpeg, webp handle as JPEG
+    } else if (isJpeg) {
       image = await pdfDoc.embedJpg(buffer)
+    } else if (isWebP) {
+      // pdf-lib doesn't support WebP; skip with warning
+      console.warn(`Skipping WebP image (not supported by pdf-lib): ${basename(imagePath)}`)
+      continue
+    } else {
+      // Fallback: try JPEG, then PNG
+      try {
+        image = await pdfDoc.embedJpg(buffer)
+      } catch {
+        try {
+          image = await pdfDoc.embedPng(buffer)
+        } catch (err) {
+          console.warn(`Skipping unsupported image format: ${basename(imagePath)} — ${String(err)}`)
+          continue
+        }
+      }
     }
 
     // Determine page dimensions

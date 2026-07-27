@@ -393,7 +393,22 @@ export class DownloadManager {
         }
 
         const buffer = Buffer.from(await response.arrayBuffer())
-        const ext = imageType === 'p' ? 'png' : 'jpg'
+
+        // Determine correct extension from image type
+        const imageTypeLower = imageType.toLowerCase()
+        let ext: string
+        if (imageTypeLower === 'png') {
+          ext = 'png'
+        } else if (imageTypeLower === 'webp') {
+          ext = 'webp'
+        } else if (imageTypeLower === 'gif') {
+          ext = 'gif'
+        } else if (imageTypeLower === 'bmp') {
+          ext = 'bmp'
+        } else {
+          ext = 'jpg'
+        }
+
         const filePath = join(downloadDir, `${String(pageNumber).padStart(4, '0')}.${ext}`)
 
         // Write file
