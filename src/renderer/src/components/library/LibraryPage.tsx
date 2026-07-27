@@ -3,6 +3,7 @@ import type { LibraryItemData } from './LibraryCard'
 import LibraryCard from './LibraryCard'
 import SeriesAssignment from './SeriesAssignment'
 import CustomEntryForm from './CustomEntryForm'
+import LibraryDetail from './LibraryDetail'
 import EmptyState from '../shared/EmptyState'
 import ErrorState from '../shared/ErrorState'
 import LoadingSkeleton from '../shared/LoadingSkeleton'
@@ -42,6 +43,7 @@ export default function LibraryPage(): React.JSX.Element {
   const [selectMode, setSelectMode] = useState(false)
   const [showSeriesModal, setShowSeriesModal] = useState(false)
   const [showCustomForm, setShowCustomForm] = useState(false)
+  const [detailItem, setDetailItem] = useState<LibraryItemData | null>(null)
 
   // Scan state
   const [scanning, setScanning] = useState(false)
@@ -591,16 +593,12 @@ export default function LibraryPage(): React.JSX.Element {
                   if (selectMode) {
                     toggleSelect(id)
                   } else {
-                    // T6 — open detail panel
-                    window.api.shell.openPath(item.filePath)
+                    const found = items.find((i) => i.id === id)
+                    if (found) setDetailItem(found)
                   }
                 }}
-                onContextMenu={(id) => {
-                  // T6 — right-click context menu
-                  if (!selectMode) {
-                    toggleSelect(id)
-                    setSelectMode(true)
-                  }
+                onContextMenu={() => {
+                  // Right-click context menu is handled in LibraryCard itself
                 }}
               />
             ))}
@@ -628,6 +626,19 @@ export default function LibraryPage(): React.JSX.Element {
         onClose={() => setShowCustomForm(false)}
         onCreated={() => {
           setShowCustomForm(false)
+          fetchData()
+        }}
+      />
+
+      {/* Library Detail Panel */}
+      <LibraryDetail
+        item={detailItem}
+        onClose={() => setDetailItem(null)}
+        onDeleted={() => {
+          setDetailItem(null)
+          fetchData()
+        }}
+        onUpdated={() => {
           fetchData()
         }}
       />

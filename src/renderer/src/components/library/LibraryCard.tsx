@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 // ─── Types matching library_item DB schema ──────────────────────────────────
 
@@ -29,6 +29,12 @@ interface LibraryCardProps {
   onContextMenu?: (id: number, event: React.MouseEvent) => void
 }
 
+interface ContextMenuState {
+  visible: boolean
+  x: number
+  y: number
+}
+
 export default function LibraryCard({
   item,
   selected,
@@ -37,6 +43,8 @@ export default function LibraryCard({
   onContextMenu
 }: LibraryCardProps): React.JSX.Element {
   const [imgError, setImgError] = useState(false)
+  const [contextMenu, setContextMenu] = useState<ContextMenuState>({ visible: false, x: 0, y: 0 })
+  const menuRef = useRef<HTMLDivElement>(null)
 
   const title = item.customTitle || item.primaryArtist || `Item #${item.id}`
   const artist = item.primaryArtist || 'Unknown'
@@ -46,14 +54,46 @@ export default function LibraryCard({
     ? `file://${item.customCoverPath}`
     : null
 
+  // Close context menu on outside click
+  useEffect(() => {
+    if (!contextMenu.visible) return
+    const handler = () => setContextMenu({ visible: false, x: 0, y: 0 })
+    document.addEventListener('click', handler)
+    return () => document.removeEventListener('click', handler)
+  }, [contextMenu.visible])
+
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+
+    // Position the menu at cursor
+    const menuWidth = 180
+    const menuHeight = 120
+    let x = e.clientX
+    let y = e.clientY
+
+    // Adjust if menu would go off-screen
+    if (x + menuWidth > window.innerWidth) x = window.innerWidth - menuWidth - 8
+    if (y + menuHeight > window.innerHeight) y = window.innerHeight - menuHeight - 8
+
+    setContextMenu({ visible: true, x, y })
+    onContextMenu?.(item.id, e)
+  }
+
+  const handleContextAction = (action: 'open' | 'folder' | 'delete'): void => {
+    setContextMenu({ visible: false, x: 0, y: 0 })
+    if (action === 'open') {
+      window.api.shell.openPath(item.filePath)
+    } else if (action === 'folder') {
+      window.api.shell.showItemInFolder(item.filePath)
+    }
+    // delete is handled by the parent via onContextMenu
+  }
+
   return (
     <div
       className="group relative rounded-lg overflow-hidden bg-white dark:bg-gray-850 border border-gray-200 dark:border-gray-700 hover:border-purple-400 dark:hover:border-purple-500 hover:shadow-lg transition-all duration-200"
       style={{ backgroundColor: 'var(--card-bg, rgb(30 41 59))' }}
-      onContextMenu={(e) => {
-        e.preventDefault()
-        onContextMenu?.(item.id, e)
-      }}
     >
       {/* Selection checkbox */}
       <div
@@ -71,6 +111,7 @@ export default function LibraryCard({
       {/* Clickable area */}
       <button
         onClick={() => onClick(item.id)}
+        onContextMenu={handleContextMenu}
         className="text-left w-full"
       >
         {/* Cover image */}
@@ -115,6 +156,35 @@ export default function LibraryCard({
           )}
         </div>
       </button>
+
+      {/* Right-click context menu */}
+      {contextMenu.visible && (
+        <div
+          ref={menuRef}
+          className="fixed z-50 w-44 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-xl py-1 text-sm"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+        >
+          <button
+            onClick={() => handleContextAction('open')}
+            className="w-full text-left px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 flex items-center gap-2"
+          >
+            <span>📖</span> Open File
+          </button>
+          <button
+            onClick={() => handleContextAction('folder')}
+            className="w-full text-left px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 flex items-center gap-2"
+          >
+            <span>📂</span> Open Folder
+          </button>
+          <div className="border-t border-gray-200 dark:border-gray-700 my-1" />
+          <button
+            onClick={() => handleContextAction('delete')}
+            className="w-full text-left px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-red-600 dark:text-red-400 flex items-center gap-2"
+          >
+            <span>🗑️</span> Delete
+          </button>
+        </div>
+      )}
     </div>
   )
 }
