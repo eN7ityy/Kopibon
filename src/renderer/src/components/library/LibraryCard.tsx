@@ -50,18 +50,16 @@ export default function LibraryCard({
   const title = item.customTitle || item.primaryArtist || `Item #${item.id}`
   const artist = item.primaryArtist || 'Unknown'
 
-  // Fetch thumbnail via IPC if available
+  // Fetch thumbnail via IPC (always attempt, DB handler checks if exists)
   useEffect(() => {
     let cancelled = false
-    if (item.customCoverPath) {
-      window.api.library.getThumbnail(item.id).then((result) => {
-        if (!cancelled && result.success && result.data) {
-          setThumbDataUrl(result.data)
-        }
-      }).catch(() => setImgError(true))
-    }
+    window.api.library.getThumbnail(item.id).then((result) => {
+      if (!cancelled && result.success && result.data) {
+        setThumbDataUrl(result.data)
+      }
+    }).catch(() => setImgError(true))
     return () => { cancelled = true }
-  }, [item.id, item.customCoverPath])
+  }, [item.id])
 
   const coverSrc = thumbDataUrl && !imgError ? thumbDataUrl : null
 

@@ -47,7 +47,7 @@ interface PdfMetadata {
 
 const NHENTAI_ID_REGEX = /nhentai:(\d+)/i
 const FILENAME_ID_REGEX = /\[nhentai-(\d+)\]/
-const PROGRESS_INTERVAL = 10
+const PROGRESS_INTERVAL = 1
 const LOG_DIR = join(homedir(), '.config', 'doujin-downloader', 'logs')
 
 // ─── State ───────────────────────────────────────────────────────────────────
@@ -388,6 +388,8 @@ async function runScan(): Promise<void> {
       log(`SCAN_PAUSED at ${processed}/${total}`)
       await new Promise<void>((resolve) => { resolvePause = resolve })
       resolvePause = null
+      // Check if cancelled while paused (cast to avoid TS narrowing)
+      if ((state as string) === 'cancelled') continue
       state = 'scanning'
       send({ type: 'progress', current: processed, total, status: 'Resuming scan...' })
       log(`SCAN_RESUMED at ${processed}/${total}`)
@@ -492,6 +494,7 @@ parentPort?.on('message', async (cmd: WorkerCommand) => {
 
     case 'cancel':
       state = 'cancelled'
+      // Resolve the pause gate so the loop can check the cancelled flag
       if (resolvePause) {
         resolvePause()
         resolvePause = null
