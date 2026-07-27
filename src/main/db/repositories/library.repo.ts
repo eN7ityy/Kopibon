@@ -1,12 +1,14 @@
-import { eq, like, desc, sql } from 'drizzle-orm'
+import { eq, like, desc, sql, and, ne } from 'drizzle-orm'
 import { getDatabase } from '../connection'
-import { libraryItem, libraryItemArtist } from '../schema'
+import { libraryItem, libraryItemArtist, libraryScanLog } from '../schema'
 import type { InferSelectModel, InferInsertModel } from 'drizzle-orm'
 
 export type LibraryItem = InferSelectModel<typeof libraryItem>
 export type LibraryItemArtist = InferSelectModel<typeof libraryItemArtist>
+export type LibraryScanLog = InferSelectModel<typeof libraryScanLog>
 export type NewLibraryItem = InferInsertModel<typeof libraryItem>
 export type NewLibraryItemArtist = InferInsertModel<typeof libraryItemArtist>
+export type NewLibraryScanLog = InferInsertModel<typeof libraryScanLog>
 
 export const libraryRepo = {
   findAll(): LibraryItem[] {
@@ -22,6 +24,11 @@ export const libraryRepo = {
   findByGalleryId(galleryId: number): LibraryItem | undefined {
     const db = getDatabase()
     return db.select().from(libraryItem).where(eq(libraryItem.galleryId, galleryId)).get()
+  },
+
+  findByFilePath(filePath: string): LibraryItem | undefined {
+    const db = getDatabase()
+    return db.select().from(libraryItem).where(eq(libraryItem.filePath, filePath)).get()
   },
 
   findByArtist(artistName: string): LibraryItem[] {
@@ -51,6 +58,15 @@ export const libraryRepo = {
       .from(libraryItem)
       .where(like(libraryItem.customTitle, `%${query}%`))
       .all()
+  },
+
+  findAllWithFilePaths(): Array<{ id: number; filePath: string }> {
+    const db = getDatabase()
+    const rows = db
+      .select({ id: libraryItem.id, filePath: libraryItem.filePath })
+      .from(libraryItem)
+      .all()
+    return rows
   },
 
   insert(item: NewLibraryItem): number {
@@ -112,5 +128,73 @@ export const libraryRepo = {
       .from(libraryItemArtist)
       .all()
     return rows.map((r) => r.artistName)
+  },
+
+  // ─── Autocomplete ─────────────────────────────────────────────────
+
+  autocompleteArtists(query: string): string[] {
+    const db = getDatabase()
+    const rows = db
+      .select({
+        artistName: libraryItemArtist.artistName,
+        count: sql<number>`COUNT(*)`.as('count')
+      })
+      .from(libraryItemArtist)
+      .where(like(libraryItemArtist.artistName, `%${query}%`))
+      .groupBy(libraryItemArtist.artistName)
+      .orderBy(desc(sql`count`))
+      .limit(10)
+      .all()
+    return rows.map((r) => r.artistName)
+  },
+
+  autocompleteSeries(query: string): string[] {
+    const db = getDatabase()
+    const rows = db
+      .selectDistinct({ seriesName: libraryItem.seriesName })
+      .from(libraryItem)
+      .where(
+        and(
+          like(libraryItem.seriesName, `%${query}%`),
+          ne(libraryItem.seriesName, ''),
+          sql`${libraryItem.seriesName} IS NOT NULL`
+        )
+      )
+      .limit(10)
+      .all()
+    return rows.map((r) => r.seriesName!).filter(Boolean)
+  },
+
+  getAllSeriesNames(): string[] {
+    const db = getDatabase()
+    const rows = db
+      .selectDistinct({ seriesName: libraryItem.seriesName })
+      .from(libraryItem)
+      .where(
+        and(
+          ne(libraryItem.seriesName, ''),
+          sql`${libraryItem.seriesName} IS NOT NULL`
+        )
+      )
+      .all()
+    return rows.map((r) => r.seriesName!).filter(Boolean)
+  },
+
+  // ─── Scan Log ─────────────────────────────────────────────────────
+
+  insertScanLog(log: NewLibraryScanLog): number {
+    const db = getDatabase()
+    const result = db.insert(libraryScanLog).values(log).run()
+    return Number(result.lastInsertRowid)
+  },
+
+  getLastScanLog(): LibraryScanLog | undefined {
+    const db = getDatabase()
+    return db
+      .select()
+      .from(libraryScanLog)
+      .orderBy(desc(libraryScanLog.scannedAt))
+      .limit(1)
+      .get()
   }
 }

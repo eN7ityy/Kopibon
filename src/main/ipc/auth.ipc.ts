@@ -112,4 +112,12 @@ export function registerAuthIpc(): void {
   ipcMain.handle('shell:openExternal', async (_event, url: string) => {
     await shell.openExternal(url)
   })
+
+  ipcMain.handle('shell:openPath', async (_event, path: string) => {
+    await shell.openPath(path)
+  })
+
+  ipcMain.handle('shell:showItemInFolder', async (_event, path: string) => {
+    shell.showItemInFolder(path)
+  })
 }

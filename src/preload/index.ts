@@ -25,7 +25,9 @@ const api = {
 
   // Shell
   shell: {
-    openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', url)
+    openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', url),
+    openPath: (path: string) => ipcRenderer.invoke('shell:openPath', path),
+    showItemInFolder: (path: string) => ipcRenderer.invoke('shell:showItemInFolder', path)
   },
 
   // Downloads
@@ -55,7 +57,36 @@ const api = {
     search: (query: string) => ipcRenderer.invoke('library:search', query),
     getArtists: (libraryItemId: number) => ipcRenderer.invoke('library:getArtists', libraryItemId),
     getAllArtistNames: () => ipcRenderer.invoke('library:getAllArtistNames'),
-    count: () => ipcRenderer.invoke('library:count')
+    getAllSeriesNames: () => ipcRenderer.invoke('library:getAllSeriesNames'),
+    count: () => ipcRenderer.invoke('library:count'),
+    scan: (libraryRoot: string) => ipcRenderer.invoke('library:scan', libraryRoot),
+    getScanStatus: () => ipcRenderer.invoke('library:getScanStatus'),
+    autocompleteArtists: (query: string) => ipcRenderer.invoke('library:autocompleteArtists', query),
+    autocompleteSeries: (query: string) => ipcRenderer.invoke('library:autocompleteSeries', query),
+    assignSeries: (ids: number[], seriesName: string) =>
+      ipcRenderer.invoke('library:assignSeries', ids, seriesName),
+    delete: (id: number) => ipcRenderer.invoke('library:delete', id),
+    updateMetadata: (id: number, metadata: Record<string, string | number | null>) =>
+      ipcRenderer.invoke('library:updateMetadata', id, metadata)
+  },
+
+  // Events
+  onLibraryScanProgress: (callback: (progress: { current: number; total: number; status: string }) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, progress: { current: number; total: number; status: string }) =>
+      callback(progress)
+    ipcRenderer.on('library:scanProgress', handler)
+    return () => ipcRenderer.removeListener('library:scanProgress', handler)
+  },
+  onLibraryScanComplete: (callback: (result: { total: number; newItems: number; removedItems: number; errors: string[] }) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, result: { total: number; newItems: number; removedItems: number; errors: string[] }) =>
+      callback(result)
+    ipcRenderer.on('library:scanComplete', handler)
+    return () => ipcRenderer.removeListener('library:scanComplete', handler)
+  },
+  onLibraryScanError: (callback: (error: string) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, error: string) => callback(error)
+    ipcRenderer.on('library:scanError', handler)
+    return () => ipcRenderer.removeListener('library:scanError', handler)
   },
 
   // Settings
