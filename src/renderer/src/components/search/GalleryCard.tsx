@@ -65,9 +65,7 @@ export default function GalleryCard({
           <StatusBadge status={downloadStatus} size="sm" />
           <div className="flex items-center gap-2 text-xs text-gray-400 dark:text-gray-500 flex-shrink-0">
             <span className="whitespace-nowrap">{gallery.num_pages || 0} pages</span>
-            {gallery.num_favorites > 0 && (
-              <span className="whitespace-nowrap">★ {gallery.num_favorites.toLocaleString()}</span>
-            )}
+            <span className="whitespace-nowrap">★ {gallery.num_favorites?.toLocaleString() ?? '0'}</span>
           </div>
         </div>
       </div>
