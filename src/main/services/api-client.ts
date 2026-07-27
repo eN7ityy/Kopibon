@@ -191,6 +191,10 @@ export class ApiClient {
     return this.request<FavoritesResponse>(`/favorites?${params.toString()}`)
   }
 
+  async getRelatedGalleries(id: number): Promise<SearchResponse> {
+    return this.request<SearchResponse>(`/galleries/${id}/related`)
+  }
+
   /**
    * Build the image URL for a given gallery page using the first image server.
    */

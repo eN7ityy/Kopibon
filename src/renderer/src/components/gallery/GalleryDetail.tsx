@@ -9,6 +9,13 @@ interface GalleryDetailProps {
   onDownload: (galleryId: number) => void
   onAddToQueue?: (galleryId: number) => void
   onTagClick?: (tagType: string, tagName: string) => void
+  onGalleryChange?: (galleryId: number) => void
+}
+
+interface RelatedGallery {
+  id: number
+  title: string
+  thumbnailUrl: string | null
 }
 
 const TAG_COLORS: Record<string, string> = {
@@ -33,7 +40,8 @@ export default function GalleryDetailPanel({
   galleryId,
   onClose,
   onDownload,
-  onTagClick
+  onTagClick,
+  onGalleryChange
 }: GalleryDetailProps): React.JSX.Element {
   const [detail, setDetail] = useState<GalleryDetailType | null>(null)
   const [loading, setLoading] = useState(true)
@@ -42,6 +50,7 @@ export default function GalleryDetailPanel({
   const [imgError, setImgError] = useState(false)
   const [showRedownloadConfirm, setShowRedownloadConfirm] = useState(false)
   const [libraryPath, setLibraryPath] = useState<string | null>(null)
+  const [relatedGalleries, setRelatedGalleries] = useState<RelatedGallery[]>([])
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -91,6 +100,28 @@ export default function GalleryDetailPanel({
     document.addEventListener('keydown', handleEscape)
     return () => document.removeEventListener('keydown', handleEscape)
   }, [onClose])
+
+  // F6: Fetch related galleries
+  useEffect(() => {
+    if (!detail || loading) return
+
+    let cancelled = false
+    window.api.getRelatedGalleries(galleryId).then((result) => {
+      if (cancelled) return
+      if (result.success && result.data) {
+        const related = result.data.result.slice(0, 5).map((item) => ({
+          id: item.id,
+          title: item.english_title || `Gallery #${item.id}`,
+          thumbnailUrl: item.thumbnail
+            ? `https://t.nhentai.net/${item.thumbnail}`
+            : null
+        }))
+        setRelatedGalleries(related)
+      }
+    }).catch(() => { /* silently ignore */ })
+
+    return () => { cancelled = true }
+  }, [detail, loading, galleryId])
 
   // Cover URL: path from cover object, prefixed with standard thumbnail CDN
   const coverUrl = detail?.cover?.path
@@ -213,6 +244,48 @@ export default function GalleryDetailPanel({
                   </button>
                 ))}
             </div>
+
+            {/* Related Galleries */}
+            {relatedGalleries.length > 0 && (
+              <div className="mb-6">
+                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                  Related Galleries
+                </h3>
+                <div className="flex gap-2 overflow-x-auto pb-2">
+                  {relatedGalleries.map((rg) => (
+                    <button
+                      key={rg.id}
+                      onClick={() => {
+                        if (onGalleryChange) {
+                          onGalleryChange(rg.id)
+                        } else {
+                          window.api.shell.openExternal(`https://nhentai.net/g/${rg.id}`)
+                        }
+                      }}
+                      className="flex-shrink-0 w-20 text-center group"
+                    >
+                      <div className="w-16 h-20 mx-auto rounded bg-gray-200 dark:bg-gray-700 overflow-hidden mb-1">
+                        {rg.thumbnailUrl ? (
+                          <img
+                            src={rg.thumbnailUrl}
+                            alt={rg.title}
+                            draggable={false}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-gray-400">
+                            <span className="text-lg">📖</span>
+                          </div>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-600 dark:text-gray-400 truncate group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">
+                        {rg.title}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Meta info */}
             <div className="space-y-1.5 text-sm text-gray-600 dark:text-gray-400 mb-6">

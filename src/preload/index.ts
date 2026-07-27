@@ -14,6 +14,7 @@ const api = {
   getFavorites: (page: number, query?: string) =>
     ipcRenderer.invoke('api:getFavorites', page, query),
   getUser: () => ipcRenderer.invoke('api:getUser'),
+  getRelatedGalleries: (id: number) => ipcRenderer.invoke('api:getRelatedGalleries', id),
 
   // Auth
   auth: {

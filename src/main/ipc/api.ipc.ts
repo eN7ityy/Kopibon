@@ -75,4 +75,21 @@ export function registerApiIpc(): void {
       return { success: false, error: String(error) }
     }
   })
+
+  ipcMain.handle('api:getRelatedGalleries', async (_event, id: number) => {
+    try {
+      const results = await client.getRelatedGalleries(id)
+      // Cache each related gallery for reuse
+      for (const item of results.result) {
+        if (!galleryCache.has(item.id)) {
+          // We don't have full detail here, but the cache is keyed by id for getGallery
+          // The related endpoint returns GalleryListItem[], not full GalleryDetail
+          // We'll cache only when detail is fetched
+        }
+      }
+      return { success: true, data: results }
+    } catch (error) {
+      return { success: false, error: String(error) }
+    }
+  })
 }
