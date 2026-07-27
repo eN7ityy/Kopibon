@@ -29,6 +29,7 @@
     "@tanstack/react-query": "^5.62.0",
     "better-sqlite3": "^13.0.1",
     "drizzle-orm": "^0.38.0",
+    "electron-updater": "^6.8.9",
     "ky": "^1.7.0",
     "pdf-lib": "^1.17.1",
     "react-router-dom": "^7.1.0",

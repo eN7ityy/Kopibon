@@ -344,6 +344,27 @@ export default function SettingsPage(): React.JSX.Element {
           </div>
         </section>
 
+        {/* Advanced */}
+        <section>
+          <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-3">Advanced</h2>
+          <div className="space-y-3">
+            <button
+              onClick={async () => {
+                try {
+                  const result = await window.api.app.checkForUpdates()
+                  if (result.success) {
+                    // autoUpdater handles notification via electron-updater's built-in dialog
+                  }
+                } catch { /* silently ignore */ }
+              }}
+              className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+            >
+              Check for Updates
+            </button>
+            <AppVersion />
+          </div>
+        </section>
+
         {/* Save */}
         <button
           onClick={() => settings.saveToDb()}
@@ -353,5 +374,21 @@ export default function SettingsPage(): React.JSX.Element {
         </button>
       </div>
     </div>
+  )
+}
+
+function AppVersion(): React.JSX.Element {
+  const [version, setVersion] = useState<string>('...')
+
+  useEffect(() => {
+    window.api.app.getVersion().then((r) => {
+      if (r.success && r.data) setVersion(r.data)
+    }).catch(() => setVersion('unknown'))
+  }, [])
+
+  return (
+    <p className="text-xs text-gray-400 dark:text-gray-500">
+      Doujin Downloader v{version}
+    </p>
   )
 }

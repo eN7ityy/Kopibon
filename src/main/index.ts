@@ -1,6 +1,7 @@
-import { app, shell, BrowserWindow } from 'electron'
+import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
+import { autoUpdater } from 'electron-updater'
 
 // Debug: log process context per Gemini's recommended diagnosis
 console.log(
@@ -77,6 +78,24 @@ app.whenReady().then(async () => {
   // Resume any pending downloads from previous session
   const dm = getDownloadManager()
   dm.processQueue()
+
+  // F5: Auto-update — check for updates on startup
+  autoUpdater.checkForUpdatesAndNotify()
+
+  // Manual update check from renderer
+  ipcMain.handle('app:checkForUpdates', async () => {
+    try {
+      const result = await autoUpdater.checkForUpdatesAndNotify()
+      return { success: true, data: result }
+    } catch (error) {
+      return { success: false, error: String(error) }
+    }
+  })
+
+  // App version for Settings display
+  ipcMain.handle('app:getVersion', async () => {
+    return { success: true, data: app.getVersion() }
+  })
 
   createWindow()
 

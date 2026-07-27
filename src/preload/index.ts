@@ -137,6 +137,12 @@ const api = {
     return () => ipcRenderer.removeListener('library:scanCancelled', handler)
   },
 
+  // App
+  app: {
+    checkForUpdates: () => ipcRenderer.invoke('app:checkForUpdates'),
+    getVersion: () => ipcRenderer.invoke('app:getVersion')
+  },
+
   // Settings
   settings: {
     get: (key: string) => ipcRenderer.invoke('settings:get', key),
