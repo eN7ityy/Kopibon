@@ -12,8 +12,8 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { to: '/search', label: 'Search', icon: '🔍' },
-  { to: '/library', label: 'Library', icon: '📚' },
   { to: '/favorites', label: 'Favorites', icon: '⭐', requiresAuth: true },
+  { to: '/library', label: 'Library', icon: '📚' },
   { to: '/downloads', label: 'Downloads', icon: '⬇️' },
   { to: '/settings', label: 'Settings', icon: '⚙️' }
 ]

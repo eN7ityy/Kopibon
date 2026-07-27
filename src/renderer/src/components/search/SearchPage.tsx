@@ -51,7 +51,7 @@ export default function SearchPage(): React.JSX.Element {
   // Auto-search when sort changes and query is non-empty
   useEffect(() => {
     if (prevSortRef.current !== store.sort && store.query.trim()) {
-      performSearch(1, false)
+      performSearch(1)
     }
     prevSortRef.current = store.sort
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -92,15 +92,11 @@ export default function SearchPage(): React.JSX.Element {
   )
 
   const performSearch = useCallback(
-    async (page: number, append = false, overrideQuery?: string) => {
+    async (page: number, overrideQuery?: string) => {
       const trimmedQuery = (overrideQuery ?? store.query).trim()
       if (!trimmedQuery) return
 
-      if (page === 1) {
-        store.setLoading(true)
-      } else {
-        store.setLoadingMore(true)
-      }
+      store.setLoading(true)
 
       try {
         const result = await window.api.search(trimmedQuery, {
@@ -110,15 +106,8 @@ export default function SearchPage(): React.JSX.Element {
 
         if (result.success && result.data) {
           const data = result.data
-          const newResults = append ? [...store.results, ...data.result] : data.result
-
-          const statuses = await resolveDownloadStatuses(newResults.map((r) => r.id))
-
-          if (append) {
-            store.appendResults(data.result, statuses, page)
-          } else {
-            store.setResults(data.result, statuses, page > 0 ? page : 0, data.num_pages)
-          }
+          const statuses = await resolveDownloadStatuses(data.result.map((r) => r.id))
+          store.setResults(data.result, statuses, page > 0 ? page : 0, data.num_pages)
         } else {
           const errorMsg = result.error || 'Search failed'
           if (errorMsg.includes('429') || errorMsg.toLowerCase().includes('rate')) {
@@ -131,17 +120,22 @@ export default function SearchPage(): React.JSX.Element {
         store.setError(err instanceof Error ? err.message : 'Search failed')
       }
     },
-    [store.query, store.sort, store.results, resolveDownloadStatuses]
+    [store.query, store.sort, resolveDownloadStatuses]
   )
 
   const handleSearch = (e: React.FormEvent): void => {
     e.preventDefault()
-    performSearch(1, false)
+    performSearch(1)
   }
 
-  const handleLoadMore = (): void => {
-    if (!store.loadingMore && store.currentPage < store.totalPages) {
-      performSearch(store.currentPage + 1, true)
+  const handlePrevPage = (): void => {
+    const prev = Math.max(1, store.currentPage - 1)
+    if (prev !== store.currentPage) performSearch(prev)
+  }
+
+  const handleNextPage = (): void => {
+    if (store.currentPage < store.totalPages) {
+      performSearch(store.currentPage + 1)
     }
   }
 
@@ -150,7 +144,7 @@ export default function SearchPage(): React.JSX.Element {
   }
 
   const handleRetry = (): void => {
-    performSearch(store.currentPage || 1, false)
+    performSearch(store.currentPage || 1)
   }
 
   const handleTagClick = (tagType: string, tagName: string): void => {
@@ -179,7 +173,7 @@ export default function SearchPage(): React.JSX.Element {
     // Scroll to top of results
     resultsContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
     // Pass query explicitly to avoid stale closure
-    performSearch(1, false, query)
+    performSearch(1, query)
   }
 
   const refreshSingleDownloadStatus = useCallback(
@@ -231,8 +225,7 @@ export default function SearchPage(): React.JSX.Element {
   }, [])  // eslint-disable-line react-hooks/exhaustive-deps
 
   const hasResults = store.results.length > 0
-  const hasMorePages = store.currentPage < store.totalPages
-  const showLoadMore = hasResults && hasMorePages && !store.loading && !store.loadingMore
+  const hasMultiplePages = store.totalPages > 1
 
   return (
     <div className="flex flex-col h-full">
@@ -325,20 +318,25 @@ export default function SearchPage(): React.JSX.Element {
               onGalleryClick={handleGalleryClick}
             />
 
-            {showLoadMore && (
-              <div className="flex justify-center pb-4">
+            {hasMultiplePages && (
+              <div className="flex items-center justify-center gap-2 pb-4">
                 <button
-                  onClick={handleLoadMore}
-                  className="px-6 py-2.5 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 font-medium hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                  onClick={handlePrevPage}
+                  disabled={store.currentPage <= 1 || store.loading}
+                  className="px-3 py-1.5 rounded text-sm font-medium border border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                 >
-                  Load More
+                  ← Prev
                 </button>
-              </div>
-            )}
-
-            {store.loadingMore && (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 pb-4">
-                <LoadingSkeleton count={6} variant="card" />
+                <span className="text-sm text-gray-500 dark:text-gray-400">
+                  Page {store.currentPage} of {store.totalPages}
+                </span>
+                <button
+                  onClick={handleNextPage}
+                  disabled={store.currentPage >= store.totalPages || store.loading}
+                  className="px-3 py-1.5 rounded text-sm font-medium border border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  Next →
+                </button>
               </div>
             )}
           </div>

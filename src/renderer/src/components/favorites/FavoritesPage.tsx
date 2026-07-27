@@ -1,7 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useAuthStore } from '../../stores/auth.store'
-import type { GalleryListItem } from '../../types/api.types'
+import type { GalleryListItem, DownloadStatus } from '../../types/api.types'
+import GalleryGrid from '../search/GalleryGrid'
+import GalleryDetail from '../gallery/GalleryDetail'
+import LoadingSkeleton from '../shared/LoadingSkeleton'
+import EmptyState from '../shared/EmptyState'
+import ErrorState from '../shared/ErrorState'
 
 interface FavoritesResponse {
   result: GalleryListItem[]
@@ -16,12 +19,34 @@ type PageState =
   | { status: 'empty' }
 
 export default function FavoritesPage(): React.JSX.Element {
-  const auth = useAuthStore()
-  const navigate = useNavigate()
   const [pageState, setPageState] = useState<PageState>({ status: 'loading' })
   const [page, setPage] = useState(1)
   const [query, setQuery] = useState('')
   const [searchInput, setSearchInput] = useState('')
+  const [downloadStatuses, setDownloadStatuses] = useState<Record<number, DownloadStatus>>({})
+  const [selectedGalleryId, setSelectedGalleryId] = useState<number | null>(null)
+
+  const resolveDownloadStatuses = useCallback(
+    async (ids: number[]): Promise<Record<number, DownloadStatus>> => {
+      const statuses: Record<number, DownloadStatus> = {}
+      await Promise.all(
+        ids.map(async (id) => {
+          try {
+            const libResult = await window.api.library.getByGalleryId(id)
+            if (libResult.success && libResult.data) {
+              statuses[id] = libResult.data.isCustom === 2 ? 'downloading' : 'in_library'
+            } else {
+              statuses[id] = 'not_downloaded'
+            }
+          } catch {
+            statuses[id] = 'not_downloaded'
+          }
+        })
+      )
+      return statuses
+    },
+    []
+  )
 
   const fetchFavorites = useCallback(async (p: number, q?: string): Promise<void> => {
     setPageState({ status: 'loading' })
@@ -31,6 +56,9 @@ export default function FavoritesPage(): React.JSX.Element {
         if (result.data.result.length === 0) {
           setPageState({ status: 'empty' })
         } else {
+          const ids = result.data.result.map((r) => r.id)
+          const statuses = await resolveDownloadStatuses(ids)
+          setDownloadStatuses(statuses)
           setPageState({ status: 'loaded', data: result.data })
         }
       } else {
@@ -39,15 +67,21 @@ export default function FavoritesPage(): React.JSX.Element {
     } catch (err) {
       setPageState({ status: 'error', error: String(err) })
     }
-  }, [])
+  }, [resolveDownloadStatuses])
 
   useEffect(() => {
-    if (!auth.loggedIn) {
-      navigate('/search', { replace: true })
-      return
-    }
     fetchFavorites(page, query || undefined)
-  }, [auth.loggedIn, navigate, page, query, fetchFavorites])
+  }, [page, query, fetchFavorites])
+
+  useEffect(() => {
+    if (pageState.status !== 'loaded') return
+    const interval = setInterval(async () => {
+      const ids = pageState.data.result.map((r) => r.id)
+      const statuses = await resolveDownloadStatuses(ids)
+      setDownloadStatuses(statuses)
+    }, 2000)
+    return () => clearInterval(interval)
+  }, [pageState.status, resolveDownloadStatuses])
 
   const handleSearch = (e: React.FormEvent): void => {
     e.preventDefault()
@@ -55,41 +89,82 @@ export default function FavoritesPage(): React.JSX.Element {
     setPage(1)
   }
 
-  const getCoverUrl = (gallery: GalleryListItem): string => {
-    return gallery.thumbnail
-      ? `https://t.nhentai.net/${gallery.thumbnail}`
-      : ''
+  const handleGalleryClick = (id: number): void => {
+    setSelectedGalleryId(id)
   }
 
-  const getTitle = (gallery: GalleryListItem): string => {
-    return gallery.english_title || gallery.japanese_title || `#${gallery.id}`
+  const handleTagClick = (_tagType: string, _tagName: string): void => {
+    setSelectedGalleryId(null)
   }
 
-  if (!auth.loaded) {
+  const handleDownload = useCallback(
+    async (galleryId: number): Promise<void> => {
+      try {
+        await window.api.downloads.addToQueue(galleryId)
+        const statuses = await resolveDownloadStatuses([galleryId])
+        setDownloadStatuses((prev) => ({ ...prev, ...statuses }))
+      } catch {
+        // silently ignore
+      }
+    },
+    [resolveDownloadStatuses]
+  )
+
+  if (pageState.status === 'loading') {
     return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-gray-400 dark:text-gray-500">Loading...</div>
+      <div className="flex flex-col h-full">
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Favorites</h1>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            Browse your nhentai favorites
+          </p>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+          <LoadingSkeleton count={12} variant="card" />
+        </div>
+      </div>
+    )
+  }
+
+  if (pageState.status === 'empty') {
+    return (
+      <div className="flex flex-col h-full">
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Favorites</h1>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            Browse your nhentai favorites
+          </p>
+        </div>
+        <EmptyState
+          icon="⭐"
+          title="No favorites found"
+          description={query ? 'No favorites match your search query.' : 'Favorite some galleries on nhentai.net to see them here.'}
+        />
+      </div>
+    )
+  }
+
+  if (pageState.status === 'error') {
+    return (
+      <div className="flex flex-col h-full">
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Favorites</h1>
+        </div>
+        <ErrorState message={pageState.error} onRetry={() => fetchFavorites(page, query || undefined)} />
       </div>
     )
   }
 
   return (
     <div className="flex flex-col h-full">
-      <div className="mb-6">
+      <div className="mb-4">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Favorites</h1>
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
           Browse your nhentai favorites
-          {auth.username && (
-            <span>
-              {' '}
-              — logged in as <span className="font-medium">{auth.username}</span>
-            </span>
-          )}
         </p>
       </div>
 
-      {/* Search within favorites */}
-      <form onSubmit={handleSearch} className="flex gap-2 mb-6">
+      <form onSubmit={handleSearch} className="flex gap-2 mb-4">
         <input
           type="text"
           value={searchInput}
@@ -118,107 +193,45 @@ export default function FavoritesPage(): React.JSX.Element {
         )}
       </form>
 
-      {/* Content */}
-      {pageState.status === 'loading' && (
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-center text-gray-400 dark:text-gray-500">
-            <span className="text-5xl block mb-3">⏳</span>
-            <p className="text-lg font-medium">Loading favorites...</p>
-          </div>
-        </div>
-      )}
+      <div className="flex-1 overflow-y-auto">
+        <GalleryGrid
+          galleries={pageState.data.result.map((g) => ({
+            gallery: g,
+            downloadStatus: downloadStatuses[g.id] ?? 'not_downloaded'
+          }))}
+          onGalleryClick={handleGalleryClick}
+        />
 
-      {pageState.status === 'empty' && (
-        <div className="flex-1 flex items-center justify-center border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-xl">
-          <div className="text-center text-gray-400 dark:text-gray-500">
-            <span className="text-5xl block mb-3">⭐</span>
-            <p className="text-lg font-medium">No favorites found</p>
-            <p className="text-sm mt-1">
-              {query
-                ? 'No favorites match your search query.'
-                : 'Favorite some galleries on nhentai.net to see them here.'}
-            </p>
-          </div>
-        </div>
-      )}
-
-      {pageState.status === 'error' && (
-        <div className="flex-1 flex items-center justify-center border-2 border-dashed border-red-300 dark:border-red-700 rounded-xl">
-          <div className="text-center text-red-400 dark:text-red-500">
-            <span className="text-5xl block mb-3">⚠️</span>
-            <p className="text-lg font-medium">Failed to load favorites</p>
-            <p className="text-sm mt-1">{pageState.error}</p>
+        {pageState.data.num_pages > 1 && (
+          <div className="flex items-center justify-center gap-2 mt-6 pb-4">
             <button
-              onClick={() => fetchFavorites(page, query || undefined)}
-              className="mt-4 px-4 py-2 rounded-lg bg-purple-600 text-white font-medium hover:bg-purple-700 transition-colors"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page <= 1}
+              className="px-3 py-1.5 rounded text-sm font-medium border border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
-              Retry
+              ← Prev
+            </button>
+            <span className="text-sm text-gray-500 dark:text-gray-400">
+              Page {page} of {pageState.data.num_pages}
+            </span>
+            <button
+              onClick={() => setPage((p) => p + 1)}
+              disabled={page >= pageState.data.num_pages}
+              className="px-3 py-1.5 rounded text-sm font-medium border border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              Next →
             </button>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
-      {pageState.status === 'loaded' && (
-        <>
-          {/* Gallery Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-            {pageState.data.result.map((gallery) => (
-              <div
-                key={gallery.id}
-                className="group relative bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden hover:shadow-lg transition-shadow cursor-pointer"
-              >
-                {/* Cover image */}
-                <div className="aspect-[3/4] overflow-hidden bg-gray-100 dark:bg-gray-900">
-                  <img
-                    src={getCoverUrl(gallery)}
-                    alt={getTitle(gallery)}
-                    draggable={false}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                    loading="lazy"
-                  />
-                </div>
-
-                {/* Info overlay at bottom */}
-                <div className="p-2.5">
-                  <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
-                    {getTitle(gallery)}
-                  </h3>
-                  <div className="flex items-center justify-between mt-1.5">
-                    <span className="text-xs text-gray-400 dark:text-gray-500">
-                      {gallery.num_pages}p
-                    </span>
-                    <span className="text-xs text-gray-400 dark:text-gray-500">
-                      ★ {gallery.num_favorites}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Pagination */}
-          {pageState.data.num_pages > 1 && (
-            <div className="flex items-center justify-center gap-2 mt-6 pb-4">
-              <button
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page <= 1}
-                className="px-3 py-1.5 rounded text-sm font-medium border border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              >
-                ← Prev
-              </button>
-              <span className="text-sm text-gray-500 dark:text-gray-400">
-                Page {page} of {pageState.data.num_pages}
-              </span>
-              <button
-                onClick={() => setPage((p) => p + 1)}
-                disabled={page >= pageState.data.num_pages}
-                className="px-3 py-1.5 rounded text-sm font-medium border border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              >
-                Next →
-              </button>
-            </div>
-          )}
-        </>
+      {selectedGalleryId !== null && (
+        <GalleryDetail
+          galleryId={selectedGalleryId}
+          onClose={() => setSelectedGalleryId(null)}
+          onDownload={handleDownload}
+          onTagClick={handleTagClick}
+        />
       )}
     </div>
   )

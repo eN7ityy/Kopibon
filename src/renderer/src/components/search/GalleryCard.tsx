@@ -60,12 +60,15 @@ export default function GalleryCard({
           {title}
         </h3>
 
-        {/* Status badge */}
-        <div className="flex items-center justify-between pt-1">
+        {/* Badges row */}
+        <div className="flex items-center justify-between pt-1 gap-2">
           <StatusBadge status={downloadStatus} size="sm" />
-          <span className="text-xs text-gray-400 dark:text-gray-500">
-            {gallery.num_pages || 0} pages
-          </span>
+          <div className="flex items-center gap-2 text-xs text-gray-400 dark:text-gray-500 flex-shrink-0">
+            <span className="whitespace-nowrap">{gallery.num_pages || 0}p</span>
+            {gallery.num_favorites > 0 && (
+              <span className="whitespace-nowrap">★ {gallery.num_favorites.toLocaleString()}</span>
+            )}
+          </div>
         </div>
       </div>
     </button>
