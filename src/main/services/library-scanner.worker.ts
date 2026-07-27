@@ -363,6 +363,16 @@ function markQueueItem(filePath: string, status: string, error?: string): void {
 // ─── File Processing ─────────────────────────────────────────────────────────
 
 async function processFile(filePath: string): Promise<{ status: 'new' | 'skipped' | 'error'; title?: string; artist?: string; id?: number }> {
+  // Skip files modified in the last 5 seconds (still being written by concurrent downloads)
+  try {
+    const recentStat = statSync(filePath)
+    if (Date.now() - recentStat.mtimeMs < 5_000) {
+      log(`SKIP (recently modified) ${filePath}`)
+      markQueueItem(filePath, 'completed')
+      return { status: 'skipped' }
+    }
+  } catch { /* stat failure, continue to process */ }
+
   // Incremental skip
   if (shouldSkipFile(filePath)) {
     log(`SKIP (unchanged) ${filePath}`)
