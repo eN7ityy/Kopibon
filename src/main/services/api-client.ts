@@ -162,7 +162,7 @@ export class ApiClient {
   }
 
   async getGallery(id: number): Promise<GalleryDetail> {
-    return this.request<GalleryDetail>(`/gallery/${id}`)
+    return this.request<GalleryDetail>(`/galleries/${id}`)
   }
 
   async getCdnConfig(): Promise<CdnConfig> {
