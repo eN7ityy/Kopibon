@@ -32,17 +32,21 @@ export default function SearchPage(): React.JSX.Element {
     }
   }, [store.rateLimited])
 
-  // Refresh statuses on mount (every time user navigates to Search)
+  // Refresh statuses on mount + poll every 2s for real-time updates
   useEffect(() => {
-    if (store.results.length > 0) {
-      resolveDownloadStatuses(store.results.map((r) => r.id)).then((statuses) => {
-        for (const [id, status] of statuses) {
-          store.downloadStatuses[id] = status
-        }
-      })
+    const refreshStatuses = async () => {
+      if (store.results.length === 0) return
+      const ids = store.results.map((r) => r.id)
+      const statuses = await resolveDownloadStatuses(ids)
+      for (const [id, status] of statuses) {
+        store.downloadStatuses[id] = status
+      }
     }
+    refreshStatuses()
+    const interval = setInterval(refreshStatuses, 2000)
+    return () => clearInterval(interval)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [store.results])
 
   // Auto-search when sort changes and query is non-empty
   useEffect(() => {

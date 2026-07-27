@@ -408,7 +408,13 @@ export function registerLibraryIpc(): void {
 
   ipcMain.handle('library:delete', async (_event, id: number) => {
     try {
+      const item = libraryRepo.findById(id)
       libraryRepo.delete(id)
+      // Notify all renderers so search status can update
+      const windows = BrowserWindow.getAllWindows()
+      for (const win of windows) {
+        win.webContents.send('library:itemDeleted', { id, galleryId: item?.galleryId ?? null })
+      }
       return { success: true }
     } catch (error) {
       return { success: false, error: String(error) }
