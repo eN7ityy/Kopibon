@@ -155,5 +155,32 @@ function runMigrations(sqlite: Database.Database): void {
       removed_items INTEGER NOT NULL DEFAULT 0,
       errors_json TEXT DEFAULT '[]'
     );
+
+    CREATE TABLE IF NOT EXISTS scan_queue (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      file_path TEXT NOT NULL UNIQUE,
+      status TEXT NOT NULL DEFAULT 'pending',
+      priority INTEGER NOT NULL DEFAULT 0,
+      error_message TEXT,
+      scanned_at INTEGER,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch())
+    );
+
+    -- Migration: add columns that may not exist yet
+    ALTER TABLE library_item ADD COLUMN file_mtime INTEGER;
+    ALTER TABLE library_item ADD COLUMN thumbnail_path TEXT;
   `)
+}
+
+/**
+ * Open a separate better-sqlite3 connection for use in worker threads.
+ * Drizzle ORM instances cannot be shared across threads, so workers
+ * use raw better-sqlite3 with their own connection.
+ */
+export function openWorkerConnection(): Database.Database {
+  const workerDb = new Database(DB_PATH)
+  workerDb.pragma('journal_mode = WAL')
+  workerDb.pragma('foreign_keys = ON')
+  workerDb.pragma('busy_timeout = 5000')
+  return workerDb
 }

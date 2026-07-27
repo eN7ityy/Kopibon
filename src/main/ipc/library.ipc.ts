@@ -1,13 +1,13 @@
 import { ipcMain, BrowserWindow } from 'electron'
+import { Worker } from 'worker_threads'
+import { join as pathJoin } from 'path'
 import { libraryRepo } from '../db/repositories/library.repo'
-import { scanLibrary } from '../services/library-scanner'
-import type { ScanCancelToken } from '../services/library-scanner'
 import { setSeries, embedMetadata } from '../services/metadata-writer'
 import { renameSync, mkdirSync, existsSync } from 'fs'
 import { dirname, join, basename } from 'path'
 
 let isScanning = false
-let currentScanCancelToken: ScanCancelToken | null = null
+let scanWorker: Worker | null = null
 
 export function registerLibraryIpc(): void {
   ipcMain.handle('library:getAll', async () => {
@@ -91,10 +91,10 @@ export function registerLibraryIpc(): void {
     }
   })
 
-  // ─── Scan ──────────────────────────────────────────────────────────
+  // ─── Scan (Worker Thread) ──────────────────────────────────────────
 
   ipcMain.handle('library:scan', async (event, libraryRoot: string) => {
-    if (isScanning) {
+    if (isScanning || scanWorker) {
       return { success: false, error: 'Scan already in progress' }
     }
 
@@ -104,30 +104,63 @@ export function registerLibraryIpc(): void {
     }
 
     isScanning = true
-    currentScanCancelToken = { cancelled: false }
+    const workerPath = pathJoin(__dirname, '../services/library-scanner.worker.js')
+    scanWorker = new Worker(workerPath)
 
-    // Run scan asynchronously with cancel support, sending progress to renderer
-    scanLibrary(libraryRoot, (progress) => {
-      win.webContents.send('library:scanProgress', progress)
-    }, currentScanCancelToken)
-      .then((result) => {
-        isScanning = false
-        currentScanCancelToken = null
-        win.webContents.send('library:scanComplete', result)
-      })
-      .catch((error) => {
-        isScanning = false
-        currentScanCancelToken = null
-        win.webContents.send('library:scanError', String(error))
-      })
+    scanWorker.on('message', (msg: { type: string; current?: number; total?: number; status?: string; item?: { id: number; title: string; artist: string }; result?: { total: number; newItems: number; removedItems: number; errors: string[]; cancelled: boolean }; message?: string }) => {
+      switch (msg.type) {
+        case 'progress':
+          win.webContents.send('library:scanProgress', { current: msg.current, total: msg.total, status: msg.status })
+          break
+        case 'newItem':
+          win.webContents.send('library:newItem', msg.item)
+          break
+        case 'complete':
+          scanWorker = null
+          isScanning = false
+          win.webContents.send('library:scanComplete', msg.result)
+          break
+        case 'paused':
+          win.webContents.send('library:scanPaused')
+          break
+        case 'cancelled':
+          scanWorker = null
+          isScanning = false
+          win.webContents.send('library:scanCancelled')
+          break
+        case 'error':
+          win.webContents.send('library:scanError', msg.message)
+          break
+      }
+    })
 
+    scanWorker.on('error', (err) => {
+      scanWorker = null
+      isScanning = false
+      win.webContents.send('library:scanError', err.message)
+    })
+
+    scanWorker.on('exit', () => {
+      scanWorker = null
+      isScanning = false
+    })
+
+    scanWorker.postMessage({ type: 'start', libraryRoot })
     return { success: true, data: { scanning: true } }
   })
 
+  ipcMain.handle('library:pauseScan', async () => {
+    scanWorker?.postMessage({ type: 'pause' })
+    return { success: true }
+  })
+
+  ipcMain.handle('library:resumeScan', async () => {
+    scanWorker?.postMessage({ type: 'resume' })
+    return { success: true }
+  })
+
   ipcMain.handle('library:cancelScan', async () => {
-    if (currentScanCancelToken) {
-      currentScanCancelToken.cancelled = true
-    }
+    scanWorker?.postMessage({ type: 'cancel' })
     return { success: true }
   })
 

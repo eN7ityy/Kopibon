@@ -68,6 +68,8 @@ const api = {
     getAllTagNames: () => ipcRenderer.invoke('library:getAllTagNames'),
     count: () => ipcRenderer.invoke('library:count'),
     scan: (libraryRoot: string) => ipcRenderer.invoke('library:scan', libraryRoot),
+    pauseScan: () => ipcRenderer.invoke('library:pauseScan'),
+    resumeScan: () => ipcRenderer.invoke('library:resumeScan'),
     cancelScan: () => ipcRenderer.invoke('library:cancelScan'),
     getScanStatus: () => ipcRenderer.invoke('library:getScanStatus'),
     reset: () => ipcRenderer.invoke('library:reset'),
@@ -102,6 +104,21 @@ const api = {
     const handler = (_event: Electron.IpcRendererEvent, error: string) => callback(error)
     ipcRenderer.on('library:scanError', handler)
     return () => ipcRenderer.removeListener('library:scanError', handler)
+  },
+  onLibraryNewItem: (callback: (item: { id: number; title: string; artist: string }) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, item: { id: number; title: string; artist: string }) => callback(item)
+    ipcRenderer.on('library:newItem', handler)
+    return () => ipcRenderer.removeListener('library:newItem', handler)
+  },
+  onLibraryScanPaused: (callback: () => void) => {
+    const handler = () => callback()
+    ipcRenderer.on('library:scanPaused', handler)
+    return () => ipcRenderer.removeListener('library:scanPaused', handler)
+  },
+  onLibraryScanCancelled: (callback: () => void) => {
+    const handler = () => callback()
+    ipcRenderer.on('library:scanCancelled', handler)
+    return () => ipcRenderer.removeListener('library:scanCancelled', handler)
   },
 
   // Settings

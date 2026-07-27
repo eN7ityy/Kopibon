@@ -49,6 +49,7 @@ export default function LibraryPage(): React.JSX.Element {
 
   // Scan state
   const [scanning, setScanning] = useState(false)
+  const [scanPaused, setScanPaused] = useState(false)
   const [scanProgress, setScanProgress] = useState<ScanProgress | null>(null)
   const [lastScan, setLastScan] = useState<{ scannedAt: number; newItems: number; totalItems: number } | null>(null)
 
@@ -121,24 +122,65 @@ export default function LibraryPage(): React.JSX.Element {
     })
     const unsubComplete = window.api.onLibraryScanComplete((result) => {
       setScanning(false)
+      setScanPaused(false)
       setScanProgress(null)
       setLastScan({
         scannedAt: Date.now(),
         newItems: result.newItems,
         totalItems: result.total
       })
-      // Refresh data
       fetchData()
     })
     const unsubError = window.api.onLibraryScanError((err) => {
       setScanning(false)
+      setScanPaused(false)
       setScanProgress(null)
       setError(err)
+    })
+
+    // Live item streaming: append new items to grid in real-time
+    const unsubNewItem = window.api.onLibraryNewItem((item) => {
+      setItems((prev) => {
+        const exists = prev.some((i) => i.id === item.id)
+        if (exists) return prev
+        const newItem: LibraryItemData = {
+          id: item.id,
+          galleryId: null,
+          isCustom: 0,
+          customTitle: item.title,
+          customTags: null,
+          customLanguage: null,
+          customDate: null,
+          customCoverPath: null,
+          filePath: '',
+          fileSize: null,
+          format: 'pdf',
+          primaryArtist: item.artist,
+          seriesName: null,
+          readProgress: 0,
+          addedAt: Date.now(),
+          updatedAt: Date.now()
+        }
+        return [newItem, ...prev]
+      })
+    })
+
+    const unsubPaused = window.api.onLibraryScanPaused(() => {
+      setScanPaused(true)
+    })
+    const unsubCancelled = window.api.onLibraryScanCancelled(() => {
+      setScanning(false)
+      setScanPaused(false)
+      setScanProgress(null)
     })
 
     return () => {
       unsubProgress()
       unsubComplete()
+      unsubError()
+      unsubNewItem()
+      unsubPaused()
+      unsubCancelled()
       unsubError()
     }
   }, [fetchData])
@@ -156,12 +198,16 @@ export default function LibraryPage(): React.JSX.Element {
     }
   }
 
+  const handlePauseScan = async () => {
+    try { await window.api.library.pauseScan() } catch { /* */ }
+  }
+
+  const handleResumeScan = async () => {
+    try { await window.api.library.resumeScan() } catch { /* */ }
+  }
+
   const handleCancelScan = async () => {
-    try {
-      await window.api.library.cancelScan()
-    } catch {
-      // ignore
-    }
+    try { await window.api.library.cancelScan() } catch { /* */ }
   }
 
   // ─── Selection ─────────────────────────────────────────────────────────────
@@ -363,27 +409,29 @@ export default function LibraryPage(): React.JSX.Element {
 
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-3 mb-4">
-        {/* Rescan / Cancel Scan button */}
-        <button
-          onClick={scanning ? handleCancelScan : handleRescan}
-          className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors flex items-center gap-2 ${
-            scanning
-              ? 'bg-red-600 text-white hover:bg-red-700'
-              : 'bg-purple-600 text-white hover:bg-purple-700'
-          }`}
-        >
-          {scanning ? (
-            <>
-              <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
-              Cancel Scan
-            </>
-          ) : (
-            '🔄 Rescan Library'
-          )}
-        </button>
+        {/* Rescan / Pause / Resume button */}
+        {!scanning && !scanPaused && (
+          <button onClick={handleRescan} className="px-4 py-2 rounded-lg bg-purple-600 text-white font-medium text-sm hover:bg-purple-700 transition-colors flex items-center gap-2">
+            🔄 Rescan Library
+          </button>
+        )}
+        {scanning && !scanPaused && (
+          <>
+            <button onClick={handlePauseScan} className="px-4 py-2 rounded-lg bg-yellow-600 text-white font-medium text-sm hover:bg-yellow-700 transition-colors flex items-center gap-2">
+              <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+              Pause Scan
+            </button>
+            <button onClick={handleCancelScan} className="px-3 py-2 rounded-lg bg-red-600 text-white font-medium text-sm hover:bg-red-700 transition-colors">✕ Cancel</button>
+          </>
+        )}
+        {scanPaused && (
+          <>
+            <button onClick={handleResumeScan} className="px-4 py-2 rounded-lg bg-green-600 text-white font-medium text-sm hover:bg-green-700 transition-colors flex items-center gap-2">
+              ▶ Resume Scan
+            </button>
+            <button onClick={handleCancelScan} className="px-3 py-2 rounded-lg bg-red-600 text-white font-medium text-sm hover:bg-red-700 transition-colors">✕ Cancel</button>
+          </>
+        )}
 
         {/* Add Custom button */}
         <button

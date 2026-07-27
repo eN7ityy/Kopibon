@@ -36,6 +36,8 @@ export const libraryItem = sqliteTable('library_item', {
   primaryArtist: text('primary_artist').notNull(),
   seriesName: text('series_name'),
   readProgress: integer('read_progress').notNull().default(0),
+  fileMtime: integer('file_mtime'),
+  thumbnailPath: text('thumbnail_path'),
   addedAt: integer('added_at').notNull().default(Date.now()),
   updatedAt: integer('updated_at').notNull().default(Date.now())
 })
@@ -111,4 +113,16 @@ export const libraryScanLog = sqliteTable('library_scan_log', {
   newItems: integer('new_items').notNull().default(0),
   removedItems: integer('removed_items').notNull().default(0),
   errorsJson: text('errors_json').default('[]')
+})
+
+// ─── Scan Queue ─────────────────────────────────────────────────────────────
+
+export const scanQueue = sqliteTable('scan_queue', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  filePath: text('file_path').notNull().unique(),
+  status: text('status').notNull().default('pending'),
+  priority: integer('priority').notNull().default(0),
+  errorMessage: text('error_message'),
+  scannedAt: integer('scanned_at'),
+  createdAt: integer('created_at').notNull().default(Date.now())
 })
