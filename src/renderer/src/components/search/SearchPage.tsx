@@ -59,7 +59,18 @@ export default function SearchPage(): React.JSX.Element {
               const dlStatus = dlResult.data.status
               if (dlStatus === 'downloading') statuses.set(id, 'downloading')
               else if (dlStatus === 'queued') statuses.set(id, 'queued')
-              else if (dlStatus === 'completed') statuses.set(id, 'completed')
+              else if (dlStatus === 'converting') statuses.set(id, 'downloading')
+              else if (dlStatus === 'completed') {
+                // Cross-reference: only show as completed if library item exists.
+                // Library reset clears items but not the download queue, so a
+                // "completed" download without a library entry is stale.
+                const libCheck = await window.api.library.getByGalleryId(id)
+                if (libCheck.success && libCheck.data) {
+                  statuses.set(id, 'in_library')
+                } else {
+                  statuses.set(id, 'not_downloaded')
+                }
+              }
               else if (dlStatus === 'failed') statuses.set(id, 'failed')
               else statuses.set(id, 'not_downloaded')
               return
