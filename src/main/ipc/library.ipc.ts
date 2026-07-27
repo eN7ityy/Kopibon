@@ -450,17 +450,163 @@ export function registerLibraryIpc(): void {
     }
   })
 
-  ipcMain.handle('library:updateMetadata', async (_event, id: number, metadata: Record<string, string | number | null>) => {
+  ipcMain.handle('library:updateMetadata', async (_event, id: number, metadata: Record<string, string | number | null>, libraryRoot?: string) => {
     try {
-      libraryRepo.update(id, {
-        customTitle: metadata.customTitle as string | undefined,
-        customTags: metadata.customTags as string | undefined,
-        customLanguage: metadata.customLanguage as string | undefined,
-        customDate: metadata.customDate as string | undefined,
-        seriesName: metadata.seriesName as string | undefined,
-        primaryArtist: metadata.primaryArtist as string | undefined
-      })
-      return { success: true }
+      const item = libraryRepo.findById(id)
+      if (!item) {
+        return { success: false, error: `Library item ${id} not found` }
+      }
+
+      // ── Merge metadata for DB update ──────────────────────────────
+      const newTitle = (metadata.customTitle as string | undefined) ?? item.customTitle
+      const newTags = (metadata.customTags as string | undefined) ?? item.customTags
+      const newLanguage = (metadata.customLanguage as string | undefined) ?? item.customLanguage
+      const newDate = (metadata.customDate as string | undefined) ?? item.customDate
+      const newSeriesName = (metadata.seriesName as string | undefined) ?? item.seriesName
+      const newPrimaryArtist = (metadata.primaryArtist as string | undefined) ?? item.primaryArtist
+      const newSeriesIndex = metadata.seriesIndex != null ? Number(metadata.seriesIndex) : undefined
+      const newPublisher = (metadata.publisher as string | undefined) ?? undefined
+      const newDescription = (metadata.description as string | undefined) ?? undefined
+
+      // ── Update DB row ─────────────────────────────────────────────
+      const dbUpdateData: Record<string, unknown> = {
+        customTitle: newTitle,
+        customTags: newTags,
+        customLanguage: newLanguage,
+        customDate: newDate,
+        seriesName: newSeriesName,
+        primaryArtist: newPrimaryArtist,
+        updatedAt: Date.now()
+      }
+      if (metadata.seriesIndex !== undefined) (dbUpdateData as Record<string, unknown>).seriesIndex = newSeriesIndex
+      if (metadata.publisher !== undefined) (dbUpdateData as Record<string, unknown>).publisher = newPublisher
+      if (metadata.description !== undefined) (dbUpdateData as Record<string, unknown>).description = newDescription
+      libraryRepo.update(id, dbUpdateData as Record<string, unknown>)
+
+      // ── Re-embed metadata into PDF ────────────────────────────────
+      try {
+        const tagList: Array<{ id: number; type: string; name: string }> = []
+        // Parse existing tags from customTags
+        if (newTags) {
+          newTags.split(',').forEach((t: string) => {
+            const trimmed = t.trim()
+            if (trimmed) tagList.push({ id: 0, type: 'tag', name: trimmed })
+          })
+        }
+        // Add artist tags
+        if (newPrimaryArtist) {
+          tagList.push({ id: 0, type: 'artist', name: newPrimaryArtist })
+        }
+
+        const uploadDate = newDate
+          ? Math.floor(new Date(newDate).getTime() / 1000)
+          : Math.floor(Date.now() / 1000)
+
+        await embedMetadata(item.filePath, {
+          id: item.galleryId ?? 0,
+          title: {
+            english: newTitle ?? '',
+            japanese: null,
+            pretty: newTitle ?? ''
+          },
+          tags: tagList,
+          uploadDate,
+          numPages: 0,
+          seriesName: newSeriesName ?? undefined,
+          seriesIndex: newSeriesIndex,
+          language: newLanguage ?? undefined,
+          publisher: newPublisher,
+          description: newDescription ?? undefined
+        } as import('../services/metadata-writer').GalleryMetadata)
+      } catch (embedErr) {
+        // Non-fatal: metadata embedding failure shouldn't block the update
+        console.error('Failed to re-embed metadata:', embedErr)
+      }
+
+      // ── Determine library root ────────────────────────────────────
+      let root = libraryRoot
+      if (!root) {
+        // Derive root from file path: {root}/{artist}/{series?}/file.pdf
+        const { dirname, basename: pathBasename } = await import('path')
+        const parentDir = dirname(item.filePath)
+        const grandparentDir = dirname(parentDir)
+        // If parent dir matches primary artist, file is directly in artist dir
+        if (pathBasename(parentDir) === item.primaryArtist) {
+          root = grandparentDir
+        } else {
+          // File is in series subdirectory: root is 3 levels up
+          root = dirname(grandparentDir)
+        }
+      }
+
+      // ── Compute new file path if artist or series changed ─────────
+      const oldArtist = item.primaryArtist
+      const oldSeries = item.seriesName
+      const artistChanged = newPrimaryArtist && newPrimaryArtist !== oldArtist
+      const seriesChanged = (newSeriesName ?? null) !== (oldSeries ?? null)
+
+      let newPath: string | null = null
+
+      if (artistChanged || seriesChanged) {
+        const { join, dirname: pathDirname, basename: pathBasename } = await import('path')
+        const { existsSync: pathExistsSync, mkdirSync: pathMkdirSync, renameSync: pathRenameSync, rmdirSync: pathRmdirSync } = await import('fs')
+
+        const fileName = pathBasename(item.filePath)
+        const targetArtistDir = join(root!, newPrimaryArtist!)
+
+        let targetDir: string
+        if (newSeriesName) {
+          targetDir = join(targetArtistDir, newSeriesName)
+        } else {
+          targetDir = targetArtistDir
+        }
+
+        // Create target directories
+        if (!pathExistsSync(targetArtistDir)) {
+          pathMkdirSync(targetArtistDir, { recursive: true })
+        }
+        if (newSeriesName && !pathExistsSync(targetDir)) {
+          pathMkdirSync(targetDir, { recursive: true })
+        }
+
+        newPath = join(targetDir, fileName)
+
+        // Move file (skip if source == dest)
+        if (item.filePath !== newPath) {
+          try {
+            pathRenameSync(item.filePath, newPath)
+          } catch {
+            // Cross-device fallback
+            const { copyFileSync, unlinkSync } = await import('fs')
+            try {
+              copyFileSync(item.filePath, newPath)
+              try { unlinkSync(item.filePath) } catch { /* */ }
+            } catch (moveErr) {
+              console.error('Failed to move file:', moveErr)
+              newPath = null // Don't update DB path if move failed
+            }
+          }
+
+          // Try to clean up empty source directory
+          if (newPath) {
+            try {
+              const oldParentDir = pathDirname(item.filePath)
+              const { readdirSync } = await import('fs')
+              const remaining = readdirSync(oldParentDir)
+              if (remaining.length === 0) {
+                pathRmdirSync(oldParentDir)
+              }
+            } catch { /* cleanup is best-effort */ }
+          }
+        }
+
+        // Update file_path in DB
+        if (newPath && newPath !== item.filePath) {
+          libraryRepo.update(id, { filePath: newPath } as Record<string, unknown>)
+        }
+      }
+
+      return { success: true, data: { newPath: newPath ?? item.filePath } }
     } catch (error) {
       return { success: false, error: String(error) }
     }

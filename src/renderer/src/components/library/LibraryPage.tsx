@@ -733,6 +733,7 @@ export default function LibraryPage(): React.JSX.Element {
       {/* Library Detail Panel */}
       <LibraryDetail
         item={detailItem}
+        libraryRoot="/mnt/bragi/Kavita/Doujins/"
         onClose={() => setDetailItem(null)}
         onDeleted={() => {
           setDetailItem(null)

@@ -81,8 +81,8 @@ const api = {
     delete: (id: number) => ipcRenderer.invoke('library:delete', id),
     deleteFile: (id: number) => ipcRenderer.invoke('library:deleteFile', id),
     getThumbnail: (id: number) => ipcRenderer.invoke('library:getThumbnail', id),
-    updateMetadata: (id: number, metadata: Record<string, string | number | null>) =>
-      ipcRenderer.invoke('library:updateMetadata', id, metadata),
+    updateMetadata: (id: number, metadata: Record<string, string | number | null>, libraryRoot?: string) =>
+      ipcRenderer.invoke('library:updateMetadata', id, metadata, libraryRoot),
     addCustom: (metadata: Record<string, unknown>, libraryRoot: string) =>
       ipcRenderer.invoke('library:addCustom', metadata, libraryRoot)
   },

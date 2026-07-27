@@ -9,6 +9,7 @@ interface LibraryDetailProps {
   onClose: () => void
   onDeleted: () => void
   onUpdated: () => void
+  libraryRoot?: string
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -31,7 +32,7 @@ const LANGUAGES = ['English', 'Japanese', 'Chinese', 'Other']
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function LibraryDetail({
-  item, onClose, onDeleted, onUpdated
+  item, onClose, onDeleted, onUpdated, libraryRoot
 }: LibraryDetailProps): React.JSX.Element | null {
   const [editing, setEditing] = useState(false)
   const [editTitle, setEditTitle] = useState('')
@@ -104,14 +105,16 @@ export default function LibraryDetail({
   const handleSaveMetadata = async () => {
     setSaving(true)
     try {
-      await window.api.library.updateMetadata(item!.id, {
+      const result = await window.api.library.updateMetadata(item!.id, {
         customTitle: editTitle,
         customTags: editTags.join(', '),
         customLanguage: editLanguage,
         seriesName: editSeries
-      })
-      setEditing(false)
-      onUpdated()
+      }, libraryRoot)
+      if (result.success) {
+        setEditing(false)
+        onUpdated()
+      }
     } catch { /* */ }
     finally { setSaving(false) }
   }

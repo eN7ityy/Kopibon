@@ -22,6 +22,11 @@ export interface GalleryMetadata {
   numPages: number
   // Optional: series name if assigned
   seriesName?: string
+  // Extended metadata (F2-F6)
+  seriesIndex?: number
+  language?: string
+  publisher?: string
+  description?: string
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
