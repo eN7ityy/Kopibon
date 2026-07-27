@@ -52,27 +52,52 @@ export default function LibraryDetail({
   const [tagSuggestions, setTagSuggestions] = useState<string[]>([])
   const [showTagSuggestions, setShowTagSuggestions] = useState(false)
 
+  // Re-fetch fresh data from DB whenever the selected item changes.
+  // This ensures series, tags, thumbnail etc. are up-to-date after a scan
+  // completes, rather than showing the stale snapshot from the grid.
+  const [freshItem, setFreshItem] = useState<LibraryItemData | null>(null)
+
   useEffect(() => {
-    if (item) {
-      setEditTitle(item.customTitle || '')
-      setEditSeries(item.seriesName || '')
-      setEditVolume(item.seriesIndex != null ? String(item.seriesIndex) : '')
-      setEditTags(item.customTags ? item.customTags.split(',').map(t => t.trim()).filter(Boolean) : [])
-      setEditLanguage(item.customLanguage || '')
-      setEditPublisher(item.publisher || '')
-      setEditDescription(item.description || '')
+    if (!item) { setFreshItem(null); return }
+    let cancelled = false
+
+    window.api.library.getById(item.id).then((r) => {
+      if (cancelled) return
+      if (r.success && r.data) {
+        setFreshItem(r.data as unknown as LibraryItemData)
+      } else {
+        setFreshItem(item) // fallback to prop if DB fetch fails
+      }
+    }).catch(() => {
+      if (!cancelled) setFreshItem(item)
+    })
+
+    return () => { cancelled = true }
+  }, [item?.id])
+
+  // Populate edit fields from fresh data
+  useEffect(() => {
+    const src = freshItem
+    if (src) {
+      setEditTitle(src.customTitle || '')
+      setEditSeries(src.seriesName || '')
+      setEditVolume(src.seriesIndex != null ? String(src.seriesIndex) : '')
+      setEditTags(src.customTags ? src.customTags.split(',').map(t => t.trim()).filter(Boolean) : [])
+      setEditLanguage(src.customLanguage || '')
+      setEditPublisher(src.publisher || '')
+      setEditDescription(src.description || '')
       setEditing(false)
       setDeleteConfirm('none')
       setTagInput('')
       // Fetch thumbnail
       setThumbDataUrl(null)
-      if (item.customCoverPath) {
-        window.api.library.getThumbnail(item.id).then((r) => {
+      if (src.customCoverPath) {
+        window.api.library.getThumbnail(src.id).then((r) => {
           if (r.success && r.data) setThumbDataUrl(r.data)
         }).catch(() => {})
       }
     }
-  }, [item])
+  }, [freshItem])
 
   // ─── Tag autocomplete ─────────────────────────────────────────────────────
 
@@ -105,13 +130,13 @@ export default function LibraryDetail({
 
   // ─── Actions ──────────────────────────────────────────────────────────────
 
-  const handleOpenFile = async () => { try { await window.api.shell.openPath(item!.filePath) } catch { /* */ } }
-  const handleOpenFolder = async () => { try { await window.api.shell.showItemInFolder(item!.filePath) } catch { /* */ } }
+  const handleOpenFile = async () => { try { await window.api.shell.openPath(detail.filePath) } catch { /* */ } }
+  const handleOpenFolder = async () => { try { await window.api.shell.showItemInFolder(detail.filePath) } catch { /* */ } }
 
   const handleSaveMetadata = async () => {
     setSaving(true)
     try {
-      const result = await window.api.library.updateMetadata(item!.id, {
+      const result = await window.api.library.updateMetadata(detail.id, {
         customTitle: editTitle,
         customTags: editTags.join(', '),
         customLanguage: editLanguage,
@@ -132,9 +157,9 @@ export default function LibraryDetail({
     setDeleting(true)
     try {
       if (mode === 'deleteFile') {
-        await window.api.library.deleteFile(item!.id)
+        await window.api.library.deleteFile(detail.id)
       } else {
-        await window.api.library.delete(item!.id)
+        await window.api.library.delete(detail.id)
       }
       onDeleted()
       onClose()
@@ -144,13 +169,16 @@ export default function LibraryDetail({
 
   if (!item) return null
 
+  // Use freshly fetched data when available, fall back to prop
+  const detail = freshItem || item
+
   return (
     <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
       <div className="absolute inset-0 bg-black/30" />
       <div className="relative w-full max-w-md bg-white dark:bg-gray-900 shadow-2xl overflow-y-auto" onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="sticky top-0 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex items-center justify-between z-10">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 truncate">{item.customTitle || 'Item Detail'}</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 truncate">{detail.customTitle || 'Item Detail'}</h2>
           <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
@@ -159,7 +187,7 @@ export default function LibraryDetail({
         <div className="px-6 py-4 space-y-6">
           {thumbDataUrl && (
             <div className="aspect-[3/4] max-w-[200px] mx-auto rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-700">
-              <img src={thumbDataUrl} alt={item.customTitle || 'Cover'} className="w-full h-full object-cover" />
+              <img src={thumbDataUrl} alt={detail.customTitle || 'Cover'} className="w-full h-full object-cover" />
             </div>
           )}
 
@@ -170,10 +198,10 @@ export default function LibraryDetail({
                 <input type="text" value={editTitle} onChange={e => setEditTitle(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-purple-500" />
               </div>
             ) : (
-              <div><span className="text-xs font-medium text-gray-500 dark:text-gray-400">Title</span><p className="text-sm text-gray-900 dark:text-gray-100">{item.customTitle || 'Untitled'}</p></div>
+              <div><span className="text-xs font-medium text-gray-500 dark:text-gray-400">Title</span><p className="text-sm text-gray-900 dark:text-gray-100">{detail.customTitle || 'Untitled'}</p></div>
             )}
 
-            <div><span className="text-xs font-medium text-gray-500 dark:text-gray-400">Artist</span><p className="text-sm text-gray-900 dark:text-gray-100">{item.primaryArtist || 'Unknown'}</p></div>
+            <div><span className="text-xs font-medium text-gray-500 dark:text-gray-400">Artist</span><p className="text-sm text-gray-900 dark:text-gray-100">{detail.primaryArtist || 'Unknown'}</p></div>
 
             {/* Series with autocomplete */}
             {editing ? (
@@ -195,12 +223,12 @@ export default function LibraryDetail({
                   />
                 </div>
               </div>
-            ) : item.seriesName ? (
+            ) : detail.seriesName ? (
               <div>
                 <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Series</span>
                 <p className="text-sm text-blue-600 dark:text-blue-400">
-                  {item.seriesName}
-                  {item.seriesIndex != null && <span className="text-gray-400 ml-1">Vol. {item.seriesIndex}</span>}
+                  {detail.seriesName}
+                  {detail.seriesIndex != null && <span className="text-gray-400 ml-1">Vol. {detail.seriesIndex}</span>}
                 </p>
               </div>
             ) : null}
@@ -216,8 +244,8 @@ export default function LibraryDetail({
                   <input type="text" value={editLanguage} onChange={e => setEditLanguage(e.target.value)} placeholder="Custom..." className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm" />
                 </div>
               </div>
-            ) : item.customLanguage ? (
-              <div><span className="text-xs font-medium text-gray-500 dark:text-gray-400">Language</span><p className="text-sm text-gray-900 dark:text-gray-100">{item.customLanguage}</p></div>
+            ) : detail.customLanguage ? (
+              <div><span className="text-xs font-medium text-gray-500 dark:text-gray-400">Language</span><p className="text-sm text-gray-900 dark:text-gray-100">{detail.customLanguage}</p></div>
             ) : null}
 
             {/* Publisher */}
@@ -225,8 +253,8 @@ export default function LibraryDetail({
               <div><label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Publisher</label>
                 <input type="text" value={editPublisher} onChange={e => setEditPublisher(e.target.value)} placeholder="Publisher/Group name..." className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-purple-500" />
               </div>
-            ) : item.publisher ? (
-              <div><span className="text-xs font-medium text-gray-500 dark:text-gray-400">Publisher</span><p className="text-sm text-gray-900 dark:text-gray-100">{item.publisher}</p></div>
+            ) : detail.publisher ? (
+              <div><span className="text-xs font-medium text-gray-500 dark:text-gray-400">Publisher</span><p className="text-sm text-gray-900 dark:text-gray-100">{detail.publisher}</p></div>
             ) : null}
 
             {/* Description */}
@@ -234,8 +262,8 @@ export default function LibraryDetail({
               <div><label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Summary</label>
                 <textarea value={editDescription} onChange={e => setEditDescription(e.target.value)} placeholder="Description/summary..." rows={3} className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-purple-500 resize-none" />
               </div>
-            ) : item.description ? (
-              <div><span className="text-xs font-medium text-gray-500 dark:text-gray-400">Summary</span><p className="text-sm text-gray-900 dark:text-gray-100 whitespace-pre-wrap">{item.description}</p></div>
+            ) : detail.description ? (
+              <div><span className="text-xs font-medium text-gray-500 dark:text-gray-400">Summary</span><p className="text-sm text-gray-900 dark:text-gray-100 whitespace-pre-wrap">{detail.description}</p></div>
             ) : null}
 
             {/* Tags with chip editor */}
@@ -267,24 +295,24 @@ export default function LibraryDetail({
                   </div>
                 </div>
               </div>
-            ) : item.customTags ? (
+            ) : detail.customTags ? (
               <div><span className="text-xs font-medium text-gray-500 dark:text-gray-400">Tags</span>
                 <div className="flex flex-wrap gap-1 mt-1">
-                  {item.customTags.split(',').map(tag => (
+                  {detail.customTags.split(',').map(tag => (
                     <span key={tag.trim()} className="px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-xs text-gray-600 dark:text-gray-400">{tag.trim()}</span>
                   ))}
                 </div>
               </div>
             ) : null}
 
-            {item.customDate && (<div><span className="text-xs font-medium text-gray-500 dark:text-gray-400">Date</span><p className="text-sm text-gray-900 dark:text-gray-100">{item.customDate}</p></div>)}
-            <div><span className="text-xs font-medium text-gray-500 dark:text-gray-400">Added</span><p className="text-sm text-gray-900 dark:text-gray-100">{formatDate(item.addedAt)}</p></div>
+            {detail.customDate && (<div><span className="text-xs font-medium text-gray-500 dark:text-gray-400">Date</span><p className="text-sm text-gray-900 dark:text-gray-100">{detail.customDate}</p></div>)}
+            <div><span className="text-xs font-medium text-gray-500 dark:text-gray-400">Added</span><p className="text-sm text-gray-900 dark:text-gray-100">{formatDate(detail.addedAt)}</p></div>
 
             <div className="border-t border-gray-200 dark:border-gray-700 pt-3 space-y-2">
-              <div><span className="text-xs font-medium text-gray-500 dark:text-gray-400">Format</span><p className="text-sm text-gray-900 dark:text-gray-100">{item.format?.toUpperCase() || 'PDF'}</p></div>
-              <div><span className="text-xs font-medium text-gray-500 dark:text-gray-400">File Size</span><p className="text-sm text-gray-900 dark:text-gray-100">{formatFileSize(item.fileSize)}</p></div>
-              <div><span className="text-xs font-medium text-gray-500 dark:text-gray-400">File Path</span><p className="text-xs text-gray-500 dark:text-gray-400 break-all font-mono mt-0.5">{item.filePath}</p></div>
-              {item.galleryId && (<div><span className="text-xs font-medium text-gray-500 dark:text-gray-400">nhentai ID</span><p className="text-sm text-purple-600 dark:text-purple-400">#{item.galleryId}</p></div>)}
+              <div><span className="text-xs font-medium text-gray-500 dark:text-gray-400">Format</span><p className="text-sm text-gray-900 dark:text-gray-100">{detail.format?.toUpperCase() || 'PDF'}</p></div>
+              <div><span className="text-xs font-medium text-gray-500 dark:text-gray-400">File Size</span><p className="text-sm text-gray-900 dark:text-gray-100">{formatFileSize(detail.fileSize)}</p></div>
+              <div><span className="text-xs font-medium text-gray-500 dark:text-gray-400">File Path</span><p className="text-xs text-gray-500 dark:text-gray-400 break-all font-mono mt-0.5">{detail.filePath}</p></div>
+              {detail.galleryId && (<div><span className="text-xs font-medium text-gray-500 dark:text-gray-400">nhentai ID</span><p className="text-sm text-purple-600 dark:text-purple-400">#{detail.galleryId}</p></div>)}
             </div>
           </div>
         </div>

@@ -161,12 +161,6 @@ export default function LibraryCard({
             {artist}
           </p>
 
-          {/* Series badge if set */}
-          {item.seriesName && (
-            <span className="inline-block text-xs px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400">
-              {item.seriesName}
-            </span>
-          )}
         </div>
       </button>
 
