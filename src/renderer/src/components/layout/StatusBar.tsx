@@ -1,4 +1,34 @@
+import { useState, useEffect } from 'react'
+
 export default function StatusBar(): React.JSX.Element {
+  const [activeCount, setActiveCount] = useState(0)
+  const [queuedCount, setQueuedCount] = useState(0)
+  const [libraryCount, setLibraryCount] = useState(0)
+
+  useEffect(() => {
+    const poll = async () => {
+      try {
+        const [countsResult, libResult] = await Promise.all([
+          window.api.downloads.getStatusCounts(),
+          window.api.library.count()
+        ])
+        if (countsResult.success && countsResult.data) {
+          setActiveCount(countsResult.data.active)
+          setQueuedCount(countsResult.data.queued)
+        }
+        if (libResult.success && typeof libResult.data === 'number') {
+          setLibraryCount(libResult.data)
+        }
+      } catch {
+        // Silently ignore polling errors
+      }
+    }
+
+    poll()
+    const interval = setInterval(poll, 2000)
+    return () => clearInterval(interval)
+  }, [])
+
   const handleOpenNhentai = async (): Promise<void> => {
     try {
       await window.api.shell.openExternal('https://nhentai.net')
@@ -9,7 +39,9 @@ export default function StatusBar(): React.JSX.Element {
 
   return (
     <footer className="flex items-center h-8 px-4 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 text-xs text-gray-500 dark:text-gray-400 select-none">
-      <span>⬇️ 0 active · 0 queued · 0 in library</span>
+      <span>
+        ⬇️ {activeCount} active · {queuedCount} queued · {libraryCount} in library
+      </span>
       <span className="ml-auto flex items-center gap-3">
         <button
           onClick={handleOpenNhentai}

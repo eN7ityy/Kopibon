@@ -88,6 +88,22 @@ const api = {
   },
 
   // Events
+  onDownloadProgress: (callback: (progress: {
+    queueId: number
+    galleryId: number
+    title: string
+    status: string
+    totalPages: number
+    completedPages: number
+    percentage: number
+    speedKBps: number
+    etaSeconds: number
+    errorMessage?: string
+  }) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, progress: any) => callback(progress)
+    ipcRenderer.on('download:progress', handler)
+    return () => { ipcRenderer.removeListener('download:progress', handler) }
+  },
   onLibraryScanProgress: (callback: (progress: { current: number; total: number; status: string }) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, progress: { current: number; total: number; status: string }) =>
       callback(progress)

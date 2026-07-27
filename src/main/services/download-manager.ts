@@ -2,6 +2,7 @@ import { join } from 'path'
 import { mkdirSync, existsSync } from 'fs'
 import { downloadRepo } from '../db/repositories/download.repo'
 import { galleryRepo } from '../db/repositories/gallery.repo'
+import { settingsRepo } from '../db/repositories/settings.repo'
 import { getApiClient } from './api-client'
 import { generatePdf, type PdfOptions } from './pdf-generator'
 import { embedMetadata } from './metadata-writer'
@@ -173,6 +174,14 @@ export class DownloadManager {
       const title = gallery.title.pretty
       const totalPages = gallery.num_pages
 
+      // Extract primary artist from tags
+      const primaryArtist =
+        gallery.tags.find((t) => t.type === 'artist')?.name || 'Unknown'
+      // Determine library root from settings, fall back to ~/Downloads
+      const libraryRoot =
+        settingsRepo.get('libraryRoot') ||
+        join(process.env.HOME || '/tmp', 'Downloads')
+
       // Step 2: Fetch CDN servers
       const cdn = await client.getCdnConfig()
       const servers = [...cdn.image_servers].filter(Boolean)
@@ -295,9 +304,11 @@ export class DownloadManager {
         status: 'converting'
       } as Parameters<typeof downloadRepo.update>[1])
 
-      const outputDir =
-        downloadRepo.findById(queueId)?.outputDirectory ||
-        join(process.env.HOME || '/tmp', 'Downloads')
+      // Build output path: {libraryRoot}/{Primary Artist}/[nhentai-{id}] {safe_title}.pdf
+      const outputDir = join(libraryRoot, primaryArtist)
+      if (!existsSync(outputDir)) {
+        mkdirSync(outputDir, { recursive: true })
+      }
       const safeTitle = title.replace(/[/\\?%*:|"<>]/g, '_').substring(0, 180)
       const pdfPath = join(outputDir, `[nhentai-${galleryId}] ${safeTitle}.pdf`)
 
@@ -308,6 +319,9 @@ export class DownloadManager {
       }
 
       const validPaths = downloadedPaths.filter(Boolean) as string[]
+      // TODO: worker_thread — offload CPU-bound PDF generation to a worker
+      // (same pattern as library-scanner.worker.ts) if pdf-lib proves slow
+      // (>500ms) on typical galleries. Currently runs on main thread.
       await generatePdf(validPaths, pdfPath, pdfOptions)
 
       // Step 7: Embed metadata

@@ -8,6 +8,7 @@ interface GalleryDetailProps {
   onClose: () => void
   onDownload: (galleryId: number) => void
   onAddToQueue: (galleryId: number) => void
+  onTagClick?: (tagType: string, tagName: string) => void
 }
 
 const TAG_COLORS: Record<string, string> = {
@@ -32,7 +33,8 @@ export default function GalleryDetailPanel({
   galleryId,
   onClose,
   onDownload,
-  onAddToQueue
+  onAddToQueue,
+  onTagClick
 }: GalleryDetailProps): React.JSX.Element {
   const [detail, setDetail] = useState<GalleryDetailType | null>(null)
   const [loading, setLoading] = useState(true)
@@ -92,10 +94,14 @@ export default function GalleryDetailPanel({
 
   const isInLibrary = downloadStatus === 'in_library'
 
-  const handleTagClick = (tagName: string): void => {
-    window.api.shell.openExternal(
-      `https://nhentai.net/tag/${encodeURIComponent(tagName.replace(/\s+/g, '-').toLowerCase())}/`
-    )
+  const handleTagClick = (tagType: string, tagName: string): void => {
+    if (onTagClick) {
+      onTagClick(tagType, tagName)
+    } else {
+      window.api.shell.openExternal(
+        `https://nhentai.net/tag/${encodeURIComponent(tagName.replace(/\s+/g, '-').toLowerCase())}/`
+      )
+    }
   }
 
   return (
@@ -167,7 +173,7 @@ export default function GalleryDetailPanel({
                 .map((tag) => (
                   <button
                     key={tag.id}
-                    onClick={() => handleTagClick(tag.name)}
+                    onClick={() => handleTagClick('artist', tag.name)}
                     className={`px-2.5 py-1 rounded-full text-xs font-medium cursor-pointer hover:opacity-80 transition-opacity ${TAG_COLORS.artist}`}
                   >
                     {tag.name}
@@ -178,7 +184,7 @@ export default function GalleryDetailPanel({
                 .map((tag) => (
                   <button
                     key={tag.id}
-                    onClick={() => handleTagClick(tag.name)}
+                    onClick={() => handleTagClick('group', tag.name)}
                     className={`px-2.5 py-1 rounded-full text-xs font-medium cursor-pointer hover:opacity-80 transition-opacity ${TAG_COLORS.group}`}
                   >
                     {tag.name}
@@ -193,7 +199,7 @@ export default function GalleryDetailPanel({
                 .map((tag) => (
                   <button
                     key={tag.id}
-                    onClick={() => handleTagClick(tag.name)}
+                    onClick={() => handleTagClick(tag.type, tag.name)}
                     className={`px-2 py-0.5 rounded-full text-xs font-medium cursor-pointer hover:opacity-80 transition-opacity ${TAG_COLORS[tag.type] || TAG_COLORS.tag}`}
                   >
                     {tag.name}

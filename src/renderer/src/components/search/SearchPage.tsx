@@ -1,8 +1,9 @@
-import { useEffect, useCallback, useRef } from 'react'
+import { useEffect, useCallback, useRef, useState } from 'react'
 import type { DownloadStatus } from '../../types/api.types'
 import { SORT_OPTIONS } from '../../types/api.types'
 import { useSearchStore } from '../../stores/search.store'
 import GalleryGrid from './GalleryGrid'
+import GalleryDetail from '../gallery/GalleryDetail'
 import LoadingSkeleton from '../shared/LoadingSkeleton'
 import EmptyState from '../shared/EmptyState'
 import ErrorState from '../shared/ErrorState'
@@ -11,6 +12,8 @@ export default function SearchPage(): React.JSX.Element {
   const store = useSearchStore()
   const rateLimitTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const prevSortRef = useRef(store.sort)
+  const [selectedGalleryId, setSelectedGalleryId] = useState<number | null>(null)
+  const resultsContainerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     return () => {
@@ -129,12 +132,101 @@ export default function SearchPage(): React.JSX.Element {
   }
 
   const handleGalleryClick = (id: number): void => {
-    window.api.shell.openExternal(`https://nhentai.net/g/${id}`)
+    setSelectedGalleryId(id)
   }
 
   const handleRetry = (): void => {
     performSearch(store.currentPage || 1, false)
   }
+
+  const handleTagClick = (tagType: string, tagName: string): void => {
+    setSelectedGalleryId(null)
+
+    let query: string
+    switch (tagType) {
+      case 'artist':
+        query = `artist:"${tagName}"`
+        break
+      case 'group':
+        query = `group:"${tagName}"`
+        break
+      case 'parody':
+        query = `parody:"${tagName}"`
+        break
+      case 'character':
+        query = `character:"${tagName}"`
+        break
+      default:
+        query = `"${tagName}"`
+        break
+    }
+
+    store.setQuery(query)
+    // Scroll to top of results
+    resultsContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
+
+    // Defer search to next tick so store state is updated
+    setTimeout(() => {
+      performSearch(1, false)
+    }, 0)
+  }
+
+  const refreshSingleDownloadStatus = useCallback(
+    async (galleryId: number): Promise<void> => {
+      try {
+        const statuses = await resolveDownloadStatuses([galleryId])
+        const status = statuses.get(galleryId)
+        if (status) {
+          store.downloadStatuses[galleryId] = status
+        }
+      } catch {
+        // Silently ignore
+      }
+    },
+    [resolveDownloadStatuses]
+  )
+
+  const handleDownload = useCallback(
+    async (galleryId: number): Promise<void> => {
+      try {
+        await window.api.downloads.addToQueue(galleryId)
+        await refreshSingleDownloadStatus(galleryId)
+      } catch {
+        // Silently ignore
+      }
+    },
+    [refreshSingleDownloadStatus]
+  )
+
+  const handleAddToQueue = useCallback(
+    async (galleryId: number): Promise<void> => {
+      try {
+        await window.api.downloads.addToQueue(galleryId)
+        await refreshSingleDownloadStatus(galleryId)
+      } catch {
+        // Silently ignore
+      }
+    },
+    [refreshSingleDownloadStatus]
+  )
+
+  // C4: Listen for download progress events from main process to refresh statuses
+  useEffect(() => {
+    const cleanup = window.api.onDownloadProgress((progress) => {
+      if (progress.galleryId && store.downloadStatuses[progress.galleryId] !== undefined) {
+        // Map download status to DownloadStatus type
+        const st = progress.status
+        let dlStatus: DownloadStatus = 'not_downloaded'
+        if (st === 'downloading') dlStatus = 'downloading'
+        else if (st === 'queued') dlStatus = 'queued'
+        else if (st === 'completed') dlStatus = 'completed'
+        else if (st === 'failed') dlStatus = 'failed'
+        else if (st === 'converting') dlStatus = 'downloading'
+        store.downloadStatuses[progress.galleryId] = dlStatus
+      }
+    })
+    return () => { cleanup() }
+  }, [])  // eslint-disable-line react-hooks/exhaustive-deps
 
   const hasResults = store.results.length > 0
   const hasMorePages = store.currentPage < store.totalPages
@@ -192,7 +284,7 @@ export default function SearchPage(): React.JSX.Element {
       )}
 
       {/* Content area */}
-      <div className="flex-1 overflow-y-auto">
+      <div ref={resultsContainerRef} className="flex-1 overflow-y-auto">
         {store.loading && !hasResults && (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
             <LoadingSkeleton count={12} variant="card" />
@@ -250,6 +342,17 @@ export default function SearchPage(): React.JSX.Element {
           </div>
         )}
       </div>
+
+      {/* Gallery Detail Overlay */}
+      {selectedGalleryId !== null && (
+        <GalleryDetail
+          galleryId={selectedGalleryId}
+          onClose={() => setSelectedGalleryId(null)}
+          onDownload={handleDownload}
+          onAddToQueue={handleAddToQueue}
+          onTagClick={handleTagClick}
+        />
+      )}
     </div>
   )
 }
