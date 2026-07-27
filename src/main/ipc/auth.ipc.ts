@@ -1,4 +1,4 @@
-import { ipcMain, dialog, BrowserWindow } from 'electron'
+import { ipcMain, dialog, BrowserWindow, safeStorage } from 'electron'
 import { shell } from 'electron'
 import { getApiClient } from '../services/api-client'
 import { settingsRepo } from '../db/repositories/settings.repo'
@@ -8,13 +8,34 @@ import { settingsRepo } from '../db/repositories/settings.repo'
 let loggedIn = false
 let username: string | undefined
 
+// ─── Key Encryption (safeStorage → OS keychain) ────────────────────────────
+
+function encryptKey(key: string): string {
+  if (safeStorage.isEncryptionAvailable()) {
+    return safeStorage.encryptString(key).toString('base64')
+  }
+  return key
+}
+
+function decryptKey(stored: string): string {
+  if (safeStorage.isEncryptionAvailable()) {
+    try {
+      return safeStorage.decryptString(Buffer.from(stored, 'base64'))
+    } catch {
+      return stored
+    }
+  }
+  return stored
+}
+
 /**
  * Load saved API key from settings DB and apply it to the client.
  * Called at startup to restore previous session.
  */
 export async function restoreAuthFromDb(): Promise<void> {
-  const savedKey = settingsRepo.get('nhentai_api_key')
-  if (savedKey) {
+  const encrypted = settingsRepo.get('nhentai_api_key')
+  if (encrypted) {
+    const savedKey = decryptKey(encrypted)
     const client = getApiClient()
     client.setApiKey(savedKey)
 
@@ -55,8 +76,8 @@ export function registerAuthIpc(): void {
       client.setApiKey(key)
       const user = await client.getUser()
 
-      // Key is valid — persist it
-      settingsRepo.set('nhentai_api_key', key)
+      // Key is valid — persist it encrypted
+      settingsRepo.set('nhentai_api_key', encryptKey(key))
       loggedIn = true
       username = user.username
 
