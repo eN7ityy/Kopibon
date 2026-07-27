@@ -210,7 +210,19 @@ export default function SettingsPage(): React.JSX.Element {
               </select>
             </div>
 
-            <div className="border-t border-gray-200 dark:border-gray-700 pt-3">
+            <div className="flex items-center gap-3 mb-3">
+                <input
+                  type="checkbox"
+                  checked={settings.showNotifications}
+                  onChange={(e) => settings.setShowNotifications(e.target.checked)}
+                  className="w-4 h-4 rounded border-gray-400 dark:border-gray-500 text-purple-600 focus:ring-purple-500 bg-white dark:bg-gray-700"
+                />
+                <label className="text-sm text-gray-700 dark:text-gray-300">
+                  Show download notifications
+                </label>
+              </div>
+
+              <div className="border-t border-gray-200 dark:border-gray-700 pt-3">
               <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">PDF Compression</h3>
 
               <div className="flex items-center gap-3 mb-3">

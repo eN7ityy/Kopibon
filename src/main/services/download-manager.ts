@@ -2,6 +2,7 @@ import { join } from 'path'
 import { mkdirSync, existsSync, statSync } from 'fs'
 import { tmpdir } from 'os'
 import { Worker } from 'worker_threads'
+import { Notification } from 'electron'
 import { downloadRepo } from '../db/repositories/download.repo'
 import { galleryRepo } from '../db/repositories/gallery.repo'
 import { settingsRepo } from '../db/repositories/settings.repo'
@@ -452,6 +453,11 @@ export class DownloadManager {
       }
 
       this.emitProgress(queueId, galleryId, title, totalPages, totalPages, 0, 0, 'completed')
+
+      // F4: Show system notification on completion
+      if (settingsRepo.get('showNotifications') !== 'false') {
+        new Notification({ title: 'Download Complete', body: `${title} has been added to your library` }).show()
+      }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err)
       downloadRepo.update(queueId, {

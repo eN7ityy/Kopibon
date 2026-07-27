@@ -15,6 +15,9 @@ interface SettingsState {
   pageSize: PageSizeOption
   blackBackground: boolean
 
+  // Notification
+  showNotifications: boolean
+
   // Track if settings have been loaded from DB
   loaded: boolean
 
@@ -26,6 +29,7 @@ interface SettingsState {
   setCompressionQuality: (quality: number) => void
   setPageSize: (size: PageSizeOption) => void
   setBlackBackground: (black: boolean) => void
+  setShowNotifications: (show: boolean) => void
 
   loadFromDb: () => Promise<void>
   saveToDb: () => Promise<void>
@@ -42,6 +46,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   compressionQuality: 80,
   pageSize: 'Dynamic',
   blackBackground: true,
+  showNotifications: true,
   loaded: false,
 
   setLibraryPath: (path) => set({ libraryPath: path }),
@@ -52,6 +57,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   setCompressionQuality: (quality) => set({ compressionQuality: Math.max(1, Math.min(95, quality)) }),
   setPageSize: (size) => set({ pageSize: size }),
   setBlackBackground: (black) => set({ blackBackground: black }),
+  setShowNotifications: (show) => set({ showNotifications: show }),
 
   loadFromDb: async () => {
     try {
@@ -66,6 +72,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
           compressionQuality: settings.compressionQuality ? Number(settings.compressionQuality) : 80,
           pageSize: (settings.pageSize as PageSizeOption) ?? 'Dynamic',
           blackBackground: settings.blackBackground !== undefined ? settings.blackBackground === true || settings.blackBackground === 'true' : true,
+          showNotifications: settings.showNotifications !== undefined ? settings.showNotifications === true || settings.showNotifications === 'true' : true,
           loaded: true
         })
       }
@@ -85,7 +92,8 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
         compressPdf: String(state.compressPdf),
         compressionQuality: String(state.compressionQuality),
         pageSize: state.pageSize,
-        blackBackground: String(state.blackBackground)
+        blackBackground: String(state.blackBackground),
+        showNotifications: String(state.showNotifications)
       })
     } catch {
       console.error('Failed to save settings to database')
