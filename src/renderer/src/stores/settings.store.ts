@@ -61,9 +61,9 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     try {
       await window.api.settings.setAll({
         libraryPath: state.libraryPath,
-        apiKey: state.apiKey,
-        downloadConcurrency: state.downloadConcurrency,
-        theme: state.theme,
+        apiKey: state.apiKey ?? '',
+        downloadConcurrency: String(state.downloadConcurrency),
+        theme: String(state.theme),
         outputFormat: state.outputFormat
       })
     } catch {

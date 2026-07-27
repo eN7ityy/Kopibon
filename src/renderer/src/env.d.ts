@@ -1,4 +1,5 @@
 /// <reference types="vite/client" />
+/// <reference path="../../preload/index.d.ts" />
 
 declare module '*.svg' {
   const content: string
@@ -8,9 +9,4 @@ declare module '*.svg' {
 declare module '*.png' {
   const content: string
   export default content
-}
-
-interface Window {
-  api: import('../preload/index').Api
-  electron: import('@electron-toolkit/preload').ElectronAPI
 }

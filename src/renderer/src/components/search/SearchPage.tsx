@@ -1,4 +1,14 @@
+import { useState } from 'react'
+
 export default function SearchPage(): React.JSX.Element {
+  const [query, setQuery] = useState('')
+
+  const handleSearch = (e: React.FormEvent): void => {
+    e.preventDefault()
+    // Search functionality will be implemented in Phase 2
+    console.log('Search query:', query)
+  }
+
   return (
     <div className="flex flex-col h-full">
       <div className="mb-6">
@@ -8,21 +18,22 @@ export default function SearchPage(): React.JSX.Element {
         </p>
       </div>
 
-      {/* Placeholder search bar */}
-      <div className="flex gap-2 mb-6">
+      {/* Search bar */}
+      <form onSubmit={handleSearch} className="flex gap-2 mb-6">
         <input
           type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
           placeholder="Search by title, artist, or tags..."
           className="flex-1 px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
-          disabled
         />
         <button
-          className="px-6 py-2.5 rounded-lg bg-purple-600 text-white font-medium hover:bg-purple-700 transition-colors disabled:opacity-50"
-          disabled
+          type="submit"
+          className="px-6 py-2.5 rounded-lg bg-purple-600 text-white font-medium hover:bg-purple-700 transition-colors"
         >
           Search
         </button>
-      </div>
+      </form>
 
       {/* Placeholder grid */}
       <div className="flex-1 flex items-center justify-center border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-xl">
