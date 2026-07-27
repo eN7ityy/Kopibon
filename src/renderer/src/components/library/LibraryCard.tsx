@@ -161,6 +161,12 @@ export default function LibraryCard({
             {artist}
           </p>
 
+          {/* Series badge if set — single line, truncated */}
+          {item.seriesName && (
+            <p className="text-xs text-blue-600 dark:text-blue-400 truncate">
+              {item.seriesName}
+            </p>
+          )}
         </div>
       </button>
 

@@ -239,6 +239,28 @@ export default function LibraryPage(): React.JSX.Element {
     toggleSelect(id)
   }, [selectMode, toggleSelect])
 
+  // ─── Batch Actions ──────────────────────────────────────────────────────────
+
+  const handleBatchRemove = async () => {
+    const ids = [...selectedIds]
+    for (const id of ids) {
+      try { await window.api.library.delete(id) } catch { /* */ }
+    }
+    setSelectedIds(new Set())
+    setSelectionTick((t) => t + 1)
+    fetchData()
+  }
+
+  const handleBatchDelete = async () => {
+    const ids = [...selectedIds]
+    for (const id of ids) {
+      try { await window.api.library.deleteFile(id) } catch { /* */ }
+    }
+    setSelectedIds(new Set())
+    setSelectionTick((t) => t + 1)
+    fetchData()
+  }
+
   const toggleSelectAll = () => {
     if (selectedIds.size === filteredItems.length) {
       setSelectedIds(new Set())
@@ -476,12 +498,26 @@ export default function LibraryPage(): React.JSX.Element {
 
         {/* Batch actions (when in select mode) */}
         {selectMode && selectedIds.size > 0 && (
-          <button
-            onClick={() => setShowSeriesModal(true)}
-            className="px-3 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors"
-          >
-            Assign Series
-          </button>
+          <>
+            <button
+              onClick={() => setShowSeriesModal(true)}
+              className="px-3 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors"
+            >
+              Assign Series
+            </button>
+            <button
+              onClick={handleBatchRemove}
+              className="px-3 py-2 rounded-lg bg-orange-600 text-white text-sm font-medium hover:bg-orange-700 transition-colors"
+            >
+              Remove from Library
+            </button>
+            <button
+              onClick={handleBatchDelete}
+              className="px-3 py-2 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700 transition-colors"
+            >
+              Delete Files
+            </button>
+          </>
         )}
 
         <div className="flex-1" />

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import AutocompleteInput from '../shared/AutocompleteInput'
 import type { LibraryItemData } from './LibraryCard'
 
@@ -20,9 +20,20 @@ export default function SeriesAssignment({
   onAssigned
 }: SeriesAssignmentProps): React.JSX.Element | null {
   const [seriesName, setSeriesName] = useState('')
-  const [volumeNumber, setVolumeNumber] = useState('')
+  // Per-item volume map: itemId → volume string
+  const [volumes, setVolumes] = useState<Map<number, string>>(new Map())
   const [applying, setApplying] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Initialize per-item volumes with sequential defaults when modal opens
+  useEffect(() => {
+    if (!isOpen) return
+    const next = new Map<number, string>()
+    items.forEach((item, idx) => {
+      next.set(item.id, String(idx + 1))
+    })
+    setVolumes(next)
+  }, [isOpen])
 
   if (!isOpen) return null
 
@@ -36,9 +47,20 @@ export default function SeriesAssignment({
     setError(null)
 
     try {
+      // Assign series name to all items, then update each item's volume
       const ids = items.map((item) => item.id)
-      const volNum = volumeNumber.trim() ? parseFloat(volumeNumber.trim()) : undefined
-      const result = await window.api.library.assignSeries(ids, seriesName.trim(), volNum)
+      const result = await window.api.library.assignSeries(ids, seriesName.trim())
+      
+      // Apply per-item volumes
+      for (const item of items) {
+        const volStr = volumes.get(item.id)
+        if (volStr && volStr.trim()) {
+          const volNum = parseFloat(volStr.trim())
+          if (!isNaN(volNum)) {
+            await window.api.library.updateMetadata(item.id, { seriesIndex: volNum })
+          }
+        }
+      }
 
       if (result.success) {
         onAssigned()
@@ -84,40 +106,36 @@ export default function SeriesAssignment({
             />
           </div>
 
-          {/* Volume number */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Volume Number
-            </label>
-            <input
-              type="number"
-              step="any"
-              min="0"
-              value={volumeNumber}
-              onChange={(e) => setVolumeNumber(e.target.value)}
-              placeholder="e.g. 1, 1.5..."
-              className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-            />
-          </div>
-
-          {/* Selected items preview */}
+          {/* Selected items with per-item volume */}
           <div>
             <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Selected Items
+              Volumes
             </h4>
-            <div className="max-h-48 overflow-y-auto space-y-1 rounded-lg border border-gray-200 dark:border-gray-700 p-2">
+            <div className="max-h-56 overflow-y-auto space-y-2 rounded-lg border border-gray-200 dark:border-gray-700 p-2">
               {items.map((item) => (
                 <div
                   key={item.id}
-                  className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 py-1 px-2 rounded hover:bg-gray-50 dark:hover:bg-gray-800"
+                  className="flex items-center gap-2 text-sm py-1 px-2 rounded hover:bg-gray-50 dark:hover:bg-gray-800"
                 >
-                  <span className="text-purple-500">📄</span>
-                  <span className="truncate flex-1">
+                  <span className="text-purple-500 shrink-0">📄</span>
+                  <span className="truncate flex-1 text-gray-600 dark:text-gray-400">
                     {item.customTitle || item.filePath.split('/').pop() || `Item #${item.id}`}
                   </span>
-                  <span className="text-xs text-gray-400 shrink-0">
-                    {item.primaryArtist}
-                  </span>
+                  <input
+                    type="number"
+                    step="any"
+                    min="0"
+                    value={volumes.get(item.id) ?? ''}
+                    onChange={(e) => {
+                      setVolumes((prev) => {
+                        const next = new Map(prev)
+                        next.set(item.id, e.target.value)
+                        return next
+                      })
+                    }}
+                    placeholder="Vol"
+                    className="w-16 px-2 py-1 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-xs text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-purple-500 shrink-0"
+                  />
                 </div>
               ))}
             </div>
