@@ -43,16 +43,27 @@ export default function LibraryCard({
   onContextMenu
 }: LibraryCardProps): React.JSX.Element {
   const [imgError, setImgError] = useState(false)
+  const [thumbDataUrl, setThumbDataUrl] = useState<string | null>(null)
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ visible: false, x: 0, y: 0 })
   const menuRef = useRef<HTMLDivElement>(null)
 
   const title = item.customTitle || item.primaryArtist || `Item #${item.id}`
   const artist = item.primaryArtist || 'Unknown'
 
-  // Cover: use custom cover path if available, otherwise placeholder
-  const coverSrc = item.customCoverPath && !imgError
-    ? `file://${item.customCoverPath}`
-    : null
+  // Fetch thumbnail via IPC if available
+  useEffect(() => {
+    let cancelled = false
+    if (item.customCoverPath) {
+      window.api.library.getThumbnail(item.id).then((result) => {
+        if (!cancelled && result.success && result.data) {
+          setThumbDataUrl(result.data)
+        }
+      }).catch(() => setImgError(true))
+    }
+    return () => { cancelled = true }
+  }, [item.id, item.customCoverPath])
+
+  const coverSrc = thumbDataUrl && !imgError ? thumbDataUrl : null
 
   // Close context menu on outside click
   useEffect(() => {

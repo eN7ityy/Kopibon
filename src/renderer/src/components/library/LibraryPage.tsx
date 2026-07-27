@@ -29,12 +29,14 @@ export default function LibraryPage(): React.JSX.Element {
   // Artist/series lists for filters
   const [artistNames, setArtistNames] = useState<string[]>([])
   const [seriesNames, setSeriesNames] = useState<string[]>([])
+  const [tagNames, setTagNames] = useState<string[]>([])
 
   // UI state
   const [searchQuery, setSearchQuery] = useState('')
   const [sortField, setSortField] = useState<SortField>('added')
   const [selectedArtistFilters, setSelectedArtistFilters] = useState<Set<string>>(new Set())
   const [selectedSeriesFilters, setSelectedSeriesFilters] = useState<Set<string>>(new Set())
+  const [selectedTagFilters, setSelectedTagFilters] = useState<Set<string>>(new Set())
   const [showUnmatchedOnly, setShowUnmatchedOnly] = useState(false)
   const [showFilters, setShowFilters] = useState(false)
 
@@ -56,10 +58,11 @@ export default function LibraryPage(): React.JSX.Element {
     setLoading(true)
     setError(null)
     try {
-      const [itemsResult, artistResult, seriesResult] = await Promise.all([
+      const [itemsResult, artistResult, seriesResult, tagResult] = await Promise.all([
         window.api.library.getAll(),
         window.api.library.getAllArtistNames(),
-        window.api.library.getAllSeriesNames()
+        window.api.library.getAllSeriesNames(),
+        window.api.library.getAllTagNames()
       ])
 
       if (itemsResult.success) {
@@ -74,6 +77,10 @@ export default function LibraryPage(): React.JSX.Element {
 
       if (seriesResult.success) {
         setSeriesNames(seriesResult.data as string[])
+      }
+
+      if (tagResult.success) {
+        setTagNames(tagResult.data as string[])
       }
     } catch (err) {
       setError(String(err))
@@ -209,6 +216,14 @@ export default function LibraryPage(): React.JSX.Element {
       )
     }
 
+    // Tag filters
+    if (selectedTagFilters.size > 0) {
+      result = result.filter((item) => {
+        const itemTags = (item.customTags || '').split(',').map(t => t.trim()).filter(Boolean)
+        return itemTags.some(t => selectedTagFilters.has(t))
+      })
+    }
+
     // Unmatched only
     if (showUnmatchedOnly) {
       result = result.filter((item) => item.galleryId === null || item.galleryId === 0)
@@ -248,6 +263,15 @@ export default function LibraryPage(): React.JSX.Element {
       const next = new Set(prev)
       if (next.has(series)) next.delete(series)
       else next.add(series)
+      return next
+    })
+  }
+
+  const toggleTagFilter = (tag: string) => {
+    setSelectedTagFilters((prev) => {
+      const next = new Set(prev)
+      if (next.has(tag)) next.delete(tag)
+      else next.add(tag)
       return next
     })
   }
@@ -507,6 +531,26 @@ export default function LibraryPage(): React.JSX.Element {
                         className="w-3.5 h-3.5 rounded border-gray-400 text-purple-600 focus:ring-purple-500"
                       />
                       {series}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Tags filters */}
+            {tagNames.length > 0 && (
+              <div>
+                <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Tags</h4>
+                <div className="max-h-40 overflow-y-auto space-y-1">
+                  {tagNames.slice(0, 50).map((tag) => (
+                    <label key={tag} className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 cursor-pointer hover:text-gray-900 dark:hover:text-gray-200">
+                      <input
+                        type="checkbox"
+                        checked={selectedTagFilters.has(tag)}
+                        onChange={() => toggleTagFilter(tag)}
+                        className="w-3.5 h-3.5 rounded border-gray-400 text-purple-600 focus:ring-purple-500"
+                      />
+                      {tag}
                     </label>
                   ))}
                 </div>

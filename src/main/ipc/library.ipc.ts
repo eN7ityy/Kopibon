@@ -73,6 +73,15 @@ export function registerLibraryIpc(): void {
     }
   })
 
+  ipcMain.handle('library:getAllTagNames', async () => {
+    try {
+      const names = libraryRepo.getAllTagNames()
+      return { success: true, data: names }
+    } catch (error) {
+      return { success: false, error: String(error) }
+    }
+  })
+
   ipcMain.handle('library:count', async () => {
     try {
       const count = libraryRepo.count()
@@ -375,6 +384,21 @@ export function registerLibraryIpc(): void {
       return { success: true }
     } catch (error) {
       return { success: false, error: String(error) }
+    }
+  })
+
+  ipcMain.handle('library:getThumbnail', async (_event, id: number) => {
+    try {
+      const { readFileSync, existsSync } = await import('fs')
+      const item = libraryRepo.findById(id)
+      if (!item || !item.customCoverPath || !existsSync(item.customCoverPath)) {
+        return { success: true, data: null }
+      }
+      const buffer = readFileSync(item.customCoverPath)
+      const base64 = buffer.toString('base64')
+      return { success: true, data: `data:image/jpeg;base64,${base64}` }
+    } catch {
+      return { success: true, data: null }
     }
   })
 

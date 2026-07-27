@@ -130,6 +130,26 @@ export const libraryRepo = {
     return rows.map((r) => r.artistName)
   },
 
+  getAllTagNames(): string[] {
+    const db = getDatabase()
+    const rows = db
+      .selectDistinct({ customTags: libraryItem.customTags })
+      .from(libraryItem)
+      .where(sql`${libraryItem.customTags} IS NOT NULL AND ${libraryItem.customTags} != ''`)
+      .all()
+    // customTags is comma-separated; split and deduplicate
+    const tagSet = new Set<string>()
+    for (const row of rows) {
+      if (row.customTags) {
+        row.customTags.split(',').forEach((t: string) => {
+          const trimmed = t.trim()
+          if (trimmed) tagSet.add(trimmed)
+        })
+      }
+    }
+    return Array.from(tagSet).sort()
+  },
+
   // ─── Autocomplete ─────────────────────────────────────────────────
 
   autocompleteArtists(query: string): string[] {

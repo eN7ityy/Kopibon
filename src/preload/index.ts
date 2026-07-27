@@ -65,6 +65,7 @@ const api = {
     getArtists: (libraryItemId: number) => ipcRenderer.invoke('library:getArtists', libraryItemId),
     getAllArtistNames: () => ipcRenderer.invoke('library:getAllArtistNames'),
     getAllSeriesNames: () => ipcRenderer.invoke('library:getAllSeriesNames'),
+    getAllTagNames: () => ipcRenderer.invoke('library:getAllTagNames'),
     count: () => ipcRenderer.invoke('library:count'),
     scan: (libraryRoot: string) => ipcRenderer.invoke('library:scan', libraryRoot),
     cancelScan: () => ipcRenderer.invoke('library:cancelScan'),
@@ -76,6 +77,7 @@ const api = {
       ipcRenderer.invoke('library:assignSeries', ids, seriesName),
     delete: (id: number) => ipcRenderer.invoke('library:delete', id),
     deleteFile: (id: number) => ipcRenderer.invoke('library:deleteFile', id),
+    getThumbnail: (id: number) => ipcRenderer.invoke('library:getThumbnail', id),
     updateMetadata: (id: number, metadata: Record<string, string | number | null>) =>
       ipcRenderer.invoke('library:updateMetadata', id, metadata),
     addCustom: (metadata: Record<string, unknown>, libraryRoot: string) =>

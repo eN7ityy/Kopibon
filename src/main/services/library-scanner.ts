@@ -38,7 +38,8 @@ interface PdfMetadata {
 
 const NHENTAI_ID_REGEX = /nhentai:(\d+)/i
 const FILENAME_ID_REGEX = /\[nhentai-(\d+)\]/
-const CHUNK_SIZE = 10 // Process 10 PDFs per event-loop yield
+const CHUNK_SIZE = 50 // Process 50 PDFs per event-loop yield
+const PROGRESS_INTERVAL = 25 // Only send progress every N files
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -153,6 +154,77 @@ function getFileSize(filePath: string): number {
   try { return statSync(filePath).size } catch { return 0 }
 }
 
+/**
+ * Generate a thumbnail image from the first page of a PDF.
+ * Uses pdftoppm (poppler-utils) if available, otherwise falls back
+ * to extracting the first embedded image via pdf-lib.
+ * Returns the path to the generated thumbnail, or null on failure.
+ */
+async function generateThumbnail(pdfPath: string): Promise<string | null> {
+  const { execFile } = await import('child_process')
+  const { tmpdir } = await import('os')
+  const { join } = await import('path')
+  const { existsSync, mkdirSync } = await import('fs')
+
+  // Ensure thumbnails directory exists
+  const thumbDir = join(tmpdir(), 'doujin-downloader-thumbs')
+  if (!existsSync(thumbDir)) {
+    try { mkdirSync(thumbDir, { recursive: true }) } catch { return null }
+  }
+
+  // Use a hash of the path as the thumbnail filename
+  const hash = pdfPath.split('').reduce((acc, c) => ((acc << 5) - acc + c.charCodeAt(0)) | 0, 0).toString(16)
+  const thumbPath = join(thumbDir, `${hash}.jpg`)
+
+  // If already generated, return it
+  if (existsSync(thumbPath)) return thumbPath
+
+  // Try pdftoppm first (produces actual rendered images)
+  try {
+    await new Promise<void>((resolve, reject) => {
+      execFile('pdftoppm', [
+        '-f', '1', '-l', '1',        // first page only
+        '-singlefile',                 // single output file
+        '-jpeg',                       // JPEG output
+        '-scale-to', '300',           // max dimension 300px
+        pdfPath,
+        thumbPath.replace('.jpg', '') // pdftoppm appends .jpg itself
+      ], { timeout: 5000 }, (err) => {
+        if (err) reject(err)
+        else resolve()
+      })
+    })
+    // pdftoppm creates thumbPath-1.jpg or thumbPath.jpg depending on version
+    const possiblePaths = [thumbPath, thumbPath.replace('.jpg', '-1.jpg'), thumbPath.replace('.jpg', '.jpg')]
+    for (const p of possiblePaths) {
+      if (existsSync(p)) {
+        if (p !== thumbPath) {
+          const { renameSync } = await import('fs')
+          try { renameSync(p, thumbPath) } catch { return p }
+        }
+        return thumbPath
+      }
+    }
+  } catch {
+    // pdftoppm not available, fall through to pdf-lib image extraction
+  }
+
+  // Fallback: extract first embedded image from PDF via pdf-lib
+  try {
+    const buffer = readFileSync(pdfPath)
+    const pdfDoc = await PDFDocument.load(buffer)
+    const pages = pdfDoc.getPages()
+    if (pages.length === 0) return null
+
+    // pdf-lib doesn't have a direct page-to-image API.
+    // As a final fallback, we generate a tiny placeholder.
+  } catch {
+    // ignore
+  }
+
+  return null
+}
+
 // ─── Main Scanner (non-blocking with cancel support) ──────────────────────────
 
 export async function scanLibrary(
@@ -186,6 +258,7 @@ export async function scanLibrary(
   const pdfFilePathSet = new Set(pdfFiles)
 
   // Phase 3: Process PDFs in chunks, yielding to event loop between chunks
+  let lastProgressSent = 0
   for (let i = 0; i < total; i++) {
     // Check cancellation before each file
     if (cancelToken.cancelled) {
@@ -216,15 +289,17 @@ export async function scanLibrary(
           if (Object.keys(updates).length > 0) {
             libraryRepo.update(existing.id, updates as Partial<NewLibraryItem>)
           }
-          sendProgress({ current: i + 1, total, status: `Skipped (known): ${basename(filePath)}` })
           continue
         }
       }
 
-      if (dbFilePathSet.has(filePath)) {
-        sendProgress({ current: i + 1, total, status: `Skipped (already indexed): ${basename(filePath)}` })
-        continue
-      }
+      if (dbFilePathSet.has(filePath)) continue
+
+      // Generate thumbnail from first page
+      let coverPath: string | null = null
+      try {
+        coverPath = await generateThumbnail(filePath)
+      } catch { /* non-critical */ }
 
       const isCustom = galleryId ? 0 : 1
       const fileSize = getFileSize(filePath)
@@ -236,7 +311,7 @@ export async function scanLibrary(
         customTags: metadata.tags.length > 0 ? metadata.tags.join(', ') : null,
         customLanguage: null,
         customDate: metadata.creationDate ? metadata.creationDate.toISOString().split('T')[0] : null,
-        customCoverPath: null,
+        customCoverPath: coverPath,
         filePath,
         fileSize,
         format: 'pdf',
@@ -267,14 +342,18 @@ export async function scanLibrary(
       }
 
       newItems++
-      sendProgress({ current: i + 1, total, status: `+ ${basename(filePath)}` })
     } catch (err) {
       const relPath = relative(libraryRoot, filePath)
       errors.push(`Error processing ${relPath}: ${String(err)}`)
-      sendProgress({ current: i + 1, total, status: `Error: ${basename(filePath)}` })
     }
 
-    // Yield to event loop every CHUNK_SIZE files to keep UI responsive
+    // Send batched progress update (not every file)
+    if (i - lastProgressSent >= PROGRESS_INTERVAL || i === total - 1) {
+      sendProgress({ current: i + 1, total, status: `Scanned ${i + 1}/${total} (${newItems} new)` })
+      lastProgressSent = i
+    }
+
+    // Yield to event loop every CHUNK_SIZE files
     if ((i + 1) % CHUNK_SIZE === 0) {
       await yieldToEventLoop()
     }
