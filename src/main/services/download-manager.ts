@@ -184,6 +184,31 @@ export class DownloadManager {
         settingsRepo.get('libraryPath') ||
         join(process.env.HOME || '/tmp', 'Doujinshi-Library')
 
+      // Step 1.5: Create placeholder library entry so search shows "Downloading"
+      const tagNames = gallery.tags.map((t) => t.name).join(', ')
+      const languageTag = gallery.tags.find((t) => t.type === 'language')
+      const existingLib = libraryRepo.findByGalleryId(gallery.id)
+      if (!existingLib) {
+        libraryRepo.insert({
+          galleryId: gallery.id,
+          isCustom: 2, // 2 = pending download
+          customTitle: gallery.title.pretty,
+          customTags: tagNames,
+          customLanguage: languageTag?.name || null,
+          customDate: null,
+          customCoverPath: null,
+          filePath: '', // placeholder, will be set on completion
+          fileSize: 0,
+          format: 'pdf',
+          primaryArtist,
+          seriesName: null,
+          readProgress: 0,
+          fileMtime: Date.now(),
+          addedAt: Date.now(),
+          updatedAt: Date.now()
+        })
+      }
+
       // Step 2: Fetch CDN servers
       const cdn = await client.getCdnConfig()
       const servers = [...cdn.image_servers].filter(Boolean)
@@ -367,45 +392,36 @@ export class DownloadManager {
         completedAt: Date.now()
       } as Parameters<typeof downloadRepo.update>[1])
 
-      // Step 9: Add to library
-      let fileSize = 0
-      try { fileSize = statSync(pdfPath).size } catch { /* ignore */ }
+      // Step 9: Update library entry (placeholder was created in Step 1.5)
+      const libItem = libraryRepo.findByGalleryId(gallery.id)
+      if (libItem) {
+        let fileSize = 0
+        try { fileSize = statSync(pdfPath).size } catch { /* ignore */ }
+        const dateStr = new Date(gallery.upload_date * 1000).toISOString().split('T')[0]
 
-      const now = Date.now()
-      const artistTags = gallery.tags.filter((t) => t.type === 'artist')
-      const tagNames = gallery.tags.map((t) => t.name).join(', ')
-      const languageTag = gallery.tags.find((t) => t.type === 'language')
-      const dateStr = new Date(gallery.upload_date * 1000).toISOString().split('T')[0]
-
-      // Check if already in library (avoid duplicates)
-      const existingLib = libraryRepo.findByGalleryId(gallery.id)
-      if (!existingLib) {
-        const libId = libraryRepo.insert({
-          galleryId: gallery.id,
+        libraryRepo.update(libItem.id, {
           isCustom: 0,
           customTitle: gallery.title.pretty,
           customTags: tagNames,
           customLanguage: languageTag?.name || null,
           customDate: dateStr,
-          customCoverPath: null,
           filePath: pdfPath,
           fileSize,
-          format: 'pdf',
-          primaryArtist,
-          seriesName: null,
-          readProgress: 0,
-          fileMtime: now,
-          addedAt: now,
-          updatedAt: now
+          fileMtime: Date.now(),
+          updatedAt: Date.now()
         })
 
-        // Insert artists
-        for (let i = 0; i < artistTags.length; i++) {
-          libraryRepo.addArtist({
-            libraryItemId: libId,
-            artistName: artistTags[i].name,
-            sortOrder: i
-          })
+        // Insert artists (if not already present)
+        const artistTags = gallery.tags.filter((t) => t.type === 'artist')
+        const existingArtists = libraryRepo.getArtists(libItem.id)
+        if (existingArtists.length === 0) {
+          for (let i = 0; i < artistTags.length; i++) {
+            libraryRepo.addArtist({
+              libraryItemId: libItem.id,
+              artistName: artistTags[i].name,
+              sortOrder: i
+            })
+          }
         }
       }
 

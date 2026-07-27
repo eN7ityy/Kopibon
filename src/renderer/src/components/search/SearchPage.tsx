@@ -32,6 +32,18 @@ export default function SearchPage(): React.JSX.Element {
     }
   }, [store.rateLimited])
 
+  // Refresh statuses on mount (every time user navigates to Search)
+  useEffect(() => {
+    if (store.results.length > 0) {
+      resolveDownloadStatuses(store.results.map((r) => r.id)).then((statuses) => {
+        for (const [id, status] of statuses) {
+          store.downloadStatuses[id] = status
+        }
+      })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   // Auto-search when sort changes and query is non-empty
   useEffect(() => {
     if (prevSortRef.current !== store.sort && store.query.trim()) {
@@ -45,37 +57,24 @@ export default function SearchPage(): React.JSX.Element {
     async (ids: number[]): Promise<Map<number, DownloadStatus>> => {
       const statuses = new Map<number, DownloadStatus>()
 
+      // Library is the single source of truth for download status.
+      // - isCustom=0 with filePath → "in_library" (on disk)
+      // - isCustom=2 → "downloading" (placeholder, not yet complete)
+      // - not found → "not_downloaded"
       await Promise.all(
         ids.map(async (id) => {
           try {
             const libResult = await window.api.library.getByGalleryId(id)
             if (libResult.success && libResult.data) {
-              statuses.set(id, 'in_library')
-              return
-            }
-
-            const dlResult = await window.api.downloads.getByGalleryId(id)
-            if (dlResult.success && dlResult.data) {
-              const dlStatus = dlResult.data.status
-              if (dlStatus === 'downloading') statuses.set(id, 'downloading')
-              else if (dlStatus === 'queued') statuses.set(id, 'queued')
-              else if (dlStatus === 'converting') statuses.set(id, 'downloading')
-              else if (dlStatus === 'completed') {
-                // Cross-reference: only show as completed if library item exists.
-                // Library reset clears items but not the download queue, so a
-                // "completed" download without a library entry is stale.
-                const libCheck = await window.api.library.getByGalleryId(id)
-                if (libCheck.success && libCheck.data) {
-                  statuses.set(id, 'in_library')
-                } else {
-                  statuses.set(id, 'not_downloaded')
-                }
+              const item = libResult.data
+              if (item.isCustom === 2) {
+                // Placeholder created when download started
+                statuses.set(id, 'downloading')
+              } else {
+                statuses.set(id, 'in_library')
               }
-              else if (dlStatus === 'failed') statuses.set(id, 'failed')
-              else statuses.set(id, 'not_downloaded')
               return
             }
-
             statuses.set(id, 'not_downloaded')
           } catch {
             statuses.set(id, 'not_downloaded')
