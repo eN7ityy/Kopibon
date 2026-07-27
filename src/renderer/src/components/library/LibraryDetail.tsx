@@ -41,6 +41,8 @@ export default function LibraryDetail({
   const [editTags, setEditTags] = useState<string[]>([])
   const [tagInput, setTagInput] = useState('')
   const [editLanguage, setEditLanguage] = useState('')
+  const [editPublisher, setEditPublisher] = useState('')
+  const [editDescription, setEditDescription] = useState('')
   const [saving, setSaving] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState<'none' | 'remove' | 'deleteFile'>('none')
   const [deleting, setDeleting] = useState(false)
@@ -57,6 +59,8 @@ export default function LibraryDetail({
       setEditVolume(item.seriesIndex != null ? String(item.seriesIndex) : '')
       setEditTags(item.customTags ? item.customTags.split(',').map(t => t.trim()).filter(Boolean) : [])
       setEditLanguage(item.customLanguage || '')
+      setEditPublisher(item.publisher || '')
+      setEditDescription(item.description || '')
       setEditing(false)
       setDeleteConfirm('none')
       setTagInput('')
@@ -112,7 +116,9 @@ export default function LibraryDetail({
         customTags: editTags.join(', '),
         customLanguage: editLanguage,
         seriesName: editSeries,
-        seriesIndex: editVolume.trim() ? parseFloat(editVolume.trim()) : null
+        seriesIndex: editVolume.trim() ? parseFloat(editVolume.trim()) : null,
+        publisher: editPublisher.trim() || null,
+        description: editDescription.trim() || null
       }, libraryRoot)
       if (result.success) {
         setEditing(false)
@@ -212,6 +218,24 @@ export default function LibraryDetail({
               </div>
             ) : item.customLanguage ? (
               <div><span className="text-xs font-medium text-gray-500 dark:text-gray-400">Language</span><p className="text-sm text-gray-900 dark:text-gray-100">{item.customLanguage}</p></div>
+            ) : null}
+
+            {/* Publisher */}
+            {editing ? (
+              <div><label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Publisher</label>
+                <input type="text" value={editPublisher} onChange={e => setEditPublisher(e.target.value)} placeholder="Publisher/Group name..." className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-purple-500" />
+              </div>
+            ) : item.publisher ? (
+              <div><span className="text-xs font-medium text-gray-500 dark:text-gray-400">Publisher</span><p className="text-sm text-gray-900 dark:text-gray-100">{item.publisher}</p></div>
+            ) : null}
+
+            {/* Description */}
+            {editing ? (
+              <div><label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Summary</label>
+                <textarea value={editDescription} onChange={e => setEditDescription(e.target.value)} placeholder="Description/summary..." rows={3} className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-purple-500 resize-none" />
+              </div>
+            ) : item.description ? (
+              <div><span className="text-xs font-medium text-gray-500 dark:text-gray-400">Summary</span><p className="text-sm text-gray-900 dark:text-gray-100 whitespace-pre-wrap">{item.description}</p></div>
             ) : null}
 
             {/* Tags with chip editor */}

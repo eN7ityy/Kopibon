@@ -29,6 +29,7 @@ export default function CustomEntryForm({
   const [tagInput, setTagInput] = useState('')
   const [language, setLanguage] = useState('')
   const [date, setDate] = useState('')
+  const [description, setDescription] = useState('')
   const [coverPath, setCoverPath] = useState<string | null>(null)
   const [sourcePath, setSourcePath] = useState<string | null>(null)
   const [sourceType, setSourceType] = useState<'pdf' | 'images'>('pdf')
@@ -153,6 +154,7 @@ export default function CustomEntryForm({
           tags: tags.length > 0 ? tags.join(', ') : undefined,
           language: language || undefined,
           date: date || undefined,
+          description: description.trim() || undefined,
           coverPath,
           sourcePath,
           sourceType
@@ -330,6 +332,20 @@ export default function CustomEntryForm({
                 className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-purple-500"
               />
             </div>
+          </div>
+
+          {/* Description */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Summary
+            </label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Optional description/summary..."
+              rows={3}
+              className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-purple-500 resize-none"
+            />
           </div>
 
           {/* Cover image */}

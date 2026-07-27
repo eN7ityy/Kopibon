@@ -294,6 +294,7 @@ export function registerLibraryIpc(): void {
     tags?: string
     language?: string
     date?: string
+    description?: string
     coverPath?: string | null
     sourcePath: string
     sourceType: 'pdf' | 'images'
@@ -363,7 +364,8 @@ export function registerLibraryIpc(): void {
           ? Math.floor(new Date(metadata.date).getTime() / 1000)
           : Math.floor(Date.now() / 1000),
         numPages: 0,
-        seriesName: metadata.series
+        seriesName: metadata.series,
+        description: metadata.description
       })
 
       // Get file size
@@ -385,6 +387,7 @@ export function registerLibraryIpc(): void {
         format: 'pdf',
         primaryArtist,
         seriesName: metadata.series || null,
+        description: metadata.description || null,
         readProgress: 0,
         addedAt: now,
         updatedAt: now
