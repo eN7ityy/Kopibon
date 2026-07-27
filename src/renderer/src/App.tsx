@@ -1,4 +1,4 @@
-import { BrowserRouter } from 'react-router-dom'
+import { HashRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useEffect } from 'react'
 import AppRoutes from './routes'
@@ -31,9 +31,9 @@ function App(): React.JSX.Element {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
+      <HashRouter>
         <AppRoutes />
-      </BrowserRouter>
+      </HashRouter>
     </QueryClientProvider>
   )
 }
