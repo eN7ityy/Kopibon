@@ -104,26 +104,26 @@ export const libraryRepo = {
     if (params.searchQuery) {
       const q = params.searchQuery.replace(/'/g, "''")
       conditions.push(
-        `(li.custom_title LIKE '%${q}%' OR li.primary_artist LIKE '%${q}%' OR li.series_name LIKE '%${q}%')`
+        `(custom_title LIKE '%${q}%' OR primary_artist LIKE '%${q}%' OR series_name LIKE '%${q}%')`
       )
     }
     if (params.artistFilters && params.artistFilters.length > 0) {
       const escaped = params.artistFilters.map((a) => `'${a.replace(/'/g, "''")}'`).join(',')
-      conditions.push(`li.primary_artist IN (${escaped})`)
+      conditions.push(`primary_artist IN (${escaped})`)
     }
     if (params.seriesFilters && params.seriesFilters.length > 0) {
       const escaped = params.seriesFilters.map((s) => `'${s.replace(/'/g, "''")}'`).join(',')
-      conditions.push(`li.series_name IN (${escaped})`)
+      conditions.push(`series_name IN (${escaped})`)
     }
     if (params.tagFilters && params.tagFilters.length > 0) {
       const tagConditions = params.tagFilters.map((t) => {
         const escaped = t.replace(/'/g, "''")
-        return `li.custom_tags LIKE '%${escaped}%'`
+        return `custom_tags LIKE '%${escaped}%'`
       })
       conditions.push(`(${tagConditions.join(' OR ')})`)
     }
     if (params.showUnmatchedOnly) {
-      conditions.push(`(li.gallery_id IS NULL OR li.gallery_id = 0)`)
+      conditions.push(`(gallery_id IS NULL OR gallery_id = 0)`)
     }
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
@@ -131,28 +131,53 @@ export const libraryRepo = {
     let orderClause: string
     switch (params.sortField) {
       case 'title':
-        orderClause = 'ORDER BY li.custom_title COLLATE NOCASE ASC'
+        orderClause = 'ORDER BY custom_title COLLATE NOCASE ASC'
         break
       case 'artist':
-        orderClause = 'ORDER BY li.primary_artist COLLATE NOCASE ASC'
+        orderClause = 'ORDER BY primary_artist COLLATE NOCASE ASC'
         break
       case 'added':
       default:
-        orderClause = 'ORDER BY li.added_at DESC'
+        orderClause = 'ORDER BY added_at DESC'
         break
     }
 
     const totalRow = db
       .get<{ count: number }>(
-        sql`SELECT COUNT(*) as count FROM library_item li ${sql.raw(whereClause)}`
+        sql`SELECT COUNT(*) as count FROM library_item ${sql.raw(whereClause)}`
       )
     const total = totalRow?.count ?? 0
 
-    const items = db
-      .all<LibraryItem>(
-        sql`SELECT li.* FROM library_item li ${sql.raw(whereClause)} ${sql.raw(orderClause)} LIMIT ${params.limit} OFFSET ${params.offset}`
+    const rawRows = db
+      .all<Record<string, unknown>>(
+        sql`SELECT * FROM library_item ${sql.raw(whereClause)} ${sql.raw(orderClause)} LIMIT ${params.limit} OFFSET ${params.offset}`
       )
-      .map((row) => row as unknown as LibraryItem)
+
+    // Map raw snake_case rows to drizzle's camelCase LibraryItem type
+    const items: LibraryItem[] = rawRows.map((row) => ({
+      id: row.id as number,
+      galleryId: row.gallery_id as number | null,
+      isCustom: row.is_custom as number,
+      customTitle: row.custom_title as string | null,
+      customTags: row.custom_tags as string | null,
+      customLanguage: row.custom_language as string | null,
+      customDate: row.custom_date as string | null,
+      customCoverPath: row.custom_cover_path as string | null,
+      filePath: row.file_path as string,
+      fileSize: row.file_size as number | null,
+      format: row.format as string,
+      primaryArtist: row.primary_artist as string,
+      seriesName: row.series_name as string | null,
+      seriesIndex: row.series_index as number | null,
+      language: row.language as string | null,
+      publisher: row.publisher as string | null,
+      description: row.description as string | null,
+      readProgress: row.read_progress as number,
+      fileMtime: row.file_mtime as number | null,
+      thumbnailPath: row.thumbnail_path as string | null,
+      addedAt: row.added_at as number,
+      updatedAt: row.updated_at as number
+    }))
 
     return { items, total }
   },
