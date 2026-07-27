@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useEffect, useCallback, useRef } from 'react'
 import type { DownloadStatus } from '../../types/api.types'
 import { SORT_OPTIONS } from '../../types/api.types'
 import { useSearchStore } from '../../stores/search.store'
@@ -9,20 +9,15 @@ import ErrorState from '../shared/ErrorState'
 
 export default function SearchPage(): React.JSX.Element {
   const store = useSearchStore()
-  const [showFilters, setShowFilters] = useState(false)
   const rateLimitTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
-
-  // Track when sort changes to auto-search (skip initial mount)
   const prevSortRef = useRef(store.sort)
 
-  // Cleanup rate limit timer
   useEffect(() => {
     return () => {
       if (rateLimitTimerRef.current) clearInterval(rateLimitTimerRef.current)
     }
   }, [])
 
-  // Rate limit countdown
   useEffect(() => {
     if (store.rateLimited && store.rateLimitSeconds > 0) {
       rateLimitTimerRef.current = setInterval(() => {
@@ -141,14 +136,9 @@ export default function SearchPage(): React.JSX.Element {
     performSearch(store.currentPage || 1, false)
   }
 
-  const handleSortChange = (newSort: string): void => {
-    store.setSort(newSort)
-  }
-
   const hasResults = store.results.length > 0
   const hasMorePages = store.currentPage < store.totalPages
   const showLoadMore = hasResults && hasMorePages && !store.loading && !store.loadingMore
-  const currentSortLabel = SORT_OPTIONS.find((o) => o.value === store.sort)?.label ?? 'Date'
 
   return (
     <div className="flex flex-col h-full">
@@ -160,7 +150,7 @@ export default function SearchPage(): React.JSX.Element {
       </div>
 
       {/* Search bar */}
-      <form onSubmit={handleSearch} className="flex gap-2 mb-3">
+      <form onSubmit={handleSearch} className="flex gap-2 mb-4">
         <input
           type="text"
           value={store.query}
@@ -168,20 +158,17 @@ export default function SearchPage(): React.JSX.Element {
           placeholder="Search by title, artist, or tags..."
           className="flex-1 px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
         />
-        <button
-          type="button"
-          onClick={() => setShowFilters(!showFilters)}
-          className={`px-3 py-2.5 rounded-lg border transition-colors ${
-            showFilters
-              ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400'
-              : 'border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
-          }`}
-          title="Sort"
+        <select
+          value={store.sort}
+          onChange={(e) => store.setSort(e.target.value)}
+          className="px-3 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-1 focus:ring-purple-500"
         >
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-          </svg>
-        </button>
+          {SORT_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
         <button
           type="submit"
           disabled={store.loading}
@@ -190,42 +177,6 @@ export default function SearchPage(): React.JSX.Element {
           {store.loading ? 'Searching...' : 'Search'}
         </button>
       </form>
-
-      {/* Active sort indicator */}
-      {store.sort !== '' && (
-        <div className="mb-3 flex items-center gap-2">
-          <span className="text-xs text-gray-500 dark:text-gray-400">Sorting by:</span>
-          <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 font-medium">
-            {currentSortLabel}
-          </span>
-          <button
-            onClick={() => handleSortChange('')}
-            className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 ml-1"
-          >
-            ✕ reset
-          </button>
-        </div>
-      )}
-
-      {/* Sort panel */}
-      {showFilters && (
-        <div className="mb-4 p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700">
-          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-            Sort by
-          </label>
-          <select
-            value={store.sort}
-            onChange={(e) => handleSortChange(e.target.value)}
-            className="w-full px-3 py-2 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-1 focus:ring-purple-500"
-          >
-            {SORT_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
 
       {/* Rate limit overlay */}
       {store.rateLimited && (
@@ -242,19 +193,16 @@ export default function SearchPage(): React.JSX.Element {
 
       {/* Content area */}
       <div className="flex-1 overflow-y-auto">
-        {/* Loading skeleton */}
         {store.loading && !hasResults && (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
             <LoadingSkeleton count={12} variant="card" />
           </div>
         )}
 
-        {/* Error state */}
         {store.error && !hasResults && !store.loading && (
           <ErrorState message={store.error} onRetry={handleRetry} />
         )}
 
-        {/* Initial empty state */}
         {!store.loading && !store.error && !hasResults && store.totalPages === 0 && store.query.trim() === '' && (
           <div className="flex-1 flex items-center justify-center border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-xl">
             <div className="text-center text-gray-400 dark:text-gray-500">
@@ -265,16 +213,14 @@ export default function SearchPage(): React.JSX.Element {
           </div>
         )}
 
-        {/* No results */}
         {!store.loading && !store.error && store.totalPages === 0 && store.query.trim() !== '' && (
           <EmptyState
             icon="🔍"
             title="No results found"
-            description="Try adjusting your search query or filters"
+            description="Try adjusting your search query"
           />
         )}
 
-        {/* Results */}
         {hasResults && (
           <div className="space-y-6">
             <GalleryGrid
