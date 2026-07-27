@@ -1,4 +1,4 @@
-import { ipcMain } from 'electron'
+import { ipcMain, dialog, BrowserWindow } from 'electron'
 import { shell } from 'electron'
 import { getApiClient } from '../services/api-client'
 import { settingsRepo } from '../db/repositories/settings.repo'
@@ -119,5 +119,30 @@ export function registerAuthIpc(): void {
 
   ipcMain.handle('shell:showItemInFolder', async (_event, path: string) => {
     shell.showItemInFolder(path)
+  })
+
+  // ─── File Dialogs ──────────────────────────────────────────────────
+
+  ipcMain.handle('dialog:openFile', async (event, options?: { filters?: Array<{ name: string; extensions: string[] }> }) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win) return { success: false, error: 'No window found' }
+
+    const result = await dialog.showOpenDialog(win, {
+      properties: ['openFile'],
+      filters: options?.filters || [{ name: 'PDF Files', extensions: ['pdf'] }]
+    })
+
+    return { success: true, data: result.canceled ? null : result.filePaths[0] }
+  })
+
+  ipcMain.handle('dialog:openDirectory', async (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win) return { success: false, error: 'No window found' }
+
+    const result = await dialog.showOpenDialog(win, {
+      properties: ['openDirectory']
+    })
+
+    return { success: true, data: result.canceled ? null : result.filePaths[0] }
   })
 }

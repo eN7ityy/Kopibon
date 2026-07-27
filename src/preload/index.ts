@@ -30,6 +30,13 @@ const api = {
     showItemInFolder: (path: string) => ipcRenderer.invoke('shell:showItemInFolder', path)
   },
 
+  // Dialogs
+  dialog: {
+    openFile: (options?: { filters?: Array<{ name: string; extensions: string[] }> }) =>
+      ipcRenderer.invoke('dialog:openFile', options),
+    openDirectory: () => ipcRenderer.invoke('dialog:openDirectory')
+  },
+
   // Downloads
   downloads: {
     getAll: () => ipcRenderer.invoke('download:getAll'),
@@ -67,7 +74,9 @@ const api = {
       ipcRenderer.invoke('library:assignSeries', ids, seriesName),
     delete: (id: number) => ipcRenderer.invoke('library:delete', id),
     updateMetadata: (id: number, metadata: Record<string, string | number | null>) =>
-      ipcRenderer.invoke('library:updateMetadata', id, metadata)
+      ipcRenderer.invoke('library:updateMetadata', id, metadata),
+    addCustom: (metadata: Record<string, unknown>, libraryRoot: string) =>
+      ipcRenderer.invoke('library:addCustom', metadata, libraryRoot)
   },
 
   // Events

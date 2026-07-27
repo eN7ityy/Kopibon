@@ -1,7 +1,7 @@
 import { ipcMain, BrowserWindow } from 'electron'
 import { libraryRepo } from '../db/repositories/library.repo'
 import { scanLibrary } from '../services/library-scanner'
-import { setSeries } from '../services/metadata-writer'
+import { setSeries, embedMetadata } from '../services/metadata-writer'
 import { renameSync, mkdirSync, existsSync } from 'fs'
 import { dirname, join, basename } from 'path'
 
@@ -203,6 +203,126 @@ export function registerLibraryIpc(): void {
         success: true,
         data: { updated, errors: errors.length > 0 ? errors : undefined }
       }
+    } catch (error) {
+      return { success: false, error: String(error) }
+    }
+  })
+
+  // ─── Custom Entry ──────────────────────────────────────────────────
+
+  ipcMain.handle('library:addCustom', async (_event, metadata: {
+    title: string
+    artists: string[]
+    series?: string
+    tags?: string
+    language?: string
+    date?: string
+    coverPath?: string | null
+    sourcePath: string
+    sourceType: 'pdf' | 'images'
+  }, libraryRoot: string) => {
+    try {
+      const { readdirSync, copyFileSync, mkdirSync, existsSync } = await import('fs')
+      const { join } = await import('path')
+      const { generatePdf } = await import('../services/pdf-generator')
+
+      const primaryArtist = metadata.artists[0] || 'Unknown'
+      const artistDir = join(libraryRoot, primaryArtist)
+      if (!existsSync(artistDir)) {
+        mkdirSync(artistDir, { recursive: true })
+      }
+
+      // Generate safe filename
+      const safeTitle = metadata.title
+        .replace(/[/\\?%*:|"<>]/g, '')
+        .substring(0, 120)
+        .trim()
+      const filename = `[nhentai-00000] ${safeTitle}.pdf`
+      const destPath = join(artistDir, filename)
+
+      let finalPdfPath: string
+
+      if (metadata.sourceType === 'images') {
+        // Convert images to PDF
+        const imageFiles = readdirSync(metadata.sourcePath)
+          .filter((f) => /\.(jpg|jpeg|png|webp|gif|bmp)$/i.test(f))
+          .sort()
+          .map((f) => join(metadata.sourcePath, f))
+
+        if (imageFiles.length === 0) {
+          return { success: false, error: 'No image files found in selected folder' }
+        }
+
+        await generatePdf(imageFiles, destPath, {
+          pageSize: 'fit',
+          quality: 90,
+          blackBackground: false
+        })
+        finalPdfPath = destPath
+      } else {
+        // Copy PDF to library
+        copyFileSync(metadata.sourcePath, destPath)
+        finalPdfPath = destPath
+      }
+
+      // Embed metadata
+      const tagList = metadata.tags
+        ? metadata.tags.split(',').map((t) => t.trim()).filter(Boolean)
+        : []
+
+      await embedMetadata(finalPdfPath, {
+        id: 0,
+        title: {
+          english: metadata.title,
+          japanese: null,
+          pretty: metadata.title
+        },
+        tags: [
+          ...tagList.map((name) => ({ id: 0, type: 'tag', name })),
+          ...metadata.artists.map((name) => ({ id: 0, type: 'artist', name })),
+          ...(metadata.language ? [{ id: 0, type: 'language', name: metadata.language }] : [])
+        ],
+        uploadDate: metadata.date
+          ? Math.floor(new Date(metadata.date).getTime() / 1000)
+          : Math.floor(Date.now() / 1000),
+        numPages: 0,
+        seriesName: metadata.series
+      })
+
+      // Get file size
+      const { statSync } = await import('fs')
+      const fileSize = statSync(finalPdfPath).size
+
+      // Insert into DB
+      const now = Date.now()
+      const newId = libraryRepo.insert({
+        galleryId: null,
+        isCustom: 1,
+        customTitle: metadata.title,
+        customTags: metadata.tags || null,
+        customLanguage: metadata.language || null,
+        customDate: metadata.date || null,
+        customCoverPath: metadata.coverPath || null,
+        filePath: finalPdfPath,
+        fileSize,
+        format: 'pdf',
+        primaryArtist,
+        seriesName: metadata.series || null,
+        readProgress: 0,
+        addedAt: now,
+        updatedAt: now
+      })
+
+      // Insert artists
+      for (let i = 0; i < metadata.artists.length; i++) {
+        libraryRepo.addArtist({
+          libraryItemId: newId,
+          artistName: metadata.artists[i],
+          sortOrder: i
+        })
+      }
+
+      return { success: true, data: { id: newId, filePath: finalPdfPath } }
     } catch (error) {
       return { success: false, error: String(error) }
     }

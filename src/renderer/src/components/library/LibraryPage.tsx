@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import type { LibraryItemData } from './LibraryCard'
 import LibraryCard from './LibraryCard'
 import SeriesAssignment from './SeriesAssignment'
+import CustomEntryForm from './CustomEntryForm'
 import EmptyState from '../shared/EmptyState'
 import ErrorState from '../shared/ErrorState'
 import LoadingSkeleton from '../shared/LoadingSkeleton'
@@ -40,6 +41,7 @@ export default function LibraryPage(): React.JSX.Element {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [selectMode, setSelectMode] = useState(false)
   const [showSeriesModal, setShowSeriesModal] = useState(false)
+  const [showCustomForm, setShowCustomForm] = useState(false)
 
   // Scan state
   const [scanning, setScanning] = useState(false)
@@ -352,9 +354,7 @@ export default function LibraryPage(): React.JSX.Element {
 
         {/* Add Custom button */}
         <button
-          onClick={() => {
-            // T5 — will be wired later
-          }}
+          onClick={() => setShowCustomForm(true)}
           className="px-4 py-2 rounded-lg bg-green-600 text-white font-medium text-sm hover:bg-green-700 transition-colors"
         >
           + Add Custom
@@ -617,6 +617,17 @@ export default function LibraryPage(): React.JSX.Element {
           setShowSeriesModal(false)
           setSelectedIds(new Set())
           setSelectMode(false)
+          fetchData()
+        }}
+      />
+
+      {/* Custom Entry Form Modal */}
+      <CustomEntryForm
+        isOpen={showCustomForm}
+        libraryRoot="/mnt/bragi/Kavita/Doujins/"
+        onClose={() => setShowCustomForm(false)}
+        onCreated={() => {
+          setShowCustomForm(false)
           fetchData()
         }}
       />
