@@ -5,7 +5,6 @@ export type PageSizeOption = 'Dynamic' | 'Fit to Image' | 'Letter' | 'A4'
 
 interface SettingsState {
   libraryPath: string
-  apiKey: string | null
   downloadConcurrency: number
   theme: 'light' | 'dark' | 'system'
   outputFormat: OutputFormat
@@ -20,7 +19,6 @@ interface SettingsState {
   loaded: boolean
 
   setLibraryPath: (path: string) => void
-  setApiKey: (key: string | null) => void
   setDownloadConcurrency: (n: number) => void
   setTheme: (theme: 'light' | 'dark' | 'system') => void
   setOutputFormat: (format: OutputFormat) => void
@@ -37,7 +35,6 @@ const DEFAULT_LIBRARY_PATH = '/mnt/bragi/Kavita/Doujins/'
 
 export const useSettingsStore = create<SettingsState>()((set, get) => ({
   libraryPath: DEFAULT_LIBRARY_PATH,
-  apiKey: null,
   downloadConcurrency: 3,
   theme: 'system',
   outputFormat: 'pdf',
@@ -48,7 +45,6 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   loaded: false,
 
   setLibraryPath: (path) => set({ libraryPath: path }),
-  setApiKey: (key) => set({ apiKey: key }),
   setDownloadConcurrency: (n) => set({ downloadConcurrency: n }),
   setTheme: (theme) => set({ theme }),
   setOutputFormat: (format) => set({ outputFormat: format }),
@@ -63,7 +59,6 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
       if (settings) {
         set({
           libraryPath: settings.libraryPath ?? DEFAULT_LIBRARY_PATH,
-          apiKey: settings.apiKey ?? null,
           downloadConcurrency: settings.downloadConcurrency ?? 3,
           theme: (settings.theme as 'light' | 'dark' | 'system') ?? 'system',
           outputFormat: (settings.outputFormat as OutputFormat) ?? 'pdf',
@@ -84,7 +79,6 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     try {
       await window.api.settings.setAll({
         libraryPath: state.libraryPath,
-        apiKey: state.apiKey ?? '',
         downloadConcurrency: String(state.downloadConcurrency),
         theme: String(state.theme),
         outputFormat: state.outputFormat,

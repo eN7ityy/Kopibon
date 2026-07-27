@@ -188,7 +188,7 @@ export class ApiClient {
     const params = new URLSearchParams()
     params.set('page', String(page))
     if (query) params.set('query', query)
-    return this.request<FavoritesResponse>(`/user/favorites?${params.toString()}`)
+    return this.request<FavoritesResponse>(`/favorites?${params.toString()}`)
   }
 
   /**
