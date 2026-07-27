@@ -1,4 +1,4 @@
-import { eq, asc } from 'drizzle-orm'
+import { eq, asc, sql } from 'drizzle-orm'
 import { getDatabase } from '../connection'
 import { downloadQueue, downloadPage } from '../schema'
 import type { InferSelectModel, InferInsertModel } from 'drizzle-orm'
@@ -88,11 +88,21 @@ export const downloadRepo = {
 
   activeCount(): number {
     const db = getDatabase()
-    return db.$count(downloadQueue, eq(downloadQueue.status, 'downloading'))
+    const result = db
+      .select({ count: sql<number>`count(*)` })
+      .from(downloadQueue)
+      .where(eq(downloadQueue.status, 'downloading'))
+      .get()
+    return result?.count ?? 0
   },
 
   queuedCount(): number {
     const db = getDatabase()
-    return db.$count(downloadQueue, eq(downloadQueue.status, 'queued'))
+    const result = db
+      .select({ count: sql<number>`count(*)` })
+      .from(downloadQueue)
+      .where(eq(downloadQueue.status, 'queued'))
+      .get()
+    return result?.count ?? 0
   }
 }

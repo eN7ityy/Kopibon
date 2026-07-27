@@ -1,4 +1,4 @@
-import { eq, and, like, desc } from 'drizzle-orm'
+import { eq, like, desc, sql } from 'drizzle-orm'
 import { getDatabase } from '../connection'
 import { libraryItem, libraryItemArtist } from '../schema'
 import type { InferSelectModel, InferInsertModel } from 'drizzle-orm'
@@ -26,13 +26,13 @@ export const libraryRepo = {
 
   findByArtist(artistName: string): LibraryItem[] {
     const db = getDatabase()
-    return db
-      .select({ item: libraryItem })
+    const rows = db
+      .select()
       .from(libraryItem)
       .innerJoin(libraryItemArtist, eq(libraryItem.id, libraryItemArtist.libraryItemId))
       .where(eq(libraryItemArtist.artistName, artistName))
       .all()
-      .map((row) => row.item)
+    return rows.map((row) => row.library_item)
   },
 
   findBySeries(seriesName: string): LibraryItem[] {
@@ -74,7 +74,11 @@ export const libraryRepo = {
 
   count(): number {
     const db = getDatabase()
-    return db.$count(libraryItem)
+    const result = db
+      .select({ count: sql<number>`count(*)` })
+      .from(libraryItem)
+      .get()
+    return result?.count ?? 0
   },
 
   // ─── Artists ─────────────────────────────────────────────────────

@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { getDatabase } from '../connection'
 import { gallery as galleryTable } from '../schema'
 import type { InferInsertModel, InferSelectModel } from 'drizzle-orm'
@@ -19,16 +19,16 @@ export const galleryRepo = {
 
   upsert(gallery: NewGallery): Gallery {
     const db = getDatabase()
-    const existing = this.findById(gallery.id)
+    const existing = this.findById(gallery.id!)
     if (existing) {
       db.update(galleryTable)
-        .set({ ...gallery, updatedAt: Date.now() })
-        .where(eq(galleryTable.id, gallery.id))
+        .set({ ...gallery, updatedAt: Date.now() } as typeof gallery)
+        .where(eq(galleryTable.id, gallery.id!))
         .run()
-      return this.findById(gallery.id)!
+      return this.findById(gallery.id!)!
     }
-    db.insert(galleryTable).values(gallery).run()
-    return this.findById(gallery.id)!
+    db.insert(galleryTable).values(gallery as typeof gallery).run()
+    return this.findById(gallery.id!)!
   },
 
   delete(id: number): void {
@@ -38,6 +38,10 @@ export const galleryRepo = {
 
   count(): number {
     const db = getDatabase()
-    return db.$count(galleryTable)
+    const result = db
+      .select({ count: sql<number>`count(*)` })
+      .from(galleryTable)
+      .get()
+    return result?.count ?? 0
   }
 }
