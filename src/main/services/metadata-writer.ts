@@ -1,5 +1,5 @@
 import { PDFDocument } from 'pdf-lib'
-import { readFileSync, writeFileSync, renameSync, unlinkSync } from 'fs'
+import { readFileSync, writeFileSync, copyFileSync, unlinkSync, renameSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { randomUUID } from 'crypto'
@@ -22,6 +22,28 @@ export interface GalleryMetadata {
   numPages: number
   // Optional: series name if assigned
   seriesName?: string
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+/**
+ * Move a file from srcPath to destPath, handling cross-device moves.
+ * Uses copyFileSync + unlinkSync to support /tmp → library directory.
+ */
+function moveFile(srcPath: string, destPath: string): void {
+  try {
+    copyFileSync(srcPath, destPath)
+    try { unlinkSync(srcPath) } catch { /* source cleanup non-critical */ }
+  } catch {
+    // Fallback: try renameSync for same-filesystem case
+    try {
+      renameSync(srcPath, destPath)
+    } catch (err) {
+      // Last resort: read/write
+      writeFileSync(destPath, readFileSync(srcPath))
+      try { unlinkSync(srcPath) } catch { /* */ }
+    }
+  }
 }
 
 // ─── Metadata Writer ─────────────────────────────────────────────────────────
@@ -78,17 +100,8 @@ export async function embedMetadata(
   const modifiedBytes = await pdfDoc.save()
   writeFileSync(tempPath, modifiedBytes)
 
-  // Replace original with modified version
-  const backupPath = pdfPath + '.bak'
-  renameSync(pdfPath, backupPath)
-  renameSync(tempPath, pdfPath)
-
-  // Remove backup
-  try {
-    unlinkSync(backupPath)
-  } catch {
-    // Non-critical if cleanup fails
-  }
+  // Move temp file over original (handles cross-device)
+  moveFile(tempPath, pdfPath)
 }
 
 /**
@@ -114,13 +127,6 @@ export async function setSeries(
   const modifiedBytes = await pdfDoc.save()
   writeFileSync(tempPath, modifiedBytes)
 
-  const backupPath = pdfPath + '.bak'
-  renameSync(pdfPath, backupPath)
-  renameSync(tempPath, pdfPath)
-
-  try {
-    unlinkSync(backupPath)
-  } catch {
-    // Non-critical
-  }
+  // Move temp file over original (handles cross-device)
+  moveFile(tempPath, pdfPath)
 }

@@ -1,6 +1,7 @@
 import { PDFDocument, PageSizes, rgb } from 'pdf-lib'
 import { readFileSync, writeFileSync } from 'fs'
 import { basename } from 'path'
+import sharp from 'sharp'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -51,19 +52,30 @@ export async function generatePdf(
     } else if (isJpeg) {
       image = await pdfDoc.embedJpg(buffer)
     } else if (isWebP) {
-      // pdf-lib doesn't support WebP; skip with warning
-      console.warn(`Skipping WebP image (not supported by pdf-lib): ${basename(imagePath)}`)
-      continue
+      // Convert WebP to PNG in-memory using sharp, then embed
+      try {
+        const pngBuffer = await sharp(buffer).png().toBuffer()
+        image = await pdfDoc.embedPng(pngBuffer)
+      } catch (err) {
+        console.warn(`Failed to convert WebP to PNG: ${basename(imagePath)} — ${String(err)}`)
+        continue
+      }
     } else {
-      // Fallback: try JPEG, then PNG
+      // Fallback: try to auto-detect by attempting JPEG first, then PNG
       try {
         image = await pdfDoc.embedJpg(buffer)
       } catch {
         try {
           image = await pdfDoc.embedPng(buffer)
-        } catch (err) {
-          console.warn(`Skipping unsupported image format: ${basename(imagePath)} — ${String(err)}`)
-          continue
+        } catch {
+          // Last resort: try sharp to convert to PNG
+          try {
+            const pngBuffer = await sharp(buffer).png().toBuffer()
+            image = await pdfDoc.embedPng(pngBuffer)
+          } catch (err) {
+            console.warn(`Skipping unsupported image format: ${basename(imagePath)} — ${String(err)}`)
+            continue
+          }
         }
       }
     }

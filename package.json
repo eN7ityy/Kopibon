@@ -32,6 +32,7 @@
     "ky": "^1.7.0",
     "pdf-lib": "^1.17.1",
     "react-router-dom": "^7.1.0",
+    "sharp": "^0.35.3",
     "zustand": "^5.0.0"
   },
   "devDependencies": {
