@@ -119,6 +119,7 @@ export default function LibraryPage(): React.JSX.Element {
   useEffect(() => {
     const unsubProgress = window.api.onLibraryScanProgress((progress) => {
       setScanProgress(progress)
+      setScanPaused(false) // any progress means scan is running, clear paused state
     })
     const unsubComplete = window.api.onLibraryScanComplete((result) => {
       setScanning(false)
