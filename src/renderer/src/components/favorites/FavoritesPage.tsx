@@ -231,6 +231,7 @@ export default function FavoritesPage(): React.JSX.Element {
           onClose={() => setSelectedGalleryId(null)}
           onDownload={handleDownload}
           onTagClick={handleTagClick}
+          onGalleryChange={(id) => setSelectedGalleryId(id)}
         />
       )}
     </div>
