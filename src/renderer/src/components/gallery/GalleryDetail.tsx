@@ -147,6 +147,7 @@ export default function GalleryDetailPanel({
                 <img
                   src={coverUrl}
                   alt={detail.title.pretty}
+                  draggable={false}
                   onError={() => setImgError(true)}
                   className="w-full h-full object-cover"
                 />

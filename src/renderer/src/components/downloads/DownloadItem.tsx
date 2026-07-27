@@ -63,6 +63,7 @@ export default function DownloadItem({
             <img
               src={galleryInfo.thumbnailUrl}
               alt={title}
+              draggable={false}
               onError={() => setImgError(true)}
               className="w-full h-full object-cover"
             />
