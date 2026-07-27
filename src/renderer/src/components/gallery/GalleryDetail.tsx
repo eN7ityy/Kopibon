@@ -210,6 +210,10 @@ export default function GalleryDetailPanel({
             {/* Meta info */}
             <div className="space-y-1.5 text-sm text-gray-600 dark:text-gray-400 mb-6">
               <div className="flex justify-between">
+                <span>ID</span>
+                <span className="font-medium text-gray-900 dark:text-gray-100 font-mono">#{detail.id}</span>
+              </div>
+              <div className="flex justify-between">
                 <span>Pages</span>
                 <span className="font-medium text-gray-900 dark:text-gray-100">{detail.num_pages}</span>
               </div>

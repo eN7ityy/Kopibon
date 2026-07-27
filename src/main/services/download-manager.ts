@@ -1,8 +1,9 @@
 import { join } from 'path'
-import { mkdirSync, existsSync } from 'fs'
+import { mkdirSync, existsSync, statSync } from 'fs'
 import { downloadRepo } from '../db/repositories/download.repo'
 import { galleryRepo } from '../db/repositories/gallery.repo'
 import { settingsRepo } from '../db/repositories/settings.repo'
+import { libraryRepo } from '../db/repositories/library.repo'
 import { getApiClient } from './api-client'
 import { generatePdf, type PdfOptions } from './pdf-generator'
 import { embedMetadata } from './metadata-writer'
@@ -319,10 +320,12 @@ export class DownloadManager {
       }
 
       const validPaths = downloadedPaths.filter(Boolean) as string[]
-      // TODO: worker_thread — offload CPU-bound PDF generation to a worker
-      // (same pattern as library-scanner.worker.ts) if pdf-lib proves slow
-      // (>500ms) on typical galleries. Currently runs on main thread.
-      await generatePdf(validPaths, pdfPath, pdfOptions)
+      // Emit conversion progress periodically during PDF generation
+      await generatePdf(validPaths, pdfPath, pdfOptions, (current: number, total: number) => {
+        this.emitProgress(
+          queueId, galleryId, title, total, current, 0, 0, 'converting'
+        )
+      })
 
       // Step 7: Embed metadata
       await embedMetadata(pdfPath, {
@@ -338,6 +341,48 @@ export class DownloadManager {
         status: 'completed',
         completedAt: Date.now()
       } as Parameters<typeof downloadRepo.update>[1])
+
+      // Step 9: Add to library
+      let fileSize = 0
+      try { fileSize = statSync(pdfPath).size } catch { /* ignore */ }
+
+      const now = Date.now()
+      const artistTags = gallery.tags.filter((t) => t.type === 'artist')
+      const tagNames = gallery.tags.map((t) => t.name).join(', ')
+      const languageTag = gallery.tags.find((t) => t.type === 'language')
+      const dateStr = new Date(gallery.upload_date * 1000).toISOString().split('T')[0]
+
+      // Check if already in library (avoid duplicates)
+      const existingLib = libraryRepo.findByGalleryId(gallery.id)
+      if (!existingLib) {
+        const libId = libraryRepo.insert({
+          galleryId: gallery.id,
+          isCustom: 0,
+          customTitle: gallery.title.pretty,
+          customTags: tagNames,
+          customLanguage: languageTag?.name || null,
+          customDate: dateStr,
+          customCoverPath: null,
+          filePath: pdfPath,
+          fileSize,
+          format: 'pdf',
+          primaryArtist,
+          seriesName: null,
+          readProgress: 0,
+          fileMtime: now,
+          addedAt: now,
+          updatedAt: now
+        })
+
+        // Insert artists
+        for (let i = 0; i < artistTags.length; i++) {
+          libraryRepo.addArtist({
+            libraryItemId: libId,
+            artistName: artistTags[i].name,
+            sortOrder: i
+          })
+        }
+      }
 
       this.emitProgress(queueId, galleryId, title, totalPages, totalPages, 0, 0, 'completed')
     } catch (err) {

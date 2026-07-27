@@ -13,6 +13,7 @@ interface GalleryInfo {
   groups: string[]
   language: string | null
   tags: string[]
+  filePath: string | null
 }
 
 interface DownloadItemProps {
@@ -144,7 +145,7 @@ export default function DownloadItem({
             </div>
           )}
 
-          {/* Progress bar for active downloads */}
+          {/* Progress bar for active downloads (including converting) */}
           {isActive && progress && (
             <DownloadProgressBar
               completed={progress.completedPages}
@@ -153,6 +154,18 @@ export default function DownloadItem({
               speedKBps={progress.speedKBps}
               etaSeconds={progress.etaSeconds}
             />
+          )}
+
+          {/* Conversion status when no detailed progress available */}
+          {item.status === 'converting' && !progress && (
+            <div className="mt-1">
+              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
+                <div className="bg-purple-500 h-full rounded-full animate-pulse" style={{ width: '100%' }} />
+              </div>
+              <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">
+                Converting images to PDF...
+              </p>
+            </div>
           )}
 
           {/* Failed message */}
@@ -169,7 +182,14 @@ export default function DownloadItem({
 
           {/* Completed */}
           {isCompleted && (
-            <p className="text-xs text-green-600 dark:text-green-400 mt-1">Download complete ✓</p>
+            <div className="mt-1">
+              <p className="text-xs text-green-600 dark:text-green-400">Download complete ✓</p>
+              {galleryInfo?.filePath && (
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 truncate" title={galleryInfo.filePath}>
+                  📁 {galleryInfo.filePath}
+                </p>
+              )}
+            </div>
           )}
         </div>
 

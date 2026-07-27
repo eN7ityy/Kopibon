@@ -12,6 +12,7 @@ interface GalleryInfo {
   groups: string[]
   language: string | null
   tags: string[]
+  filePath: string | null
 }
 
 export default function DownloadsPage(): React.JSX.Element {
@@ -29,6 +30,13 @@ export default function DownloadsPage(): React.JSX.Element {
       const result = await window.api.getGallery(galleryId)
       if (result.success && result.data) {
         const g = result.data
+        const libItem = await (async () => {
+          try {
+            const r = await window.api.library.getByGalleryId(galleryId)
+            return r.success ? r.data : null
+          } catch { return null }
+        })()
+
         return {
           title: g.title.pretty,
           thumbnailUrl: g.cover?.path ? `https://t.nhentai.net/${g.cover.path}` : null,
@@ -38,7 +46,8 @@ export default function DownloadsPage(): React.JSX.Element {
           language: g.tags.find((t) => t.type === 'language')?.name || null,
           tags: g.tags
             .filter((t) => !['artist', 'group', 'language'].includes(t.type))
-            .map((t) => t.name)
+            .map((t) => t.name),
+          filePath: libItem?.filePath || null
         }
       }
     } catch {
@@ -55,14 +64,15 @@ export default function DownloadsPage(): React.JSX.Element {
           artists: [],
           groups: [],
           language: null,
-          tags: []
+          tags: [],
+          filePath: libResult.data.filePath || null
         }
       }
     } catch {
       // ignore
     }
 
-    return { title: `Gallery #${galleryId}`, thumbnailUrl: null, pageCount: 0, artists: [], groups: [], language: null, tags: [] }
+    return { title: `Gallery #${galleryId}`, thumbnailUrl: null, pageCount: 0, artists: [], groups: [], language: null, tags: [], filePath: null }
   }, [])
 
   const fetchDownloads = useCallback(async () => {

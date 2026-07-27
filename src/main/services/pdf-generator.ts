@@ -13,9 +13,12 @@ export interface PdfOptions {
   blackBackground: boolean
 }
 
+export type PdfProgressCallback = (current: number, total: number) => void
+
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 const DYNAMIC_WIDTH = 1800
+const YIELD_INTERVAL = 5 // Yield to event loop every N images
 
 // ─── PDF Generator ────────────────────────────────────────────────────────────
 
@@ -25,17 +28,29 @@ const DYNAMIC_WIDTH = 1800
  * @param imagePaths - Ordered array of full paths to image files
  * @param outputPath - Full path where the PDF will be saved
  * @param options - Page size, quality, background settings
+ * @param onProgress - Optional callback for progress (current, total)
  * @returns The output path
  */
 export async function generatePdf(
   imagePaths: string[],
   outputPath: string,
-  options: PdfOptions
+  options: PdfOptions,
+  onProgress?: PdfProgressCallback
 ): Promise<string> {
   const pdfDoc = await PDFDocument.create()
+  const total = imagePaths.length
 
-  for (const imagePath of imagePaths) {
+  for (let i = 0; i < imagePaths.length; i++) {
+    const imagePath = imagePaths[i]
     const buffer = readFileSync(imagePath)
+
+    // Yield to event loop periodically to prevent UI freeze
+    if (i > 0 && i % YIELD_INTERVAL === 0) {
+      await new Promise((resolve) => setImmediate(resolve))
+    }
+
+    // Report progress
+    onProgress?.(i + 1, total)
 
     // Detect format from magic bytes rather than file extension
     // JPEG: starts with FF D8 FF
