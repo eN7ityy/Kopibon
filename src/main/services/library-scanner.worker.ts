@@ -106,7 +106,7 @@ const XMP_DESCRIPTION_REGEX = /<dc:description[^>]*>([\s\S]*?)<\/dc:description>
 function extractXmpFromBuffer(buffer: Buffer): Record<string, string> {
   const result: Record<string, string> = {}
   try {
-    const str = buffer.toString('latin1')
+    const str = buffer.toString('utf-8')
     const xmpMatch = str.match(/<x:xmpmeta[^>]*>([\s\S]*?)<\/x:xmpmeta>/i)
     if (!xmpMatch) return result
     const xmp = xmpMatch[1]
@@ -476,6 +476,10 @@ async function runScan(): Promise<void> {
   }
 
   const pdfFiles = await walkPdfs(currentLibraryRoot)
+  // Sort by modification time (newest first) so recent downloads are scanned first
+  pdfFiles.sort((a, b) => {
+    try { return statSync(b).mtimeMs - statSync(a).mtimeMs } catch { return 0 }
+  })
   log(`DISCOVERY found ${pdfFiles.length} PDFs`)
 
   // Phase 2: Populate queue
