@@ -43,6 +43,21 @@ export default function GalleryDetailPanel({
   const [showRedownloadConfirm, setShowRedownloadConfirm] = useState(false)
   const [libraryPath, setLibraryPath] = useState<string | null>(null)
 
+  const fetchStatus = useCallback(async () => {
+    try {
+      const libResult = await window.api.library.getByGalleryId(galleryId)
+      if (libResult.success && libResult.data) {
+        const item = libResult.data
+        // isCustom=2 means placeholder (downloading), 0 means on disk
+        setDownloadStatus(item.isCustom === 2 ? 'downloading' : 'in_library')
+      } else {
+        setDownloadStatus('not_downloaded')
+      }
+    } catch {
+      // Status check is best-effort
+    }
+  }, [galleryId])
+
   const fetchDetail = useCallback(async () => {
     setLoading(true)
     setError(null)
@@ -51,21 +66,7 @@ export default function GalleryDetailPanel({
       const result = await window.api.getGallery(galleryId)
       if (result.success && result.data) {
         setDetail(result.data)
-
-        const libResult = await window.api.library.getByGalleryId(galleryId)
-        if (libResult.success && libResult.data) {
-          setDownloadStatus('in_library')
-        } else {
-          const dlResult = await window.api.downloads.getByGalleryId(galleryId)
-          if (dlResult.success && dlResult.data) {
-            const s = dlResult.data.status
-            if (s === 'downloading') setDownloadStatus('downloading')
-            else if (s === 'queued') setDownloadStatus('queued')
-            else if (s === 'completed') setDownloadStatus('completed')
-            else if (s === 'failed') setDownloadStatus('failed')
-            else setDownloadStatus('not_downloaded')
-          }
-        }
+        await fetchStatus()
       } else {
         setError(result.error || 'Gallery not found')
       }
@@ -74,11 +75,14 @@ export default function GalleryDetailPanel({
     } finally {
       setLoading(false)
     }
-  }, [galleryId])
+  }, [galleryId, fetchStatus])
 
   useEffect(() => {
     fetchDetail()
-  }, [fetchDetail])
+    // Poll status every 2s for real-time updates
+    const interval = setInterval(fetchStatus, 2000)
+    return () => clearInterval(interval)
+  }, [fetchDetail, fetchStatus])
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent): void => {
