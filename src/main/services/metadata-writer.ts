@@ -128,9 +128,15 @@ export async function embedMetadata(
 }
 
 /**
- * Set the series name on an existing PDF by writing to /Subject.
- * This is a lightweight metadata operation — it does NOT rewrite the
- * full document, only the docinfo.
+ * Set the series name on an existing PDF.
+ *
+ * Writes to /Subject (dc:subject in XMP) for backward compatibility
+ * and adds calibre_series:{name} token to /Keywords as fallback.
+ *
+ * Note: pdf-lib cannot write custom XMP namespaces (calibre:series).
+ * PDFs managed by Calibre will have calibre:series in XMP which the
+ * scanner reads as the primary source. For app-written PDFs, readers
+ * should use /Keywords calibre_series: token or /Subject.
  *
  * @param pdfPath - Full path to the PDF file to modify
  * @param seriesName - Series name to embed (empty string to clear)
@@ -143,6 +149,16 @@ export async function setSeries(
   const pdfDoc = await PDFDocument.load(existingBytes)
 
   pdfDoc.setSubject(seriesName || '')
+
+  // Update Keywords: preserve existing tokens, add/update calibre_series
+  const existingKw = pdfDoc.getKeywords() || ''
+  const tokens = existingKw.split(',').map(s => s.trim()).filter(Boolean)
+  const filtered = tokens.filter(t => !t.startsWith('calibre_series:'))
+  if (seriesName) {
+    filtered.push(`calibre_series:${seriesName}`)
+  }
+  pdfDoc.setKeywords(filtered)
+
   pdfDoc.setProducer('Doujin-Downloader')
 
   // Save to temporary file, then move over original
