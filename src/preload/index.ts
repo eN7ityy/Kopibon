@@ -85,7 +85,8 @@ const api = {
     updateMetadata: (id: number, metadata: Record<string, string | number | null>, libraryRoot?: string) =>
       ipcRenderer.invoke('library:updateMetadata', id, metadata, libraryRoot),
     addCustom: (metadata: Record<string, unknown>, libraryRoot: string) =>
-      ipcRenderer.invoke('library:addCustom', metadata, libraryRoot)
+      ipcRenderer.invoke('library:addCustom', metadata, libraryRoot),
+    isPathAccessible: (dirPath: string) => ipcRenderer.invoke('library:isPathAccessible', dirPath)
   },
 
   // Events

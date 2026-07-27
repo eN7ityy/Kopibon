@@ -479,6 +479,15 @@ export function registerLibraryIpc(): void {
     }
   })
 
+  ipcMain.handle('library:isPathAccessible', async (_event, dirPath: string) => {
+    try {
+      const { existsSync } = await import('fs')
+      return { success: true, data: existsSync(dirPath) }
+    } catch {
+      return { success: true, data: false }
+    }
+  })
+
   ipcMain.handle('library:updateMetadata', async (_event, id: number, metadata: Record<string, string | number | null>, libraryRoot?: string) => {
     try {
       const item = libraryRepo.findById(id)

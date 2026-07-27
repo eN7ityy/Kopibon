@@ -54,6 +54,8 @@ export default function LibraryPage(): React.JSX.Element {
   const [scanProgress, setScanProgress] = useState<ScanProgress | null>(null)
   const [lastScan, setLastScan] = useState<{ scannedAt: number; newItems: number; totalItems: number } | null>(null)
 
+  const [pathAccessible, setPathAccessible] = useState<boolean | null>(null)
+
   // ─── Data Fetching ─────────────────────────────────────────────────────────
 
   const fetchData = useCallback(async () => {
@@ -108,6 +110,17 @@ export default function LibraryPage(): React.JSX.Element {
       // ignore
     }
   }, [])
+
+  // Check library path accessibility when items change
+  useEffect(() => {
+    if (items.length === 0) { setPathAccessible(null); return }
+    const firstItem = items[0]
+    if (!firstItem?.filePath) { setPathAccessible(null); return }
+    const parentDir = firstItem.filePath.replace(/[/\\][^/\\]+$/, '')
+    window.api.library.isPathAccessible(parentDir).then((result) => {
+      setPathAccessible(result.success ? (result.data as boolean) : null)
+    }).catch(() => setPathAccessible(null))
+  }, [items])
 
   // Initial load
   useEffect(() => {
@@ -450,10 +463,10 @@ export default function LibraryPage(): React.JSX.Element {
         </div>
       )}
 
-      {/* Offline warning */}
-      {items.length > 0 && (
-        <div className="mb-3 p-2 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 text-yellow-700 dark:text-yellow-400 text-xs">
-          Showing cached library data. Some files may be unavailable if network storage is disconnected.
+      {/* Offline warning — only shown when library path is confirmed inaccessible */}
+      {items.length > 0 && pathAccessible === false && (
+        <div className="mb-3 p-2 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 text-xs">
+          ⚠️ Library storage is not accessible. The network drive may be disconnected. Showing cached metadata only.
         </div>
       )}
 
