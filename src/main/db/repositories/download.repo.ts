@@ -91,7 +91,9 @@ export const downloadRepo = {
     const result = db
       .select({ count: sql<number>`count(*)` })
       .from(downloadQueue)
-      .where(eq(downloadQueue.status, 'downloading'))
+      .where(
+        sql`${downloadQueue.status} IN ('downloading', 'converting')`
+      )
       .get()
     return result?.count ?? 0
   },
@@ -101,7 +103,9 @@ export const downloadRepo = {
     const result = db
       .select({ count: sql<number>`count(*)` })
       .from(downloadQueue)
-      .where(eq(downloadQueue.status, 'queued'))
+      .where(
+        sql`${downloadQueue.status} IN ('queued', 'paused')`
+      )
       .get()
     return result?.count ?? 0
   }

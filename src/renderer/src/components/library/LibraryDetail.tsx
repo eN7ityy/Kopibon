@@ -131,7 +131,13 @@ export default function LibraryDetail({
   // ─── Actions ──────────────────────────────────────────────────────────────
 
   const handleOpenFile = async () => { try { await window.api.shell.openPath(detail.filePath) } catch { /* */ } }
-  const handleOpenFolder = async () => { try { await window.api.shell.showItemInFolder(detail.filePath) } catch { /* */ } }
+  const handleOpenFolder = async () => {
+    try {
+      // Use parent directory path with openPath — shell.showItemInFolder is unreliable on Linux
+      const dirPath = detail.filePath.replace(/[/\\][^/\\]+$/, '') || detail.filePath
+      await window.api.shell.openPath(dirPath)
+    } catch { /* */ }
+  }
 
   const handleSaveMetadata = async () => {
     setSaving(true)

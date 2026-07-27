@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from 'react-router-dom'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useUiStore } from '../../stores/ui.store'
 import { useAuthStore } from '../../stores/auth.store'
 
@@ -22,6 +22,7 @@ export default function Sidebar(): React.JSX.Element {
   const { sidebarCollapsed, setActiveRoute, theme, setTheme } = useUiStore()
   const auth = useAuthStore()
   const location = useLocation()
+  const [downloadCount, setDownloadCount] = useState(0)
 
   useEffect(() => {
     setActiveRoute(location.pathname)
@@ -33,6 +34,21 @@ export default function Sidebar(): React.JSX.Element {
       auth.loadAuthFromMain()
     }
   }, [auth])
+
+  // Poll active + converting download count for badge
+  useEffect(() => {
+    const poll = async () => {
+      try {
+        const r = await window.api.downloads.getStatusCounts()
+        if (r.success && r.data) {
+          setDownloadCount(r.data.active)
+        }
+      } catch { /* ignore */ }
+    }
+    poll()
+    const interval = setInterval(poll, 2000)
+    return () => clearInterval(interval)
+  }, [])
 
   const cycleTheme = (): void => {
     const order: Array<'light' | 'dark' | 'system'> = ['light', 'dark', 'system']
@@ -75,7 +91,21 @@ export default function Sidebar(): React.JSX.Element {
               }
             >
               <span className="text-xl flex-shrink-0">{item.icon}</span>
-              {!sidebarCollapsed && <span className="truncate">{item.label}</span>}
+              {!sidebarCollapsed && (
+                <span className="truncate flex items-center gap-1.5">
+                  {item.label}
+                  {item.to === '/downloads' && downloadCount > 0 && (
+                    <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold rounded-full bg-purple-500 text-white">
+                      {downloadCount}
+                    </span>
+                  )}
+                </span>
+              )}
+              {sidebarCollapsed && item.to === '/downloads' && downloadCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 inline-flex items-center justify-center min-w-[16px] h-[16px] px-0.5 text-[9px] font-bold rounded-full bg-purple-500 text-white">
+                  {downloadCount}
+                </span>
+              )}
             </NavLink>
           ))}
       </nav>
