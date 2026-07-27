@@ -1,6 +1,16 @@
 import { app, shell, BrowserWindow } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
+
+// Debug: log process context per Gemini's recommended diagnosis
+console.log(
+  '[main] Process Type:',
+  process.type,
+  '| Run As Node:',
+  process.env.ELECTRON_RUN_AS_NODE,
+  '| electron.app:',
+  typeof app
+)
 import icon from '../../resources/icon.png?asset'
 import { initDatabase, closeDatabase } from './db/connection'
 import { registerApiIpc } from './ipc/api.ipc'
