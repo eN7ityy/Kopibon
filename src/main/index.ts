@@ -64,15 +64,6 @@ app.whenReady().then(async () => {
   // Initialize database
   initDatabase()
 
-  // Ensure default settings exist in DB so download-manager can read libraryPath
-  const { settingsRepo } = await import('./db/repositories/settings.repo')
-  if (!settingsRepo.get('libraryPath')) {
-    settingsRepo.set('libraryPath', '/mnt/bragi/Kavita/Doujins/')
-  }
-  if (!settingsRepo.get('downloadConcurrency')) {
-    settingsRepo.set('downloadConcurrency', '3')
-  }
-
   // Register IPC handlers
   registerApiIpc()
   registerDownloadIpc()

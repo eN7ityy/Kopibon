@@ -37,3 +37,9 @@ body,
 ::-webkit-scrollbar-thumb:hover {
   background: #585b70;
 }
+
+/* Button click feedback — global press effect */
+button:active {
+  transform: scale(0.97);
+  transition: transform 75ms;
+}

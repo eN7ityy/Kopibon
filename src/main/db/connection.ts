@@ -40,6 +40,7 @@ export function initDatabase(): ReturnType<typeof drizzle> {
 
   db = drizzle(sqlite, { schema })
   runMigrations(sqlite)
+  seedDefaults(sqlite)
   return db
 }
 
@@ -55,6 +56,28 @@ export function closeDatabase(): void {
     sqlite.close()
     sqlite = null
     db = null
+  }
+}
+
+function seedDefaults(sqlite: Database.Database): void {
+  const row = sqlite.prepare('SELECT COUNT(*) as cnt FROM app_settings').get() as { cnt: number }
+  if (row.cnt > 0) return
+
+  const defaults: Record<string, string> = {
+    libraryPath: '/mnt/bragi/Kavita/Doujins/',
+    downloadConcurrency: '3',
+    theme: 'system',
+    outputFormat: 'pdf',
+    compressPdf: 'true',
+    compressionQuality: '80',
+    pageSize: 'Dynamic',
+    blackBackground: 'true'
+  }
+
+  const insert = sqlite.prepare('INSERT OR IGNORE INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)')
+  const now = Date.now()
+  for (const [key, value] of Object.entries(defaults)) {
+    insert.run(key, value, now)
   }
 }
 
