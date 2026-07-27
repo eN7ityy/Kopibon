@@ -7,7 +7,7 @@ interface GalleryDetailProps {
   galleryId: number
   onClose: () => void
   onDownload: (galleryId: number) => void
-  onAddToQueue: (galleryId: number) => void
+  onAddToQueue?: (galleryId: number) => void
   onTagClick?: (tagType: string, tagName: string) => void
 }
 
@@ -33,7 +33,6 @@ export default function GalleryDetailPanel({
   galleryId,
   onClose,
   onDownload,
-  onAddToQueue,
   onTagClick
 }: GalleryDetailProps): React.JSX.Element {
   const [detail, setDetail] = useState<GalleryDetailType | null>(null)
@@ -41,6 +40,8 @@ export default function GalleryDetailPanel({
   const [error, setError] = useState<string | null>(null)
   const [downloadStatus, setDownloadStatus] = useState<DownloadStatus>('not_downloaded')
   const [imgError, setImgError] = useState(false)
+  const [showRedownloadConfirm, setShowRedownloadConfirm] = useState(false)
+  const [libraryPath, setLibraryPath] = useState<string | null>(null)
 
   const fetchDetail = useCallback(async () => {
     setLoading(true)
@@ -93,6 +94,7 @@ export default function GalleryDetailPanel({
     : null
 
   const isInLibrary = downloadStatus === 'in_library'
+  const isDownloading = downloadStatus === 'downloading' || downloadStatus === 'queued' || downloadStatus === 'converting'
 
   const handleTagClick = (tagType: string, tagName: string): void => {
     if (onTagClick) {
@@ -237,9 +239,67 @@ export default function GalleryDetailPanel({
 
             {/* Action buttons */}
             <div className="space-y-3">
-              {isInLibrary ? (
-                <div className="px-4 py-3 rounded-lg bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-center font-medium">
-                  ✓ Already in Library
+              {isInLibrary && !showRedownloadConfirm ? (
+                <>
+                  <div className="px-4 py-3 rounded-lg bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-center font-medium">
+                    ✓ Already in Library
+                  </div>
+                  <button
+                    onClick={async () => {
+                      // Fetch library path for the warning
+                      try {
+                        const r = await window.api.library.getByGalleryId(galleryId)
+                        if (r.success && r.data) setLibraryPath(r.data.filePath)
+                      } catch { /* */ }
+                      setShowRedownloadConfirm(true)
+                    }}
+                    className="w-full px-4 py-2.5 rounded-lg border border-orange-300 dark:border-orange-700 bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 font-medium hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors"
+                  >
+                    Re-download
+                  </button>
+                </>
+              ) : showRedownloadConfirm ? (
+                <div className="p-4 rounded-lg border border-orange-300 dark:border-orange-700 bg-orange-50 dark:bg-orange-900/20 space-y-3">
+                  <p className="text-sm text-orange-700 dark:text-orange-400">
+                    This gallery already exists in your library.
+                    {libraryPath && (
+                      <span className="block mt-1 text-xs opacity-75 truncate">
+                        📁 {libraryPath}
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-xs text-orange-600 dark:text-orange-500">
+                    Re-downloading will remove the existing file and re-download it.
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={async () => {
+                        // Remove from library first, then download
+                        try {
+                          const r = await window.api.library.getByGalleryId(galleryId)
+                          if (r.success && r.data) {
+                            await window.api.library.deleteFile(r.data.id)
+                          }
+                        } catch { /* */ }
+                        setShowRedownloadConfirm(false)
+                        setDownloadStatus('not_downloaded')
+                        onDownload(galleryId)
+                      }}
+                      className="flex-1 px-3 py-2 rounded-lg bg-orange-600 text-white text-sm font-medium hover:bg-orange-700 transition-colors"
+                    >
+                      Yes, Re-download
+                    </button>
+                    <button
+                      onClick={() => setShowRedownloadConfirm(false)}
+                      className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : isDownloading ? (
+                <div className="px-4 py-3 rounded-lg bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-center font-medium">
+                  ⏳ Already Downloading...
                 </div>
               ) : (
                 <button
@@ -249,16 +309,6 @@ export default function GalleryDetailPanel({
                   Download
                 </button>
               )}
-
-              <button
-                onClick={() => {
-                  if (!isInLibrary) onAddToQueue(galleryId)
-                }}
-                disabled={isInLibrary}
-                className="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
-              >
-                {isInLibrary ? 'Already Downloaded' : 'Add to Queue'}
-              </button>
 
               <button
                 onClick={() => window.api.shell.openExternal(`https://nhentai.net/g/${galleryId}`)}

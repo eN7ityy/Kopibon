@@ -195,18 +195,6 @@ export default function SearchPage(): React.JSX.Element {
     [refreshSingleDownloadStatus]
   )
 
-  const handleAddToQueue = useCallback(
-    async (galleryId: number): Promise<void> => {
-      try {
-        await window.api.downloads.addToQueue(galleryId)
-        await refreshSingleDownloadStatus(galleryId)
-      } catch {
-        // Silently ignore
-      }
-    },
-    [refreshSingleDownloadStatus]
-  )
-
   // C4: Listen for download progress events from main process to refresh statuses
   useEffect(() => {
     const cleanup = window.api.onDownloadProgress((progress) => {
@@ -346,7 +334,6 @@ export default function SearchPage(): React.JSX.Element {
           galleryId={selectedGalleryId}
           onClose={() => setSelectedGalleryId(null)}
           onDownload={handleDownload}
-          onAddToQueue={handleAddToQueue}
           onTagClick={handleTagClick}
         />
       )}

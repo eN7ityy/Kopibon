@@ -9,7 +9,8 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve('src/main/index.ts'),
-          'services/library-scanner.worker': resolve('src/main/services/library-scanner.worker.ts')
+          'services/library-scanner.worker': resolve('src/main/services/library-scanner.worker.ts'),
+          'services/download-pdf.worker': resolve('src/main/services/download-pdf.worker.ts')
         }
       }
     },

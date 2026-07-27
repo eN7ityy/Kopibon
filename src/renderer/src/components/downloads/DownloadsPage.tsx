@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import type { DownloadQueueItem } from '../../types/api.types'
+import type { DownloadQueueItem, DownloadProgressEvent } from '../../types/api.types'
 import DownloadItem from './DownloadItem'
 import EmptyState from '../shared/EmptyState'
 import LoadingSkeleton from '../shared/LoadingSkeleton'
@@ -122,6 +122,17 @@ export default function DownloadsPage(): React.JSX.Element {
       setLoading(false)
     }
   }, [fetchGalleryInfo, galleryInfoMap])
+
+  // Progress state map for active downloads
+  const [progressMap, setProgressMap] = useState<Record<number, DownloadProgressEvent>>({})
+
+  // Listen for download progress events from main process
+  useEffect(() => {
+    const cleanup = window.api.onDownloadProgress((progress) => {
+      setProgressMap((prev) => ({ ...prev, [progress.queueId]: progress }))
+    })
+    return () => { cleanup() }
+  }, [])
 
   // Initial fetch and polling
   useEffect(() => {
@@ -254,6 +265,7 @@ export default function DownloadsPage(): React.JSX.Element {
                   <DownloadItem
                     key={item.id}
                     item={item}
+                    progress={progressMap[item.id]}
                     galleryInfo={galleryInfoMap[item.galleryId]}
                     onPause={handlePause}
                     onResume={handleResume}

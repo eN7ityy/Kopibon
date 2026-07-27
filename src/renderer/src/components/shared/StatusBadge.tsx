@@ -33,6 +33,12 @@ const STATUS_CONFIG: Record<
     text: 'text-blue-700 dark:text-blue-400',
     icon: '⬇'
   },
+  converting: {
+    label: 'Converting',
+    bg: 'bg-purple-100 dark:bg-purple-900/30',
+    text: 'text-purple-700 dark:text-purple-400',
+    icon: '🔄'
+  },
   completed: {
     label: 'Completed',
     bg: 'bg-green-100 dark:bg-green-900/30',

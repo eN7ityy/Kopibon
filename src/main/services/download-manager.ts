@@ -1,11 +1,12 @@
 import { join } from 'path'
 import { mkdirSync, existsSync, statSync } from 'fs'
+import { Worker } from 'worker_threads'
 import { downloadRepo } from '../db/repositories/download.repo'
 import { galleryRepo } from '../db/repositories/gallery.repo'
 import { settingsRepo } from '../db/repositories/settings.repo'
 import { libraryRepo } from '../db/repositories/library.repo'
 import { getApiClient } from './api-client'
-import { generatePdf, type PdfOptions } from './pdf-generator'
+import type { PdfOptions } from './pdf-generator'
 import { embedMetadata } from './metadata-writer'
 import type { GalleryDetail } from './api-client'
 
@@ -178,10 +179,10 @@ export class DownloadManager {
       // Extract primary artist from tags
       const primaryArtist =
         gallery.tags.find((t) => t.type === 'artist')?.name || 'Unknown'
-      // Determine library root from settings, fall back to ~/Downloads
+      // Determine library root from settings (stored as 'libraryPath')
       const libraryRoot =
-        settingsRepo.get('libraryRoot') ||
-        join(process.env.HOME || '/tmp', 'Downloads')
+        settingsRepo.get('libraryPath') ||
+        join(process.env.HOME || '/tmp', 'Doujinshi-Library')
 
       // Step 2: Fetch CDN servers
       const cdn = await client.getCdnConfig()
@@ -320,11 +321,35 @@ export class DownloadManager {
       }
 
       const validPaths = downloadedPaths.filter(Boolean) as string[]
-      // Emit conversion progress periodically during PDF generation
-      await generatePdf(validPaths, pdfPath, pdfOptions, (current: number, total: number) => {
-        this.emitProgress(
-          queueId, galleryId, title, total, current, 0, 0, 'converting'
-        )
+
+      // Offload PDF generation to a worker thread to keep main process responsive
+      await new Promise<void>((resolve, reject) => {
+        const workerPath = join(__dirname, 'services/download-pdf.worker.js')
+        const worker = new Worker(workerPath)
+
+        worker.on('message', (msg: { type: string; current?: number; total?: number; outputPath?: string; message?: string }) => {
+          if (msg.type === 'progress') {
+            this.emitProgress(
+              queueId, galleryId, title, msg.total!, msg.current!, 0, 0, 'converting'
+            )
+          } else if (msg.type === 'complete') {
+            resolve()
+          } else if (msg.type === 'error') {
+            reject(new Error(msg.message || 'PDF generation failed'))
+          }
+        })
+
+        worker.on('error', (err) => reject(err))
+        worker.on('exit', (code) => {
+          if (code !== 0) reject(new Error(`PDF worker exited with code ${code}`))
+        })
+
+        worker.postMessage({
+          type: 'generate',
+          imagePaths: validPaths,
+          outputPath: pdfPath,
+          options: pdfOptions
+        })
       })
 
       // Step 7: Embed metadata

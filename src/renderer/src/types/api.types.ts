@@ -79,7 +79,7 @@ export const SORT_OPTIONS = [
   { value: 'popular-month', label: 'Popular (Month)' }
 ] as const
 
-export type DownloadStatus = 'not_downloaded' | 'in_library' | 'queued' | 'downloading' | 'completed' | 'failed'
+export type DownloadStatus = 'not_downloaded' | 'in_library' | 'queued' | 'downloading' | 'converting' | 'completed' | 'failed'
 
 export interface DownloadQueueItem {
   id: number
