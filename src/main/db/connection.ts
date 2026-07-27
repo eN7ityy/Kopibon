@@ -166,10 +166,20 @@ function runMigrations(sqlite: Database.Database): void {
       created_at INTEGER NOT NULL DEFAULT (unixepoch())
     );
 
-    -- Migration: add columns that may not exist yet
-    ALTER TABLE library_item ADD COLUMN file_mtime INTEGER;
-    ALTER TABLE library_item ADD COLUMN thumbnail_path TEXT;
   `)
+
+  // Safe migration: add columns only if they don't exist
+  const libraryItemCols = sqlite
+    .prepare("PRAGMA table_info('library_item')")
+    .all() as Array<{ name: string }>
+  const colNames = new Set(libraryItemCols.map((c) => c.name))
+
+  if (!colNames.has('file_mtime')) {
+    sqlite.exec('ALTER TABLE library_item ADD COLUMN file_mtime INTEGER')
+  }
+  if (!colNames.has('thumbnail_path')) {
+    sqlite.exec('ALTER TABLE library_item ADD COLUMN thumbnail_path TEXT')
+  }
 }
 
 /**
