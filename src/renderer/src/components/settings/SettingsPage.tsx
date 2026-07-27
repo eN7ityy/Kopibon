@@ -19,6 +19,8 @@ export default function SettingsPage(): React.JSX.Element {
   const [keyInput, setKeyInput] = useState('')
   const [validation, setValidation] = useState<ValidationState>({ status: 'idle' })
 
+  console.log('[SettingsPage] Rendering. keyInput:', keyInput, 'apiKey:', settings.apiKey, 'auth:', auth.loggedIn, 'window.api:', typeof window.api?.auth)
+
   // Load the current key from the store on mount
   useEffect(() => {
     if (settings.apiKey) {
