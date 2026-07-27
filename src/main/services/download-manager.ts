@@ -1,5 +1,6 @@
 import { join } from 'path'
 import { mkdirSync, existsSync, statSync } from 'fs'
+import { tmpdir } from 'os'
 import { Worker } from 'worker_threads'
 import { downloadRepo } from '../db/repositories/download.repo'
 import { galleryRepo } from '../db/repositories/gallery.repo'
@@ -421,6 +422,23 @@ export class DownloadManager {
               artistName: artistTags[i].name,
               sortOrder: i
             })
+          }
+        }
+
+        // Generate thumbnail from first page image
+        if (validPaths.length > 0 && validPaths[0]) {
+          try {
+            const sharp = (await import('sharp')).default
+            const thumbDir = join(tmpdir(), 'doujin-downloader-thumbs')
+            if (!existsSync(thumbDir)) mkdirSync(thumbDir, { recursive: true })
+            const thumbPath = join(thumbDir, `${galleryId}.jpg`)
+            await sharp(validPaths[0])
+              .resize(300, 400, { fit: 'inside' })
+              .jpeg({ quality: 80 })
+              .toFile(thumbPath)
+            libraryRepo.update(libItem.id, { customCoverPath: thumbPath, thumbnailPath: thumbPath })
+          } catch {
+            // Non-critical: thumbnail generation can fail silently
           }
         }
       }

@@ -54,7 +54,7 @@ function createWindow(): void {
   }
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   electronApp.setAppUserModelId('com.en7ity.doujin-downloader')
 
   app.on('browser-window-created', (_, window) => {
@@ -63,6 +63,15 @@ app.whenReady().then(() => {
 
   // Initialize database
   initDatabase()
+
+  // Ensure default settings exist in DB so download-manager can read libraryPath
+  const { settingsRepo } = await import('./db/repositories/settings.repo')
+  if (!settingsRepo.get('libraryPath')) {
+    settingsRepo.set('libraryPath', '/mnt/bragi/Kavita/Doujins/')
+  }
+  if (!settingsRepo.get('downloadConcurrency')) {
+    settingsRepo.set('downloadConcurrency', '3')
+  }
 
   // Register IPC handlers
   registerApiIpc()

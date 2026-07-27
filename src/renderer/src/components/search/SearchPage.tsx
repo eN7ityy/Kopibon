@@ -207,16 +207,19 @@ export default function SearchPage(): React.JSX.Element {
 
   // C4: Listen for download progress events from main process to refresh statuses
   useEffect(() => {
-    const cleanup = window.api.onDownloadProgress((progress) => {
-      if (progress.galleryId && store.downloadStatuses[progress.galleryId] !== undefined) {
-        // Map download status to DownloadStatus type
+    const cleanup = window.api.onDownloadProgress(async (progress) => {
+      // On download completion, re-check library for accurate status
+      if (progress.status === 'completed' && progress.galleryId) {
+        const libResult = await window.api.library.getByGalleryId(progress.galleryId)
+        if (libResult.success && libResult.data) {
+          store.downloadStatuses[progress.galleryId] = 'in_library'
+        }
+      } else if (progress.galleryId) {
         const st = progress.status
         let dlStatus: DownloadStatus = 'not_downloaded'
-        if (st === 'downloading') dlStatus = 'downloading'
+        if (st === 'downloading' || st === 'converting') dlStatus = 'downloading'
         else if (st === 'queued') dlStatus = 'queued'
-        else if (st === 'completed') dlStatus = 'completed'
         else if (st === 'failed') dlStatus = 'failed'
-        else if (st === 'converting') dlStatus = 'downloading'
         store.downloadStatuses[progress.galleryId] = dlStatus
       }
     })
