@@ -68,9 +68,11 @@ let logPath: string | null = null
 
 function initLog(): void {
   if (!existsSync(LOG_DIR)) mkdirSync(LOG_DIR, { recursive: true })
-  const dateStr = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
-  logPath = join(LOG_DIR, `scan-${dateStr}.log`)
-  writeFileSync(logPath, `SCAN_LOG_START ${new Date().toISOString()}\n`)
+  // Include full timestamp with milliseconds to avoid collisions and survive crashes
+  const iso = new Date().toISOString() // "2026-07-27T22:35:12.416Z"
+  const safe = iso.replace(/:/g, '-').replace(/\./g, '-') // "2026-07-27T22-35-12-416Z"
+  logPath = join(LOG_DIR, `scan-${safe}.log`)
+  writeFileSync(logPath, `SCAN_LOG_START ${iso}\n`)
 }
 
 function log(msg: string): void {
