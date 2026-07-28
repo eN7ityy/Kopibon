@@ -55,16 +55,21 @@ export default function GalleryDetailPanel({
   const [relatedGalleries, setRelatedGalleries] = useState<RelatedGallery[]>([])
   const [isFavorited, setIsFavorited] = useState(false)
   const [favLoading, setFavLoading] = useState(false)
+  const [deleteConfirm, setDeleteConfirm] = useState<'none' | 'remove' | 'deleteFile'>('none')
+  const [deleting, setDeleting] = useState(false)
+  const [libraryItemId, setLibraryItemId] = useState<number | null>(null)
 
   const fetchStatus = useCallback(async () => {
     try {
       const libResult = await window.api.library.getByGalleryId(galleryId)
       if (libResult.success && libResult.data) {
         const item = libResult.data
+        setLibraryItemId(item.id)
         // isCustom=2 means placeholder (downloading), 0 means on disk
         setDownloadStatus(item.isCustom === 2 ? 'downloading' : 'in_library')
       } else {
         setDownloadStatus('not_downloaded')
+        setLibraryItemId(null)
       }
     } catch {
       // Status check is best-effort
@@ -156,6 +161,22 @@ export default function GalleryDetailPanel({
         `https://nhentai.net/tag/${encodeURIComponent(tagName.replace(/\s+/g, '-').toLowerCase())}/`
       )
     }
+  }
+
+  const handleDelete = async (mode: 'remove' | 'deleteFile'): Promise<void> => {
+    if (!libraryItemId) return
+    setDeleting(true)
+    try {
+      if (mode === 'deleteFile') {
+        await window.api.library.deleteFile(libraryItemId)
+      } else {
+        await window.api.library.delete(libraryItemId)
+      }
+      setDownloadStatus('not_downloaded')
+      setLibraryItemId(null)
+      setDeleteConfirm('none')
+    } catch { /* silently ignore */ }
+    finally { setDeleting(false) }
   }
 
   return (
@@ -380,6 +401,30 @@ export default function GalleryDetailPanel({
                   >
                     Re-download
                   </button>
+
+                  {/* Delete actions */}
+                  {deleteConfirm === 'remove' ? (
+                    <div className="space-y-2">
+                      <p className="text-xs text-orange-600 dark:text-orange-400">This will only remove the database entry. The file on disk will be kept.</p>
+                      <div className="flex gap-2">
+                        <button onClick={() => handleDelete('remove')} disabled={deleting} className="flex-1 px-4 py-2 rounded-lg bg-orange-600 text-white text-sm font-medium hover:bg-orange-700 disabled:opacity-50">{deleting ? 'Removing...' : 'Confirm Remove'}</button>
+                        <button onClick={() => setDeleteConfirm('none')} className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-sm font-medium">Cancel</button>
+                      </div>
+                    </div>
+                  ) : deleteConfirm === 'deleteFile' ? (
+                    <div className="space-y-2">
+                      <p className="text-xs text-red-600 dark:text-red-400">⚠️ This will delete the database entry AND the file from disk. This cannot be undone.</p>
+                      <div className="flex gap-2">
+                        <button onClick={() => handleDelete('deleteFile')} disabled={deleting} className="flex-1 px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700 disabled:opacity-50">{deleting ? 'Deleting...' : 'Confirm Delete'}</button>
+                        <button onClick={() => setDeleteConfirm('none')} className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-sm font-medium">Cancel</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <button onClick={() => setDeleteConfirm('remove')} className="flex-1 px-4 py-2 rounded-lg bg-orange-100 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 text-sm font-medium hover:bg-orange-200 dark:hover:bg-orange-900/30">📋 Remove from Library</button>
+                      <button onClick={() => setDeleteConfirm('deleteFile')} className="flex-1 px-4 py-2 rounded-lg bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-sm font-medium hover:bg-red-200 dark:hover:bg-red-900/30">🗑️ Delete File</button>
+                    </div>
+                  )}
                 </>
               ) : showRedownloadConfirm ? (
                 <div className="p-4 rounded-lg border border-orange-300 dark:border-orange-700 bg-orange-50 dark:bg-orange-900/20 space-y-3">
