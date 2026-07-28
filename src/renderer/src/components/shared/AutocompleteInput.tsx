@@ -242,7 +242,7 @@ export default function AutocompleteInput({
         <ul
           id="autocomplete-list"
           role="listbox"
-          className="absolute z-50 mt-1 w-full max-h-48 overflow-y-auto rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg"
+          className="absolute z-50 mt-1 w-full max-h-60 overflow-y-auto rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg"
         >
           {suggestions.map((suggestion, index) => (
             <li
