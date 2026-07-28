@@ -97,7 +97,7 @@ const XMP_SERIES_REGEX = /<calibre:series[^>]*>([^<]+)<\/calibre:series>/i
 const XMP_SERIES_INDEX_REGEX = /<ns0:series_index[^>]*>([^<]+)<\/ns0:series_index>/i
 const XMP_SERIES_INDEX_ALT_REGEX = /<calibreSI:series_index[^>]*>([^<]+)<\/calibreSI:series_index>/i
 const XMP_LANGUAGE_REGEX = /<dc:language[^>]*>([^<]+)<\/dc:language>/i
-const XMP_PUBLISHER_REGEX = /<dc:publisher[^>]*>([^<]+)<\/dc:publisher>/i
+const XMP_PUBLISHER_REGEX = /<dc:publisher[^>]*>[\s\S]*?<rdf:li[^>]*>([^<]*)<\/rdf:li>/i
 const XMP_DESCRIPTION_REGEX = /<dc:description[^>]*>([\s\S]*?)<\/dc:description>/i
 
 // XMP fields needed for pikepdf-processed files (no docinfo)
