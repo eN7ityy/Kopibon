@@ -491,6 +491,13 @@ export default function LibraryPage(): React.JSX.Element {
     toggleSelect(id)
   }, [selectMode, toggleSelect])
 
+  // Auto-exit selection mode when no items are selected
+  useEffect(() => {
+    if (selectedIds.size === 0 && selectMode) {
+      setSelectMode(false)
+    }
+  }, [selectedIds.size, selectMode])
+
   // ─── Batch Actions ─────────────────────────────────────────────────────────
 
   const handleBatchRemove = async () => {
