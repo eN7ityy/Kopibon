@@ -182,9 +182,9 @@ export class ApiClient {
     options: Omit<SearchParams, 'query'> = {}
   ): Promise<SearchResponse> {
     const params = new URLSearchParams()
-    params.set('query', query)
+    if (query.trim()) params.set('query', query)
     if (options.page) params.set('page', String(options.page))
-    if (options.sort && options.sort !== 'date') params.set('sort', options.sort)
+    if (options.sort) params.set('sort', options.sort)
 
     return this.request<SearchResponse>(`/search?${params.toString()}`)
   }
