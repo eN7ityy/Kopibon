@@ -156,9 +156,12 @@ export default function SeriesAssignment({
                   className="flex items-center gap-2 text-sm py-1 px-2 rounded hover:bg-gray-50 dark:hover:bg-gray-800"
                 >
                   <span className="text-purple-500 shrink-0">📄</span>
-                  <span className="truncate flex-1 text-gray-600 dark:text-gray-400">
-                    {item.customTitle || item.filePath.split('/').pop() || `Item #${item.id}`}
-                  </span>
+                  <input
+                    type="text"
+                    readOnly
+                    value={item.customTitle || item.filePath.split('/').pop() || `Item #${item.id}`}
+                    className="flex-1 min-w-0 bg-transparent border-none text-gray-600 dark:text-gray-400 text-sm cursor-text select-all focus:outline-none"
+                  />
                   <input
                     type="number"
                     step="any"
