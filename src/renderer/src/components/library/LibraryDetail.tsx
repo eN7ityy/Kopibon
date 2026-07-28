@@ -191,6 +191,16 @@ export default function LibraryDetail({
   return (
     <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
       <div className="absolute inset-0 bg-black/30" />
+
+      {/* PDF Viewer — sits to the left of the detail panel */}
+      {showPdfViewer && (
+        <PdfViewer
+          filePath={detail.filePath}
+          title={detail.customTitle || 'Untitled'}
+          onClose={() => setShowPdfViewer(false)}
+        />
+      )}
+
       <div className="relative w-full max-w-md bg-white dark:bg-gray-900 shadow-2xl overflow-y-auto" onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="sticky top-0 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex items-center justify-between z-10">
@@ -447,15 +457,6 @@ export default function LibraryDetail({
           )}
         </div>
       </div>
-
-      {/* PDF Viewer */}
-      {showPdfViewer && (
-        <PdfViewer
-          filePath={detail.filePath}
-          title={detail.customTitle || 'Untitled'}
-          onClose={() => setShowPdfViewer(false)}
-        />
-      )}
     </div>
   )
 }

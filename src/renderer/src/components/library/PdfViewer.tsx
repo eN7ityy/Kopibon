@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import * as pdfjsLib from 'pdfjs-dist'
 
-// Set worker using bundled path; fall back to CDN if that fails in the renderer
+// Set worker using legacy build (avoids private-fields compatibility issue);
+// fall back to CDN if the bundled path doesn't resolve in the renderer.
 try {
   pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-    'pdfjs-dist/build/pdf.worker.mjs',
+    'pdfjs-dist/legacy/build/pdf.worker.min.mjs',
     import.meta.url
   ).toString()
 } catch {
@@ -195,7 +196,7 @@ export default function PdfViewer({
   // ─── Render ──────────────────────────────────────────────────────────────
 
   return (
-    <div className="fixed right-0 top-0 h-full w-full max-w-lg bg-white dark:bg-gray-950 shadow-2xl z-50 flex flex-col">
+    <div className="w-full max-w-lg h-full bg-white dark:bg-gray-950 shadow-2xl flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
         <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate flex-1 mr-2">
