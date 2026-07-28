@@ -184,16 +184,9 @@ export default function GalleryViewer({
 
   if (mode === 'grid') {
     return (
-      <>
-        {/* Backdrop */}
-        <div
-          className="fixed inset-0 bg-black/50 z-40 transition-opacity"
-          onClick={onClose}
-        />
-
-        {/* Panel */}
-        <div
-          className="fixed left-0 top-0 h-full w-full max-w-lg bg-gray-950 shadow-2xl z-50 flex flex-col"
+      <div
+          className="fixed top-0 h-full w-full max-w-lg bg-gray-950 shadow-2xl z-50 flex flex-col"
+          style={{ right: '32rem' }}
           role="dialog"
           aria-label="Gallery viewer"
         >
@@ -240,8 +233,7 @@ export default function GalleryViewer({
               ))}
             </div>
           )}
-        </div>
-      </>
+      </div>
     )
   }
 
