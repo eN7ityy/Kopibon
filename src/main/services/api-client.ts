@@ -195,8 +195,9 @@ export class ApiClient {
     return this.request<SearchResponse>(`/galleries?${params.toString()}`)
   }
 
-  async getPopularGalleries(): Promise<SearchResponse> {
-    return this.request<SearchResponse>('/galleries/popular')
+  async getPopularGalleries(): Promise<{ result: GalleryListItem[] }> {
+    const galleries = await this.request<GalleryListItem[]>('/galleries/popular')
+    return { result: galleries }
   }
 
   async getGallery(id: number): Promise<GalleryDetail> {
