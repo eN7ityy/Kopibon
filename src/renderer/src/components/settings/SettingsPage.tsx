@@ -419,8 +419,8 @@ function MetadataConverter(): React.JSX.Element {
 
   const handleStart = async () => {
     setShowConfirm(false)
-    store.setRunning(true)
     store.reset()
+    store.setRunning(true)
     try {
       const r = await window.api.library.convertAllMetadata()
       if (r.success && r.data) {
