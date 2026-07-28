@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
-import type { GalleryDetail as GalleryDetailType, DownloadStatus } from '../../types/api.types'
+import type { GalleryDetail as GalleryDetailType, DownloadStatus, CdnConfig } from '../../types/api.types'
 import StatusBadge from '../shared/StatusBadge'
 import LoadingSkeleton from '../shared/LoadingSkeleton'
 import { useAuthStore } from '../../stores/auth.store'
+import GalleryViewer from './GalleryViewer'
 
 interface GalleryDetailProps {
   galleryId: number
@@ -58,6 +59,8 @@ export default function GalleryDetailPanel({
   const [deleteConfirm, setDeleteConfirm] = useState<'none' | 'remove' | 'deleteFile'>('none')
   const [deleting, setDeleting] = useState(false)
   const [libraryItemId, setLibraryItemId] = useState<number | null>(null)
+  const [showViewer, setShowViewer] = useState(false)
+  const [cdnConfig, setCdnConfig] = useState<CdnConfig | null>(null)
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -115,13 +118,24 @@ export default function GalleryDetailPanel({
     return () => { cancelled = true }
   }, [detail, galleryId, auth.loggedIn])
 
+  // Fetch CDN config for gallery viewer
+  useEffect(() => {
+    window.api.getCdnConfig().then((result) => {
+      if (result.success && result.data) {
+        setCdnConfig(result.data)
+      }
+    }).catch(() => { /* silently ignore */ })
+  }, [])
+
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent): void => {
+      // Don't close panel if viewer is open (viewer handles its own Escape)
+      if (showViewer) return
       if (e.key === 'Escape') onClose()
     }
     document.addEventListener('keydown', handleEscape)
     return () => document.removeEventListener('keydown', handleEscape)
-  }, [onClose])
+  }, [onClose, showViewer])
 
   // F6: Fetch related galleries
   useEffect(() => {
@@ -479,6 +493,13 @@ export default function GalleryDetailPanel({
               )}
 
               <button
+                onClick={() => setShowViewer(true)}
+                className="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              >
+                📖 Read
+              </button>
+
+              <button
                 onClick={() => window.api.shell.openExternal(`https://nhentai.net/g/${galleryId}`)}
                 className="w-full px-4 py-2 rounded-lg text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
               >
@@ -488,6 +509,18 @@ export default function GalleryDetailPanel({
           </div>
         )}
       </div>
+
+      {/* Gallery Viewer */}
+      {showViewer && detail && cdnConfig && (
+        <GalleryViewer
+          galleryId={detail.id}
+          pages={detail.pages}
+          cdnServers={cdnConfig.image_servers}
+          thumbServers={cdnConfig.thumb_servers}
+          title={detail.title.pretty}
+          onClose={() => setShowViewer(false)}
+        />
+      )}
     </>
   )
 }
