@@ -33,22 +33,41 @@ interface GenerateCommand {
 function convertMetadata(meta: GalleryMetadata, language: string | null): XmpMetadata {
   const tagNames = meta.tags.map((t) => t.name)
   const artistNames = meta.tags.filter((t) => t.type === 'artist').map((t) => t.name)
+  const groupNames = meta.tags.filter((t) => t.type === 'group').map((t) => t.name)
   const langTag = meta.tags.find((t) => t.type === 'language')
   const langCode = language || langTag?.name || null
 
+  // Artist/group/publisher logic:
+  // - No artist + group → group is artist AND publisher
+  // - Artist + group → artist is creator, group is publisher
+  // - Artist only → artist is creator
+  // - Neither → 'Unknown'
+  const hasArtist = artistNames.length > 0
+  const hasGroup = groupNames.length > 0
+  const publisher = hasGroup ? groupNames[0] : meta.publisher || null
+
+  let creators: string[]
+  if (hasArtist) {
+    creators = artistNames
+  } else if (hasGroup) {
+    creators = groupNames
+  } else {
+    creators = ['Unknown']
+  }
+
   return {
     title: meta.title.pretty,
-    creators: artistNames.length > 0 ? artistNames : ['Unknown'],
+    creators,
     tags: tagNames,
     nhentaiId: meta.id,
     language: langCode,
+    publisher,
     date: meta.uploadDate
       ? new Date(meta.uploadDate * 1000).toISOString()
       : null,
     seriesName: meta.seriesName || null,
     seriesIndex: meta.seriesIndex != null ? meta.seriesIndex : null,
-    description: meta.description || null,
-    publisher: meta.publisher || null
+    description: meta.description || null
   }
 }
 

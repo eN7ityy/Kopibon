@@ -851,7 +851,7 @@ export function registerLibraryIpc(): void {
         } catch { /* ignore — sync without auth is fine */ }
       }
 
-      worker.on('message', (msg: { type: string; itemId: number; success?: boolean; message?: string; metadata?: { title: string; primaryArtist: string; tags: string; language: string | null } }) => {
+      worker.on('message', (msg: { type: string; itemId: number; success?: boolean; message?: string; metadata?: { title: string; primaryArtist: string; tags: string; language: string | null; publisher: string | null } }) => {
         if (msg.type === 'complete') {
           const now = Date.now()
           try {
@@ -861,6 +861,7 @@ export function registerLibraryIpc(): void {
               updateData.primaryArtist = msg.metadata.primaryArtist
               updateData.customTags = msg.metadata.tags
               updateData.customLanguage = msg.metadata.language
+              if (msg.metadata.publisher) updateData.publisher = msg.metadata.publisher
             }
             libraryRepo.update(msg.itemId, updateData)
           } catch { /* */ }

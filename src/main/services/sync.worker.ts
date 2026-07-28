@@ -69,17 +69,37 @@ parentPort?.on('message', async (cmd: SyncCommand) => {
     const title = gallery.title?.pretty || gallery.title?.english || `Gallery #${cmd.nhentaiId}`
     const tags = gallery.tags || []
     const artistTags = tags.filter((t: any) => t.type === 'artist').map((t: any) => t.name)
+    const groupTags = tags.filter((t: any) => t.type === 'group').map((t: any) => t.name)
     const allTags = tags.map((t: any) => t.name)
     const langTag = tags.find((t: any) => t.type === 'language')
     const language = langTag?.name || null
 
+    // Artist/group/publisher logic:
+    // - No artist + group → group is artist AND publisher
+    // - Artist + group → artist is creator, group is publisher
+    // - Artist only → artist is creator
+    // - Neither → 'Unknown'
+    const hasArtist = artistTags.length > 0
+    const hasGroup = groupTags.length > 0
+    const publisher = hasGroup ? groupTags[0] : null
+
+    let creators: string[]
+    if (hasArtist) {
+      creators = artistTags
+    } else if (hasGroup) {
+      creators = groupTags
+    } else {
+      creators = ['Unknown']
+    }
+
     // Build XMP metadata
     const meta: XmpMetadata = {
       title,
-      creators: artistTags.length > 0 ? artistTags : ['Unknown'],
+      creators,
       tags: allTags,
       nhentaiId: cmd.nhentaiId,
       language,
+      publisher,
       date: gallery.upload_date
         ? new Date(gallery.upload_date * 1000).toISOString()
         : null
@@ -95,9 +115,10 @@ parentPort?.on('message', async (cmd: SyncCommand) => {
         success: true,
         metadata: {
           title,
-          primaryArtist: artistTags[0] || 'Unknown',
+          primaryArtist: creators[0] || 'Unknown',
           tags: allTags.join(', '),
-          language: language || null
+          language: language || null,
+          publisher: publisher || null
         }
       })
     } else {
