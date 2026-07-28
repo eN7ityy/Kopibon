@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { VirtuosoGrid, Virtuoso } from 'react-virtuoso'
 import type { LibraryItemData } from './LibraryCard'
 import LibraryCard from './LibraryCard'
+import AutocompleteInput from '../shared/AutocompleteInput'
 import SeriesAssignment from './SeriesAssignment'
 import CustomEntryForm from './CustomEntryForm'
 import LibraryDetail from './LibraryDetail'
@@ -143,27 +144,29 @@ function InlineEditCell({
   displayValue,
   itemId,
   field,
-  className = ''
+  className = '',
+  autocompleteKind
 }: {
   value: string
   displayValue: string
   itemId: number
   field: string
   className?: string
+  autocompleteKind?: 'artist' | 'series'
 }): React.JSX.Element {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(value)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    if (editing) {
+    if (editing && !autocompleteKind) {
       inputRef.current?.focus()
       inputRef.current?.select()
     }
-  }, [editing])
+  }, [editing, autocompleteKind])
 
-  const save = useCallback(async () => {
-    const trimmed = draft.trim()
+  const persist = useCallback(async (newValue: string) => {
+    const trimmed = newValue.trim()
     if (trimmed !== value) {
       try {
         const updateData: Record<string, string | number | null> = {}
@@ -177,14 +180,50 @@ function InlineEditCell({
       } catch { /* ignore */ }
     }
     setEditing(false)
-  }, [draft, value, field, itemId])
+  }, [value, field, itemId])
 
   const cancel = useCallback(() => {
     setDraft(value)
     setEditing(false)
   }, [value])
 
+  const handleAutocompleteChange = useCallback((newVal: string) => {
+    setDraft(newVal)
+  }, [])
+
+  const handleAutocompleteSubmit = useCallback(() => {
+    persist(draft)
+  }, [draft, persist])
+
   if (editing) {
+    if (autocompleteKind) {
+      return (
+        <div onClick={(e) => e.stopPropagation()} className="min-w-[120px]">
+          <AutocompleteInput
+            kind={autocompleteKind}
+            value={draft}
+            onChange={handleAutocompleteChange}
+            placeholder={autocompleteKind === 'artist' ? 'Artist...' : 'Series...'}
+            className="text-xs"
+          />
+          <div className="flex gap-1 mt-1">
+            <button
+              onClick={handleAutocompleteSubmit}
+              className="text-xs px-2 py-0.5 rounded bg-purple-600 text-white hover:bg-purple-700"
+            >
+              ✓
+            </button>
+            <button
+              onClick={cancel}
+              className="text-xs px-2 py-0.5 rounded bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-400"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )
+    }
+
     return (
       <input
         ref={inputRef}
@@ -193,10 +232,10 @@ function InlineEditCell({
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === 'Enter') { e.preventDefault(); save() }
+          if (e.key === 'Enter') { e.preventDefault(); persist(draft) }
           if (e.key === 'Escape') { e.preventDefault(); cancel() }
         }}
-        onBlur={save}
+        onBlur={() => persist(draft)}
         onClick={(e) => e.stopPropagation()}
         className={`w-full px-1 py-0.5 text-xs rounded border border-purple-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-purple-500 focus:outline-none ${className}`}
       />
@@ -875,6 +914,18 @@ export default function LibraryPage(): React.JSX.Element {
         <EmptyState icon="📚" title="Library is empty" description="Download your first doujin or add a custom entry to get started" actionLabel="Rescan Library" onAction={handleRescan} />
       ) : viewMode === 'list' ? (
         <div className="flex-1">
+          {/* Column headers */}
+          <div className="flex items-center gap-3 px-4 py-2 border-b-2 border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800/80 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+            <div className="w-3.5 shrink-0" />
+            <div className="flex-1 min-w-0">Title</div>
+            <div className="w-32 shrink-0">Artist</div>
+            <div className="w-28 shrink-0">Series</div>
+            <div className="w-12 shrink-0 text-right">Vol</div>
+            <div className="w-16 shrink-0">Lang</div>
+            <div className="w-14 shrink-0">Fmt</div>
+            <div className="w-20 shrink-0 text-right">Size</div>
+            <div className="w-24 shrink-0 text-right">Date</div>
+          </div>
           <Virtuoso
             totalCount={items.length}
             endReached={loadMore}
@@ -937,6 +988,7 @@ export default function LibraryPage(): React.JSX.Element {
                       displayValue={item.primaryArtist || '—'}
                       itemId={item.id}
                       field="primaryArtist"
+                      autocompleteKind="artist"
                       className="text-xs text-gray-500 dark:text-gray-400 truncate"
                     />
                   </div>
@@ -947,6 +999,7 @@ export default function LibraryPage(): React.JSX.Element {
                       displayValue={item.seriesName || '—'}
                       itemId={item.id}
                       field="seriesName"
+                      autocompleteKind="series"
                       className="text-xs text-blue-600 dark:text-blue-400 truncate"
                     />
                   </div>
