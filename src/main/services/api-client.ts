@@ -98,6 +98,11 @@ export interface FavoritesResponse {
   per_page: number
 }
 
+export interface FavoriteResponse {
+  favorited: boolean
+  num_favorites: number | null
+}
+
 // ─── Client ─────────────────────────────────────────────────────────────────
 
 const BASE_URL = 'https://nhentai.net/api/v2'
@@ -220,8 +225,10 @@ export class ApiClient {
 
   async checkFavorite(galleryId: number): Promise<boolean> {
     try {
-      await this.request(`/galleries/${galleryId}/favorite`)
-      return true
+      const result = await this.request<FavoriteResponse>(
+        `/galleries/${galleryId}/favorite`
+      )
+      return result.favorited
     } catch {
       return false
     }
