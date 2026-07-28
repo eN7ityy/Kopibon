@@ -2,8 +2,9 @@ import { ipcMain, BrowserWindow } from 'electron'
 import { Worker } from 'worker_threads'
 import { join as pathJoin } from 'path'
 import { libraryRepo } from '../db/repositories/library.repo'
-import { renameSync, mkdirSync, existsSync } from 'fs'
+import { renameSync, mkdirSync, existsSync, appendFileSync, writeFileSync } from 'fs'
 import { dirname, join, basename } from 'path'
+import { homedir } from 'os'
 
 // ─── Metadata Worker Helper ────────────────────────────────────────────────
 
@@ -702,6 +703,19 @@ export function registerLibraryIpc(): void {
     const logLines: string[] = []
     const concurrency = Math.max(1, Math.min(runners, 20))
 
+    // Set up file logging (same location as scanner logs)
+    const LOG_DIR = join(homedir(), '.config', 'doujin-downloader', 'logs')
+    if (!existsSync(LOG_DIR)) mkdirSync(LOG_DIR, { recursive: true })
+    const logTimestamp = new Date().toISOString().replace(/[:.]/g, '-')
+    const logPath = join(LOG_DIR, `convert-${logTimestamp}.log`)
+    writeFileSync(logPath, `Conversion started at ${new Date().toISOString()}\n${'='.repeat(60)}\n`)
+    writeFileSync(logPath, `Total items: ${total}\n`, { flag: 'a' })
+    writeFileSync(logPath, `Runners: ${concurrency}\n`, { flag: 'a' })
+    
+    function writeLog(line: string) {
+      try { appendFileSync(logPath, line + '\n') } catch { /* best effort */ }
+    }
+
     function sendProgress() {
       win!.webContents.send('library:convertProgress', {
         current: converted + failed,
@@ -764,7 +778,10 @@ export function registerLibraryIpc(): void {
               failed++
               if (msg.error) errors.push(msg.error)
             }
-            if (msg.log) logLines.push(msg.log)
+            if (msg.log) {
+              logLines.push(msg.log)
+              writeLog(msg.log)
+            }
 
             sendProgress()
             processNext()
@@ -788,6 +805,8 @@ export function registerLibraryIpc(): void {
 
       // Final progress
       sendProgress()
+      const status = conversionCancelled ? 'CANCELLED' : 'COMPLETE'
+      writeLog(`${'='.repeat(60)}\n${status}: ${converted} converted, ${failed} failed, ${total} total`)
 
       return {
         success: true,
