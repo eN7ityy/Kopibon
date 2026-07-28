@@ -832,7 +832,7 @@ export default function LibraryPage(): React.JSX.Element {
               }`}
               title={mode === 'grid' ? 'Grid view' : mode === 'compact' ? 'Compact view' : 'List view'}
             >
-              {mode === 'grid' ? '▦' : mode === 'compact' ? '⊞' : '☰'}
+              {mode === 'grid' ? '⊞' : mode === 'compact' ? '▦' : '☰'}
             </button>
           ))}
         </div>
