@@ -193,7 +193,7 @@ export default function GalleryViewer({
 
         {/* Panel */}
         <div
-          className="fixed right-0 top-0 h-full w-full max-w-lg bg-gray-950 shadow-2xl z-50 flex flex-col"
+          className="fixed left-0 top-0 h-full w-full max-w-lg bg-gray-950 shadow-2xl z-50 flex flex-col"
           role="dialog"
           aria-label="Gallery viewer"
         >
@@ -397,36 +397,38 @@ function ThumbnailItem({
   return (
     <button
       onClick={onClick}
-      className="relative aspect-[3/4] bg-gray-800 rounded overflow-hidden group hover:ring-2 hover:ring-purple-500 hover:scale-[1.02] transition-transform focus:outline-none focus:ring-2 focus:ring-purple-400"
+      className="group w-full text-left"
       title={`Page ${index + 1}`}
     >
-      {!error && thumbUrl ? (
-        <>
-          {/* Shimmer placeholder */}
-          {!loaded && (
-            <div className="absolute inset-0 bg-gray-800 animate-pulse" />
-          )}
-          <img
-            src={thumbUrl}
-            alt={`Page ${index + 1}`}
-            loading="lazy"
-            draggable={false}
-            onLoad={() => setLoaded(true)}
-            onError={() => setError(true)}
-            className={`w-full h-full object-cover ${
-              loaded ? 'opacity-100' : 'opacity-0'
-            } transition-opacity duration-150`}
-          />
-        </>
-      ) : (
-        <div className="w-full h-full flex items-center justify-center text-gray-500">
-          <span className="text-3xl">📖</span>
-        </div>
-      )}
+      <div className="aspect-[3/4] bg-gray-800 rounded overflow-hidden relative group-hover:ring-2 group-hover:ring-purple-500 group-hover:scale-[1.02] transition-transform focus-within:ring-2 focus-within:ring-purple-400">
+        {!error && thumbUrl ? (
+          <>
+            {/* Shimmer placeholder */}
+            {!loaded && (
+              <div className="absolute inset-0 bg-gray-800 animate-pulse" />
+            )}
+            <img
+              src={thumbUrl}
+              alt={`Page ${index + 1}`}
+              loading="lazy"
+              draggable={false}
+              onLoad={() => setLoaded(true)}
+              onError={() => setError(true)}
+              className={`w-full h-full object-cover ${
+                loaded ? 'opacity-100' : 'opacity-0'
+              } transition-opacity duration-150`}
+            />
+          </>
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-gray-500">
+            <span className="text-3xl">📖</span>
+          </div>
+        )}
 
-      {/* Page number badge */}
-      <div className="absolute bottom-1 right-1 bg-black/60 text-white/90 text-xs px-1.5 py-0.5 rounded font-mono">
-        {index + 1}
+        {/* Page number badge */}
+        <div className="absolute bottom-1 right-1 bg-black/60 text-white/90 text-xs px-1.5 py-0.5 rounded font-mono">
+          {index + 1}
+        </div>
       </div>
     </button>
   )
