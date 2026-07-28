@@ -117,6 +117,10 @@ output_path = data.get('outputPath', pdf_path)
 
 pdf = Pdf.open(pdf_path)
 
+# Clear all docinfo fields (Title, Author, Keywords, etc.)
+for key in list(pdf.docinfo.keys()):
+    del pdf.docinfo[key]
+
 # Nuke existing catalog Metadata reference
 if Name.Metadata in pdf.Root:
     del pdf.Root[Name.Metadata]
