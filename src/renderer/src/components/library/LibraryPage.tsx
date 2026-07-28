@@ -136,6 +136,84 @@ function SearchableFilterDropdown({
   )
 }
 
+// ─── Inline Edit Cell (list mode) ────────────────────────────────────────────
+
+function InlineEditCell({
+  value,
+  displayValue,
+  itemId,
+  field,
+  className = ''
+}: {
+  value: string
+  displayValue: string
+  itemId: number
+  field: string
+  className?: string
+}): React.JSX.Element {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(value)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (editing) {
+      inputRef.current?.focus()
+      inputRef.current?.select()
+    }
+  }, [editing])
+
+  const save = useCallback(async () => {
+    const trimmed = draft.trim()
+    if (trimmed !== value) {
+      try {
+        const updateData: Record<string, string | number | null> = {}
+        if (field === 'seriesIndex') {
+          const num = parseFloat(trimmed)
+          updateData[field] = isNaN(num) ? null : num
+        } else {
+          updateData[field] = trimmed || null
+        }
+        await window.api.library.updateMetadata(itemId, updateData)
+      } catch { /* ignore */ }
+    }
+    setEditing(false)
+  }, [draft, value, field, itemId])
+
+  const cancel = useCallback(() => {
+    setDraft(value)
+    setEditing(false)
+  }, [value])
+
+  if (editing) {
+    return (
+      <input
+        ref={inputRef}
+        type={field === 'seriesIndex' ? 'number' : 'text'}
+        step={field === 'seriesIndex' ? 'any' : undefined}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') { e.preventDefault(); save() }
+          if (e.key === 'Escape') { e.preventDefault(); cancel() }
+        }}
+        onBlur={save}
+        onClick={(e) => e.stopPropagation()}
+        className={`w-full px-1 py-0.5 text-xs rounded border border-purple-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-purple-500 focus:outline-none ${className}`}
+      />
+    )
+  }
+
+  return (
+    <p
+      className={`text-xs cursor-pointer hover:text-purple-600 dark:hover:text-purple-400 transition-colors ${className}`}
+      onClick={(e) => { e.stopPropagation(); setEditing(true) }}
+      title="Click to edit"
+    >
+      {displayValue}
+    </p>
+  )
+}
+
 // ─── Library Page ────────────────────────────────────────────────────────────
 
 export default function LibraryPage(): React.JSX.Element {
@@ -837,19 +915,43 @@ export default function LibraryPage(): React.JSX.Element {
                   </div>
                   {/* Title */}
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{title}</p>
+                    <InlineEditCell
+                      value={item.customTitle || ''}
+                      displayValue={title}
+                      itemId={item.id}
+                      field="customTitle"
+                      className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate"
+                    />
                   </div>
                   {/* Artist */}
                   <div className="w-32 shrink-0">
-                    <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{item.primaryArtist || '—'}</p>
+                    <InlineEditCell
+                      value={item.primaryArtist || ''}
+                      displayValue={item.primaryArtist || '—'}
+                      itemId={item.id}
+                      field="primaryArtist"
+                      className="text-xs text-gray-500 dark:text-gray-400 truncate"
+                    />
                   </div>
                   {/* Series */}
                   <div className="w-28 shrink-0">
-                    <p className="text-xs text-blue-600 dark:text-blue-400 truncate">{item.seriesName || '—'}</p>
+                    <InlineEditCell
+                      value={item.seriesName || ''}
+                      displayValue={item.seriesName || '—'}
+                      itemId={item.id}
+                      field="seriesName"
+                      className="text-xs text-blue-600 dark:text-blue-400 truncate"
+                    />
                   </div>
                   {/* Volume */}
                   <div className="w-12 shrink-0 text-right">
-                    <p className="text-xs text-gray-500 dark:text-gray-400">{item.seriesIndex != null ? `V${item.seriesIndex}` : '—'}</p>
+                    <InlineEditCell
+                      value={item.seriesIndex != null ? String(item.seriesIndex) : ''}
+                      displayValue={item.seriesIndex != null ? `V${item.seriesIndex}` : '—'}
+                      itemId={item.id}
+                      field="seriesIndex"
+                      className="text-xs text-gray-500 dark:text-gray-400"
+                    />
                   </div>
                   {/* Language */}
                   <div className="w-16 shrink-0">
