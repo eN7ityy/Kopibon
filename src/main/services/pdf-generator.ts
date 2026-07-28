@@ -52,44 +52,55 @@ export async function generatePdf(
     // Report progress
     onProgress?.(i + 1, total)
 
-    // Detect format from magic bytes rather than file extension
-    // JPEG: starts with FF D8 FF
-    // PNG:   starts with 89 50 4E 47
-    // WebP:  starts with 52 49 46 46 (RIFF) ... 57 45 42 50 (WEBP)
-    let image
-    const isPng = buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47
-    const isJpeg = buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff
-    const isWebP = buffer[0] === 0x52 && buffer[1] === 0x49 && buffer[2] === 0x46 && buffer[3] === 0x46 &&
-      buffer[8] === 0x57 && buffer[9] === 0x45 && buffer[10] === 0x42 && buffer[11] === 0x50
-
-    if (isPng) {
-      image = await pdfDoc.embedPng(buffer)
-    } else if (isJpeg) {
-      image = await pdfDoc.embedJpg(buffer)
-    } else if (isWebP) {
-      // Convert WebP to PNG in-memory using sharp, then embed
+    // If compression enabled (quality < 100), convert to JPEG via sharp first.
+    // This applies to ALL image formats — PNG, WebP, and JPEG itself (re-compress).
+    let jpegBuffer: Buffer | null = null
+    if (options.quality < 100) {
       try {
-        const pngBuffer = await sharp(buffer).png().toBuffer()
-        image = await pdfDoc.embedPng(pngBuffer)
+        jpegBuffer = await sharp(buffer)
+          .jpeg({ quality: options.quality, mozjpeg: true })
+          .toBuffer()
       } catch (err) {
-        console.warn(`Failed to convert WebP to PNG: ${basename(imagePath)} — ${String(err)}`)
-        continue
+        console.warn(`Failed to compress image: ${basename(imagePath)} — ${String(err)}`)
       }
+    }
+
+    let image
+    if (jpegBuffer) {
+      image = await pdfDoc.embedJpg(jpegBuffer)
     } else {
-      // Fallback: try to auto-detect by attempting JPEG first, then PNG
-      try {
+      // No compression — use original format (legacy behavior)
+      const isPng = buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47
+      const isJpeg = buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff
+      const isWebP = buffer[0] === 0x52 && buffer[1] === 0x49 && buffer[2] === 0x46 && buffer[3] === 0x46 &&
+        buffer[8] === 0x57 && buffer[9] === 0x45 && buffer[10] === 0x42 && buffer[11] === 0x50
+
+      if (isPng) {
+        image = await pdfDoc.embedPng(buffer)
+      } else if (isJpeg) {
         image = await pdfDoc.embedJpg(buffer)
-      } catch {
+      } else if (isWebP) {
         try {
-          image = await pdfDoc.embedPng(buffer)
+          const pngBuffer = await sharp(buffer).png().toBuffer()
+          image = await pdfDoc.embedPng(pngBuffer)
+        } catch (err) {
+          console.warn(`Failed to convert WebP to PNG: ${basename(imagePath)} — ${String(err)}`)
+          continue
+        }
+      } else {
+        try {
+          image = await pdfDoc.embedJpg(buffer)
         } catch {
-          // Last resort: try sharp to convert to PNG
           try {
-            const pngBuffer = await sharp(buffer).png().toBuffer()
-            image = await pdfDoc.embedPng(pngBuffer)
-          } catch (err) {
-            console.warn(`Skipping unsupported image format: ${basename(imagePath)} — ${String(err)}`)
-            continue
+            image = await pdfDoc.embedPng(buffer)
+          } catch {
+            try {
+              const pngBuffer = await sharp(buffer).png().toBuffer()
+              image = await pdfDoc.embedPng(pngBuffer)
+            } catch (err) {
+              console.warn(`Skipping unsupported image format: ${basename(imagePath)} — ${String(err)}`)
+              continue
+            }
           }
         }
       }
