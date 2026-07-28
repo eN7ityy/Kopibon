@@ -329,6 +329,7 @@ export default function LibraryDetail({
                         setDetailSyncing(true)
                         try {
                           await window.api.library.syncItem(detail.id)
+                          onUpdated()
                         } catch { /* */ }
                         setDetailSyncing(false)
                       }}
