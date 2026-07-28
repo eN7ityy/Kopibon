@@ -15,6 +15,9 @@ const api = {
     ipcRenderer.invoke('api:getFavorites', page, query),
   getUser: () => ipcRenderer.invoke('api:getUser'),
   getRelatedGalleries: (id: number) => ipcRenderer.invoke('api:getRelatedGalleries', id),
+  checkFavorite: (galleryId: number) => ipcRenderer.invoke('api:checkFavorite', galleryId),
+  addFavorite: (galleryId: number) => ipcRenderer.invoke('api:addFavorite', galleryId),
+  removeFavorite: (galleryId: number) => ipcRenderer.invoke('api:removeFavorite', galleryId),
 
   // Auth
   auth: {

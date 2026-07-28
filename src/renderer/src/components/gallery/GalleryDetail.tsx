@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import type { GalleryDetail as GalleryDetailType, DownloadStatus } from '../../types/api.types'
 import StatusBadge from '../shared/StatusBadge'
 import LoadingSkeleton from '../shared/LoadingSkeleton'
+import { useAuthStore } from '../../stores/auth.store'
 
 interface GalleryDetailProps {
   galleryId: number
@@ -43,6 +44,7 @@ export default function GalleryDetailPanel({
   onTagClick,
   onGalleryChange
 }: GalleryDetailProps): React.JSX.Element {
+  const auth = useAuthStore()
   const [detail, setDetail] = useState<GalleryDetailType | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -51,6 +53,8 @@ export default function GalleryDetailPanel({
   const [showRedownloadConfirm, setShowRedownloadConfirm] = useState(false)
   const [libraryPath, setLibraryPath] = useState<string | null>(null)
   const [relatedGalleries, setRelatedGalleries] = useState<RelatedGallery[]>([])
+  const [isFavorited, setIsFavorited] = useState(false)
+  const [favLoading, setFavLoading] = useState(false)
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -92,6 +96,19 @@ export default function GalleryDetailPanel({
     const interval = setInterval(fetchStatus, 2000)
     return () => clearInterval(interval)
   }, [fetchDetail, fetchStatus])
+
+  // Check favorite status when detail loads
+  useEffect(() => {
+    if (!detail || !auth.loggedIn) return
+    let cancelled = false
+    window.api.checkFavorite(galleryId).then((result) => {
+      if (cancelled) return
+      if (result.success) {
+        setIsFavorited(result.data)
+      }
+    }).catch(() => { /* silently ignore */ })
+    return () => { cancelled = true }
+  }, [detail, galleryId, auth.loggedIn])
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent): void => {
@@ -385,6 +402,32 @@ export default function GalleryDetailPanel({
                   className="w-full px-4 py-3 rounded-lg bg-purple-600 text-white font-medium hover:bg-purple-700 transition-colors"
                 >
                   Download
+                </button>
+              )}
+
+              {auth.loggedIn && (
+                <button
+                  onClick={async () => {
+                    setFavLoading(true)
+                    try {
+                      if (isFavorited) {
+                        await window.api.removeFavorite(galleryId)
+                        setIsFavorited(false)
+                      } else {
+                        await window.api.addFavorite(galleryId)
+                        setIsFavorited(true)
+                      }
+                    } catch { /* silently fail */ }
+                    setFavLoading(false)
+                  }}
+                  disabled={favLoading}
+                  className="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
+                >
+                  {favLoading ? '...' : isFavorited ? (
+                    <span className="text-red-500">♥ Unfavorite</span>
+                  ) : (
+                    <span className="text-gray-400">♡ Favorite</span>
+                  )}
                 </button>
               )}
 

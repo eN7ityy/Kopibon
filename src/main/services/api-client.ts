@@ -127,25 +127,48 @@ export class ApiClient {
     return headers
   }
 
-  private async request<T>(path: string): Promise<T> {
+  private async request<T>(
+    path: string,
+    options?: { method?: string; body?: unknown }
+  ): Promise<T> {
     await this.rateLimiter.acquire()
 
     const url = `${BASE_URL}${path}`
-    const response = await fetch(url, { headers: this.getHeaders() })
+    const fetchOptions: RequestInit = {
+      method: options?.method ?? 'GET',
+      headers: this.getHeaders()
+    }
+    if (options?.body) {
+      fetchOptions.body = JSON.stringify(options.body)
+      ;(fetchOptions.headers as Record<string, string>)['Content-Type'] =
+        'application/json'
+    }
+
+    const doFetch = (): Promise<Response> => fetch(url, fetchOptions)
+
+    let response = await doFetch()
 
     if (!response.ok) {
       if (response.status === 429) {
         await new Promise((r) => setTimeout(r, 5000))
         await this.rateLimiter.acquire()
-        const retryResponse = await fetch(url, { headers: this.getHeaders() })
-        if (!retryResponse.ok) {
-          throw new Error(`API error: ${retryResponse.status} ${retryResponse.statusText}`)
+        response = await doFetch()
+        if (!response.ok) {
+          throw new Error(`API error: ${response.status} ${response.statusText}`)
         }
-        return retryResponse.json() as Promise<T>
+        // For 204 No Content or empty responses, return undefined as T
+        if (response.status === 204) {
+          return undefined as T
+        }
+        return response.json() as Promise<T>
       }
       throw new Error(`API error: ${response.status} ${response.statusText}`)
     }
 
+    // For 204 No Content, no JSON body
+    if (response.status === 204) {
+      return undefined as T
+    }
     return response.json() as Promise<T>
   }
 
@@ -193,6 +216,23 @@ export class ApiClient {
 
   async getRelatedGalleries(id: number): Promise<SearchResponse> {
     return this.request<SearchResponse>(`/galleries/${id}/related`)
+  }
+
+  async checkFavorite(galleryId: number): Promise<boolean> {
+    try {
+      await this.request(`/galleries/${galleryId}/favorite`)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  async addFavorite(galleryId: number): Promise<void> {
+    await this.request(`/galleries/${galleryId}/favorite`, { method: 'POST' })
+  }
+
+  async removeFavorite(galleryId: number): Promise<void> {
+    await this.request(`/galleries/${galleryId}/favorite`, { method: 'DELETE' })
   }
 
   /**

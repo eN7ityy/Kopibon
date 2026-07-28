@@ -92,4 +92,31 @@ export function registerApiIpc(): void {
       return { success: false, error: String(error) }
     }
   })
+
+  ipcMain.handle('api:checkFavorite', async (_event, galleryId: number) => {
+    try {
+      const isFav = await client.checkFavorite(galleryId)
+      return { success: true, data: isFav }
+    } catch (error) {
+      return { success: false, error: String(error) }
+    }
+  })
+
+  ipcMain.handle('api:addFavorite', async (_event, galleryId: number) => {
+    try {
+      await client.addFavorite(galleryId)
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: String(error) }
+    }
+  })
+
+  ipcMain.handle('api:removeFavorite', async (_event, galleryId: number) => {
+    try {
+      await client.removeFavorite(galleryId)
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: String(error) }
+    }
+  })
 }
