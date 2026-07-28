@@ -217,7 +217,7 @@ export default function LibraryDetail({
 
             <div><span className="text-xs font-medium text-gray-500 dark:text-gray-400">Artist</span>
               {onFilterArtist ? (
-                <button onClick={() => { onClose(); onFilterArtist(detail.primaryArtist) }} className="text-sm text-purple-600 dark:text-purple-400 hover:underline cursor-pointer">
+                <button onClick={() => { onClose(); onFilterArtist(detail.primaryArtist) }} className="block text-sm text-purple-600 dark:text-purple-400 hover:underline cursor-pointer">
                   {detail.primaryArtist || 'Unknown'}
                 </button>
               ) : (
@@ -278,7 +278,7 @@ export default function LibraryDetail({
             ) : detail.publisher ? (
               <div><span className="text-xs font-medium text-gray-500 dark:text-gray-400">Publisher</span>
                 {onFilterPublisher ? (
-                  <button onClick={() => { onClose(); onFilterPublisher(detail.publisher!) }} className="text-sm text-purple-600 dark:text-purple-400 hover:underline cursor-pointer">
+                  <button onClick={() => { onClose(); onFilterPublisher(detail.publisher!) }} className="block text-sm text-purple-600 dark:text-purple-400 hover:underline cursor-pointer">
                     {detail.publisher}
                   </button>
                 ) : (
