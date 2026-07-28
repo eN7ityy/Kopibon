@@ -47,6 +47,7 @@ export default function LibraryDetail({
   const [deleteConfirm, setDeleteConfirm] = useState<'none' | 'remove' | 'deleteFile'>('none')
   const [deleting, setDeleting] = useState(false)
   const [detailSyncing, setDetailSyncing] = useState(false)
+  const [refreshKey, setRefreshKey] = useState(0)
   const [thumbDataUrl, setThumbDataUrl] = useState<string | null>(null)
 
   // Autocomplete suggestions for tags
@@ -74,7 +75,7 @@ export default function LibraryDetail({
     })
 
     return () => { cancelled = true }
-  }, [item?.id])
+  }, [item?.id, refreshKey])
 
   // Populate edit fields from fresh data
   useEffect(() => {
@@ -154,6 +155,7 @@ export default function LibraryDetail({
       }, libraryRoot)
       if (result.success) {
         setEditing(false)
+        setRefreshKey(k => k + 1)
         onUpdated()
       }
     } catch { /* */ }
@@ -329,6 +331,7 @@ export default function LibraryDetail({
                         setDetailSyncing(true)
                         try {
                           await window.api.library.syncItem(detail.id)
+                          setRefreshKey(k => k + 1)
                           onUpdated()
                         } catch { /* */ }
                         setDetailSyncing(false)

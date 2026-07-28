@@ -582,28 +582,20 @@ export function registerLibraryIpc(): void {
           tagList.push({ id: 0, type: 'artist', name: newPrimaryArtist })
         }
 
-        const uploadDate = newDate
-          ? Math.floor(new Date(newDate).getTime() / 1000)
-          : Math.floor(Date.now() / 1000)
-
         await spawnMetadataWorker({
           type: 'apply',
           pdfPath: item.filePath,
           metadata: {
-            id: item.galleryId ?? 0,
-            title: {
-              english: newTitle ?? '',
-              japanese: null,
-              pretty: newTitle ?? ''
-            },
-            tags: tagList,
-            uploadDate,
-            numPages: 0,
-            seriesName: newSeriesName ?? undefined,
-            seriesIndex: newSeriesIndex,
-            language: newLanguage ?? undefined,
-            publisher: newPublisher,
-            description: newDescription ?? undefined
+            title: newTitle || `Gallery #${item.galleryId || item.id}`,
+            creators: newPrimaryArtist ? [newPrimaryArtist] : [item.primaryArtist || 'Unknown'],
+            tags: tagList.map((t: { name: string }) => t.name),
+            nhentaiId: item.galleryId ?? undefined,
+            seriesName: newSeriesName ?? item.seriesName ?? undefined,
+            seriesIndex: newSeriesIndex ?? item.seriesIndex ?? undefined,
+            language: newLanguage || item.language || undefined,
+            publisher: newPublisher || item.publisher || undefined,
+            description: newDescription || item.description || undefined,
+            date: newDate || undefined
           }
         })
       } catch (embedErr) {
