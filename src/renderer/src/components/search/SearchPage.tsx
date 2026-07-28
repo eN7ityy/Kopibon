@@ -40,13 +40,6 @@ export default function SearchPage(): React.JSX.Element {
     }
   }, [store.pendingGalleryId])
 
-  // Auto-load latest uploads on mount (nhentai homepage)
-  useEffect(() => {
-    if (!store.query.trim() && store.results.length === 0) {
-      performSearch(1)
-    }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
   useEffect(() => {
     return () => {
       if (rateLimitTimerRef.current) clearInterval(rateLimitTimerRef.current)
@@ -126,6 +119,8 @@ export default function SearchPage(): React.JSX.Element {
   const performSearch = useCallback(
     async (page: number, overrideQuery?: string) => {
       const trimmedQuery = (overrideQuery ?? store.query).trim()
+      if (!trimmedQuery) return
+
       store.setLoading(true)
       resultsContainerRef.current?.scrollTo(0, 0)
 
