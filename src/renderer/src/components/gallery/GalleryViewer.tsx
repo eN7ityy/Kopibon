@@ -10,6 +10,16 @@ interface GalleryViewerProps {
   onClose: () => void
 }
 
+/** Strip protocol prefix from CDN server hostname (handles both https:// and http://). */
+function normalizeHost(raw: string): string {
+  return raw.replace(/^https?:\/\//, '')
+}
+
+/** Build a full CDN URL: https://{host}/{path} */
+function buildCdnUrl(host: string, path: string): string {
+  return `https://${normalizeHost(host)}/${path}`
+}
+
 export default function GalleryViewer({
   galleryId: _galleryId,
   pages,
@@ -152,13 +162,13 @@ export default function GalleryViewer({
     // Preload next page
     if (currentPage + 1 < totalPages) {
       const preloadNext = new Image()
-      preloadNext.src = `https://${cdnServers[0] ?? ''}/${pages[currentPage + 1].path}`
+      preloadNext.src = buildCdnUrl(cdnServers[0] ?? '', pages[currentPage + 1].path)
     }
 
     // Preload previous page
     if (currentPage - 1 >= 0) {
       const preloadPrev = new Image()
-      preloadPrev.src = `https://${cdnServers[0] ?? ''}/${pages[currentPage - 1].path}`
+      preloadPrev.src = buildCdnUrl(cdnServers[0] ?? '', pages[currentPage - 1].path)
     }
   }, [mode, currentPage, pages, cdnServers, totalPages])
 
@@ -239,7 +249,7 @@ export default function GalleryViewer({
 
   const currentPageData = pages[currentPage]
   const imageUrl = currentPageData
-    ? `https://${cdnServer}/${currentPageData.path}`
+    ? buildCdnUrl(cdnServer, currentPageData.path)
     : ''
 
   return (
@@ -381,7 +391,7 @@ function ThumbnailItem({
   const [error, setError] = useState(false)
 
   const thumbUrl = thumbServer
-    ? `https://${thumbServer}/${page.thumbnail}`
+    ? buildCdnUrl(thumbServer, page.thumbnail)
     : ''
 
   return (
