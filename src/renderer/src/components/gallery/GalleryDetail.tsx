@@ -225,7 +225,7 @@ export default function GalleryDetailPanel({
                       setFavLoading(false)
                     }}
                     disabled={favLoading}
-                    className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-sm font-medium transition-colors disabled:opacity-50 ${
+                    className={`inline-flex items-center justify-center w-8 h-8 rounded-full text-sm transition-colors disabled:opacity-50 ${
                       isFavorited
                         ? 'bg-pink-100 dark:bg-pink-900/30 text-pink-600 dark:text-pink-400 hover:bg-pink-200 dark:hover:bg-pink-900/50'
                         : 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700'
