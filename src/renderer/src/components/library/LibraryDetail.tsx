@@ -10,6 +10,10 @@ interface LibraryDetailProps {
   onDeleted: () => void
   onUpdated: () => void
   libraryRoot?: string
+  onFilterArtist?: (artist: string) => void
+  onFilterPublisher?: (publisher: string) => void
+  onFilterTag?: (tag: string) => void
+  onOpenInSearch?: (galleryId: number) => void
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -32,7 +36,8 @@ const LANGUAGES = ['English', 'Japanese', 'Chinese', 'Other']
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function LibraryDetail({
-  item, onClose, onDeleted, onUpdated, libraryRoot
+  item, onClose, onDeleted, onUpdated, libraryRoot,
+  onFilterArtist, onFilterPublisher, onFilterTag, onOpenInSearch
 }: LibraryDetailProps): React.JSX.Element | null {
   const [editing, setEditing] = useState(false)
   const [editTitle, setEditTitle] = useState('')
@@ -210,7 +215,15 @@ export default function LibraryDetail({
               <div><span className="text-xs font-medium text-gray-500 dark:text-gray-400">Title</span><p className="text-sm text-gray-900 dark:text-gray-100">{detail.customTitle || 'Untitled'}</p></div>
             )}
 
-            <div><span className="text-xs font-medium text-gray-500 dark:text-gray-400">Artist</span><p className="text-sm text-gray-900 dark:text-gray-100">{detail.primaryArtist || 'Unknown'}</p></div>
+            <div><span className="text-xs font-medium text-gray-500 dark:text-gray-400">Artist</span>
+              {onFilterArtist ? (
+                <button onClick={() => { onClose(); onFilterArtist(detail.primaryArtist) }} className="text-sm text-purple-600 dark:text-purple-400 hover:underline cursor-pointer">
+                  {detail.primaryArtist || 'Unknown'}
+                </button>
+              ) : (
+                <p className="text-sm text-gray-900 dark:text-gray-100">{detail.primaryArtist || 'Unknown'}</p>
+              )}
+            </div>
 
             {/* Series with autocomplete */}
             {editing ? (
@@ -263,7 +276,15 @@ export default function LibraryDetail({
                 <input type="text" value={editPublisher} onChange={e => setEditPublisher(e.target.value)} placeholder="Publisher/Group name..." className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-purple-500" />
               </div>
             ) : detail.publisher ? (
-              <div><span className="text-xs font-medium text-gray-500 dark:text-gray-400">Publisher</span><p className="text-sm text-gray-900 dark:text-gray-100">{detail.publisher}</p></div>
+              <div><span className="text-xs font-medium text-gray-500 dark:text-gray-400">Publisher</span>
+                {onFilterPublisher ? (
+                  <button onClick={() => { onClose(); onFilterPublisher(detail.publisher!) }} className="text-sm text-purple-600 dark:text-purple-400 hover:underline cursor-pointer">
+                    {detail.publisher}
+                  </button>
+                ) : (
+                  <p className="text-sm text-gray-900 dark:text-gray-100">{detail.publisher}</p>
+                )}
+              </div>
             ) : null}
 
             {/* Description */}
@@ -307,9 +328,17 @@ export default function LibraryDetail({
             ) : detail.customTags ? (
               <div><span className="text-xs font-medium text-gray-500 dark:text-gray-400">Tags</span>
                 <div className="flex flex-wrap gap-1 mt-1">
-                  {detail.customTags.split(',').map(tag => (
-                    <span key={tag.trim()} className="px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-xs text-gray-600 dark:text-gray-400">{tag.trim()}</span>
-                  ))}
+                  {detail.customTags.split(',').map(tag => {
+                    const trimmed = tag.trim()
+                    if (!trimmed) return null
+                    return onFilterTag ? (
+                      <button key={trimmed} onClick={() => { onClose(); onFilterTag(trimmed) }} className="px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-xs hover:bg-purple-200 dark:hover:bg-purple-900/50 cursor-pointer">
+                        {trimmed}
+                      </button>
+                    ) : (
+                      <span key={trimmed} className="px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-xs text-gray-600 dark:text-gray-400">{trimmed}</span>
+                    )
+                  })}
                 </div>
               </div>
             ) : null}
@@ -325,7 +354,13 @@ export default function LibraryDetail({
                 <div>
                   <span className="text-xs font-medium text-gray-500 dark:text-gray-400">nhentai ID</span>
                   <div className="flex items-center gap-2">
-                    <p className="text-sm text-purple-600 dark:text-purple-400">#{detail.galleryId}</p>
+                    {onOpenInSearch ? (
+                      <button onClick={() => { onClose(); onOpenInSearch(detail.galleryId!) }} className="text-sm text-purple-600 dark:text-purple-400 hover:underline cursor-pointer">
+                        #{detail.galleryId}
+                      </button>
+                    ) : (
+                      <p className="text-sm text-purple-600 dark:text-purple-400">#{detail.galleryId}</p>
+                    )}
                     <button
                       onClick={async () => {
                         setDetailSyncing(true)

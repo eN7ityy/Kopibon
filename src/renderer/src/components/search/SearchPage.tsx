@@ -32,6 +32,14 @@ export default function SearchPage(): React.JSX.Element {
   const [selectedGalleryId, setSelectedGalleryId] = useState<number | null>(null)
   const resultsContainerRef = useRef<HTMLDivElement>(null)
 
+  // When navigated to from Library nhentai ID click, auto-open GalleryDetail
+  useEffect(() => {
+    if (store.pendingGalleryId !== null) {
+      setSelectedGalleryId(store.pendingGalleryId)
+      store.setPendingGalleryId(null)
+    }
+  }, [store.pendingGalleryId])
+
   useEffect(() => {
     return () => {
       if (rateLimitTimerRef.current) clearInterval(rateLimitTimerRef.current)

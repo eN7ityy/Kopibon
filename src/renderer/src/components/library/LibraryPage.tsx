@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useSearchStore } from '../../stores/search.store'
 import { VirtuosoGrid, Virtuoso } from 'react-virtuoso'
 import type { LibraryItemData } from './LibraryCard'
 import LibraryCard from './LibraryCard'
@@ -256,6 +258,7 @@ function InlineEditCell({
 // ─── Library Page ────────────────────────────────────────────────────────────
 
 export default function LibraryPage(): React.JSX.Element {
+  const navigate = useNavigate()
   const conversionStore = useConversionStore()
 
   // Paginated data
@@ -1113,6 +1116,25 @@ export default function LibraryPage(): React.JSX.Element {
         }}
         onUpdated={() => {
           fetchPage(0, true)
+        }}
+        onFilterArtist={(artist) => {
+          setSelectedArtistFilters(new Set([artist]))
+          setShowFilters(true)
+          fetchPage(0, true)
+        }}
+        onFilterPublisher={(publisher) => {
+          setSelectedArtistFilters(new Set([publisher]))
+          setShowFilters(true)
+          fetchPage(0, true)
+        }}
+        onFilterTag={(tag) => {
+          setSelectedTagFilters(new Set([tag]))
+          setShowFilters(true)
+          fetchPage(0, true)
+        }}
+        onOpenInSearch={(galleryId) => {
+          useSearchStore.getState().setPendingGalleryId(galleryId)
+          navigate('/search')
         }}
       />
     </div>

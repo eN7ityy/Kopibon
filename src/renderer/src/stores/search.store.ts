@@ -13,8 +13,10 @@ interface SearchStore {
   error: string | null
   rateLimited: boolean
   rateLimitSeconds: number
+  pendingGalleryId: number | null
 
   setQuery: (query: string) => void
+  setPendingGalleryId: (id: number | null) => void
   setSort: (sort: string) => void
   setResults: (
     results: GalleryListItem[],
@@ -48,9 +50,11 @@ export const useSearchStore = create<SearchStore>()((set) => ({
   error: null,
   rateLimited: false,
   rateLimitSeconds: 0,
+  pendingGalleryId: null,
 
   setQuery: (query) => set({ query }),
   setSort: (sort) => set({ sort }),
+  setPendingGalleryId: (id) => set({ pendingGalleryId: id }),
 
   setResults: (results, downloadStatuses, currentPage, totalPages) =>
     set({
