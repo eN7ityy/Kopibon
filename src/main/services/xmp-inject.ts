@@ -132,9 +132,9 @@ stream[Name.Type] = Name.Metadata
 stream[Name.Subtype] = Name.XML
 pdf.Root[Name.Metadata] = pdf.make_indirect(stream)
 
-# Save with uncompressed streams to keep Info dict readable
+# Save with traditional xref (disable object streams) so Info dict is readable
 tmp = output_path + '.tmp'
-pdf.save(tmp, compress_streams=False)
+pdf.save(tmp, compress_streams=False, object_stream_mode=0)
 pdf.close()
 os.replace(tmp, output_path)
 print(json.dumps({'status': 'ok'}))
