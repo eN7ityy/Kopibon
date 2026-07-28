@@ -63,6 +63,42 @@ The only working XMP format was found in files processed by **pikepdf 10.8.0** i
 5. `dc:creator` MUST use `<rdf:Seq>` even for a single artist
 6. `dc:subject` SHOULD use `<rdf:Bag>` for tags (Kavita reads these as genres)
 
+### 1.4 CRITICAL: Info Dictionary Must Be Uncompressed
+
+**pikepdf's `pdf.save()` compresses the Info dictionary with FlateDecode by default. Kavita does NOT decompress the Info dict** — it reads the raw compressed bytes as garbage, resulting in no metadata being displayed. The Dr Stein files work because their Info dict was saved uncompressed.
+
+**Fix**: `pdf.save(path, compress_streams=False)`
+
+| ❌ Broken | ✅ Working |
+|----------|----------|
+| Info dict: `/Filter /FlateDecode` | Info dict: plain text with `/Title (...)`, `/Author (...)`, etc. |
+| Kavita sees: compressed binary garbage | Kavita reads: correct Title, Author, Keywords |
+
+### 1.5 ALL Required Fields (confirmed by forensic comparison)
+
+| Field | Location | Required Even If Empty | Format |
+|-------|----------|:---:|--------|
+| `dc:title` | XMP | ✅ | `<rdf:Alt><rdf:li xml:lang="x-default">` |
+| `dc:description` | XMP | ✅ | `<rdf:Alt><rdf:li xml:lang="x-default"/>` (empty) |
+| `dc:creator` | XMP | ✅ | `<rdf:Seq><rdf:li>` |
+| `dc:subject` | XMP | ✅ | `<rdf:Bag><rdf:li>` |
+| `dc:publisher` | XMP | ✅ | `<rdf:Bag/>` (empty Bag) |
+| `dc:date` | XMP | ✅ | `<rdf:Seq><rdf:li>ISO8601</rdf:li></rdf:Seq>` |
+| `pdfx:isbn` | XMP | ✅ | nhentai gallery ID |
+| `prism2:isbn` | XMP | ✅ | nhentai gallery ID (note: `prism2`, NOT `prism`) |
+| `pdf:Producer` | XMP | ✅ | `pikepdf 10.8.0` |
+| `xmp:MetadataDate` | XMP | ✅ | ISO8601 timestamp |
+| `calibre:series` | XMP (separate Description) | Only if series | `<rdf:parseType="Resource"><rdf:value>` |
+| `calibreSI:series_index` | XMP (inside calibre:series) | Only if series | Nested inside calibre:series |
+| `calibre:timestamp` | XMP (calibre Description) | Only if series | ISO8601 |
+| `calibre:title_sort` | XMP (calibre Description) | Only if series | Title for sorting |
+| `calibre:author_sort` | XMP (calibre Description) | Only if series | Author for sorting |
+| `/Title` | Info dict (docinfo) | ✅ | PDF string |
+| `/Author` | Info dict (docinfo) | ✅ | PDF string |
+| `/Keywords` | Info dict (docinfo) | ✅ | Comma-separated |
+| `/Producer` | Info dict (docinfo) | ✅ | `pikepdf 10.8.0` |
+| `/Trapped` | Info dict (docinfo) | ✅ | `/False` |
+
 ---
 
 ## 2. Canonical Metadata Specification
@@ -77,8 +113,9 @@ The only working XMP format was found in files processed by **pikepdf 10.8.0** i
 | `calibre` | `http://calibre-ebook.com/xmp-namespace` |
 | `calibreSI` | `http://calibre-ebook.com/xmp-namespace-series-index` |
 | `pdfx` | `http://ns.adobe.com/pdfx/1.3/` |
-| `prism` | `http://prismstandard.org/namespaces/basic/2.0/` |
-| `xmpidq` | `http://ns.adobe.com/xmp/Identifier/qual/1.0/` |
+| `prism2` | `http://prismstandard.org/namespaces/basic/2.0/` |
+| `pdf` | `http://ns.adobe.com/pdf/1.3/` |
+| `xmp` | `http://ns.adobe.com/xap/1.0/` |
 
 ### 2.2 Complete XMP Template
 
@@ -102,17 +139,24 @@ The only working XMP format was found in files processed by **pikepdf 10.8.0** i
 {{SUBJECT_ITEMS}}
         </rdf:Bag>
       </dc:subject>
-      <pdfx:isbn>{{NHENTAI_ID}}</pdfx:isbn>
-      <prism:isbn>{{NHENTAI_ID}}</prism:isbn>
-{{OPTIONAL_FIELDS}}
+      <dc:description>
+        <rdf:Alt>
+          <rdf:li xml:lang="x-default">{{DESCRIPTION}}</rdf:li>
+        </rdf:Alt>
+      </dc:description>
+      <dc:publisher>
+        <rdf:Bag>{{PUBLISHER_BAG}}</rdf:Bag>
+      </dc:publisher>
+      <dc:date>
+        <rdf:Seq>
+          <rdf:li>{{DATE}}</rdf:li>
+        </rdf:Seq>
+      </dc:date>
+    <pdfx:isbn xmlns:pdfx="http://ns.adobe.com/pdfx/1.3/">{{NHENTAI_ID}}</pdfx:isbn><prism2:isbn xmlns:prism2="http://prismstandard.org/namespaces/basic/2.0/">{{NHENTAI_ID}}</prism2:isbn><pdf:Producer xmlns:pdf="http://ns.adobe.com/pdf/1.3/">pikepdf 10.8.0</pdf:Producer></rdf:Description>
+    <rdf:Description xmlns:xmp="http://ns.adobe.com/xap/1.0/" rdf:about="">
+      <xmp:MetadataDate>{{METADATA_DATE}}</xmp:MetadataDate>
     </rdf:Description>
 {{SERIES_BLOCK}}
-    <rdf:Description xmlns:pdfx="http://ns.adobe.com/pdfx/1.3/" rdf:about="">
-      <pdfx:isbn>{{NHENTAI_ID}}</pdfx:isbn>
-    </rdf:Description>
-    <rdf:Description xmlns:prism="http://prismstandard.org/namespaces/basic/2.0/" rdf:about="">
-      <prism:isbn>{{NHENTAI_ID}}</prism:isbn>
-    </rdf:Description>
   </rdf:RDF>
 </x:xmpmeta>
 <?xpacket end="w"?>
@@ -149,6 +193,9 @@ Only include if the PDF belongs to a series:
         <rdf:value>{{SERIES_NAME}}</rdf:value>
         <calibreSI:series_index>{{VOLUME_NUMBER}}</calibreSI:series_index>
       </calibre:series>
+      <calibre:timestamp>{{TIMESTAMP}}</calibre:timestamp>
+      <calibre:title_sort>{{TITLE_SORT}}</calibre:title_sort>
+      <calibre:author_sort>{{AUTHOR_SORT}}</calibre:author_sort>
     </rdf:Description>
 ```
 
@@ -179,23 +226,31 @@ For a gallery titled "Gyaru na Imouto wa Saimin Nanka Shinjinai! 2" by artist "r
           <rdf:li>incest</rdf:li>
         </rdf:Bag>
       </dc:subject>
-      <pdfx:isbn>399759</pdfx:isbn>
-      <prism:isbn>399759</prism:isbn>
-      <dc:language>eng</dc:language>
+      <dc:description>
+        <rdf:Alt>
+          <rdf:li xml:lang="x-default"/>
+        </rdf:Alt>
+      </dc:description>
+      <dc:publisher>
+        <rdf:Bag/>
+      </dc:publisher>
+      <dc:date>
+        <rdf:Seq>
+          <rdf:li>2025-01-01T00:00:00+00:00</rdf:li>
+        </rdf:Seq>
+      </dc:date>
+    <pdfx:isbn xmlns:pdfx="http://ns.adobe.com/pdfx/1.3/">399759</pdfx:isbn><prism2:isbn xmlns:prism2="http://prismstandard.org/namespaces/basic/2.0/">399759</prism2:isbn><pdf:Producer xmlns:pdf="http://ns.adobe.com/pdf/1.3/">pikepdf 10.8.0</pdf:Producer></rdf:Description>
+    <rdf:Description xmlns:xmp="http://ns.adobe.com/xap/1.0/" rdf:about="">
+      <xmp:MetadataDate>2026-07-28T14:30:00.000000+00:00</xmp:MetadataDate>
     </rdf:Description>
-    <rdf:Description xmlns:calibre="http://calibre-ebook.com/xmp-namespace"
-                     xmlns:calibreSI="http://calibre-ebook.com/xmp-namespace-series-index"
-                     rdf:about="">
+    <rdf:Description xmlns:calibreSI="http://calibre-ebook.com/xmp-namespace-series-index" xmlns:calibre="http://calibre-ebook.com/xmp-namespace" rdf:about="">
       <calibre:series rdf:parseType="Resource">
         <rdf:value>Gyaru na Imouto wa Saimin Nanka Shinjinai!</rdf:value>
         <calibreSI:series_index>2.00</calibreSI:series_index>
       </calibre:series>
-    </rdf:Description>
-    <rdf:Description xmlns:pdfx="http://ns.adobe.com/pdfx/1.3/" rdf:about="">
-      <pdfx:isbn>399759</pdfx:isbn>
-    </rdf:Description>
-    <rdf:Description xmlns:prism="http://prismstandard.org/namespaces/basic/2.0/" rdf:about="">
-      <prism:isbn>399759</prism:isbn>
+      <calibre:timestamp>2025-01-01T00:00:00+00:00</calibre:timestamp>
+      <calibre:title_sort>Gyaru na Imouto wa Saimin Nanka Shinjinai! 2</calibre:title_sort>
+      <calibre:author_sort>rakujin</calibre:author_sort>
     </rdf:Description>
   </rdf:RDF>
 </x:xmpmeta>

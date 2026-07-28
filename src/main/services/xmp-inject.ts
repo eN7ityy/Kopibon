@@ -41,38 +41,24 @@ export function buildXmpXml(metadata: XmpMetadata): string {
     .map((t) => `          <rdf:li>${escXml(t)}</rdf:li>`)
     .join('\n')
 
-  let optional = ''
-  if (metadata.description) optional += `      <dc:description>${escXml(metadata.description)}</dc:description>\n`
-  if (metadata.publisher) optional += `      <dc:publisher>${escXml(metadata.publisher)}</dc:publisher>\n`
-  if (metadata.language) optional += `      <dc:language>${escXml(metadata.language)}</dc:language>\n`
-  if (metadata.date) optional += `      <dc:date>${escXml(metadata.date)}</dc:date>\n`
-
-  const nhentaiId = metadata.nhentaiId
-  const nhentaiInline = nhentaiId
-    ? `      <pdfx:isbn>${nhentaiId}</pdfx:isbn>\n      <prism:isbn>${nhentaiId}</prism:isbn>\n`
-    : ''
-
-  let nhentaiBlocks = ''
-  if (nhentaiId) {
-    nhentaiBlocks = `
-    <rdf:Description xmlns:pdfx="http://ns.adobe.com/pdfx/1.3/" rdf:about="">
-      <pdfx:isbn>${nhentaiId}</pdfx:isbn>
-    </rdf:Description>
-    <rdf:Description xmlns:prism="http://prismstandard.org/namespaces/basic/2.0/" rdf:about="">
-      <prism:isbn>${nhentaiId}</prism:isbn>
-    </rdf:Description>`
-  }
+  const nhentaiId = metadata.nhentaiId || ''
+  const description = metadata.description || ''
+  const publisher = metadata.publisher || ''
+  const date = metadata.date || new Date().toISOString()
+  const now = new Date().toISOString().replace(/\.\d{3}Z$/, '.000000+00:00')
 
   let seriesBlock = ''
   if (metadata.seriesName && metadata.seriesIndex != null) {
+    const authorSort = metadata.creators[0]?.split(' ').reverse().join(' ') || 'unknown'
     seriesBlock = `
-    <rdf:Description xmlns:calibre="http://calibre-ebook.com/xmp-namespace"
-                     xmlns:calibreSI="http://calibre-ebook.com/xmp-namespace-series-index"
-                     rdf:about="">
+    <rdf:Description xmlns:calibreSI="http://calibre-ebook.com/xmp-namespace-series-index" xmlns:calibre="http://calibre-ebook.com/xmp-namespace" rdf:about="">
       <calibre:series rdf:parseType="Resource">
         <rdf:value>${escXml(metadata.seriesName)}</rdf:value>
         <calibreSI:series_index>${metadata.seriesIndex.toFixed(2)}</calibreSI:series_index>
       </calibre:series>
+      <calibre:timestamp>${date}</calibre:timestamp>
+      <calibre:title_sort>${escXml(metadata.title)}</calibre:title_sort>
+      <calibre:author_sort>${escXml(authorSort)}</calibre:author_sort>
     </rdf:Description>`
   }
 
@@ -85,6 +71,11 @@ export function buildXmpXml(metadata: XmpMetadata): string {
           <rdf:li xml:lang="x-default">${escXml(metadata.title)}</rdf:li>
         </rdf:Alt>
       </dc:title>
+      <dc:description>
+        <rdf:Alt>
+          <rdf:li xml:lang="x-default">${escXml(description)}</rdf:li>
+        </rdf:Alt>
+      </dc:description>
       <dc:creator>
         <rdf:Seq>
 ${creatorItems}
@@ -95,7 +86,18 @@ ${creatorItems}
 ${tagItems}
         </rdf:Bag>
       </dc:subject>
-${nhentaiInline}${optional}    </rdf:Description>${seriesBlock}${nhentaiBlocks}
+      <dc:publisher>
+        <rdf:Bag>${publisher ? `<rdf:li>${escXml(publisher)}</rdf:li>` : ''}</rdf:Bag>
+      </dc:publisher>
+      <dc:date>
+        <rdf:Seq>
+          <rdf:li>${escXml(date)}</rdf:li>
+        </rdf:Seq>
+      </dc:date>
+    <pdfx:isbn xmlns:pdfx="http://ns.adobe.com/pdfx/1.3/">${nhentaiId}</pdfx:isbn><prism2:isbn xmlns:prism2="http://prismstandard.org/namespaces/basic/2.0/">${nhentaiId}</prism2:isbn><pdf:Producer xmlns:pdf="http://ns.adobe.com/pdf/1.3/">pikepdf 10.8.0</pdf:Producer></rdf:Description>
+    <rdf:Description xmlns:xmp="http://ns.adobe.com/xap/1.0/" rdf:about="">
+      <xmp:MetadataDate>${now}</xmp:MetadataDate>
+    </rdf:Description>${seriesBlock}
   </rdf:RDF>
 </x:xmpmeta>
 <?xpacket end="w"?>`
@@ -108,9 +110,6 @@ import sys, json, os
 import pikepdf
 from pikepdf import Pdf, Name, Stream
 
-def esc_xml(s):
-    return str(s).replace("&", "&").replace("<", "<").replace(">", ">")
-
 data = json.loads(sys.stdin.read())
 pdf_path = data['pdfPath']
 output_path = data.get('outputPath', pdf_path)
@@ -121,6 +120,7 @@ pdf = Pdf.open(pdf_path)
 pdf.docinfo['/Title'] = data.get('title', '')
 pdf.docinfo['/Author'] = data.get('author', '')
 pdf.docinfo['/Keywords'] = data.get('keywords', '')
+pdf.docinfo['/Trapped'] = '/False'
 
 # Nuke existing catalog Metadata reference
 if Name.Metadata in pdf.Root:
