@@ -280,7 +280,21 @@ export function registerLibraryIpc(): void {
         try {
           // 1. Embed series into PDF metadata (offloaded to worker)
           try {
-            await spawnMetadataWorker({ type: 'apply', pdfPath: item.filePath, metadata: { seriesName } })
+            await spawnMetadataWorker({
+              type: 'apply',
+              pdfPath: item.filePath,
+              metadata: {
+                title: item.customTitle || `Gallery #${item.galleryId || item.id}`,
+                creators: [item.primaryArtist || 'Unknown'],
+                tags: item.customTags ? item.customTags.split(',').map((t: string) => t.trim()).filter(Boolean) : [],
+                nhentaiId: item.galleryId,
+                seriesName,
+                seriesIndex: item.seriesIndex ?? undefined,
+                language: item.language || item.customLanguage,
+                publisher: item.publisher || undefined,
+                description: item.description || undefined
+              }
+            })
           } catch (err) {
             errors.push(`Failed to embed series in PDF for item ${id}: ${String(err)}`)
             // Continue — DB update is still valid
