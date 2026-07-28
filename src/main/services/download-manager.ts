@@ -359,6 +359,11 @@ export class DownloadManager {
         blackBackground: blackBg
       }
 
+      // Preserve existing user-set metadata (series/volume) from previous download
+      const existingItem = libraryRepo.findByGalleryId(galleryId)
+      const existingSeries = existingItem?.seriesName || undefined
+      const existingVolume = existingItem?.seriesIndex ?? undefined
+
       const validPaths = downloadedPaths.filter(Boolean) as string[]
 
       // Offload PDF generation + metadata embedding + thumbnail to a worker thread
@@ -369,7 +374,9 @@ export class DownloadManager {
         tags: gallery.tags,
         uploadDate: gallery.upload_date,
         numPages: gallery.num_pages,
-        publisher: gallery.tags.find((t) => t.type === 'group')?.name || undefined
+        publisher: gallery.tags.find((t) => t.type === 'group')?.name || undefined,
+        seriesName: existingSeries,
+        seriesIndex: existingVolume
       }
 
       const workerResult = await new Promise<{ thumbnailPath?: string }>((resolve, reject) => {
