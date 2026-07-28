@@ -94,8 +94,12 @@ export default function SearchPage(): React.JSX.Element {
 
   // Auto-search when sort changes and query is non-empty
   useEffect(() => {
-    if (prevSortRef.current !== store.sort && store.query.trim()) {
-      performSearch(1)
+    if (prevSortRef.current !== store.sort) {
+      if (store.query.trim()) {
+        performSearch(1)
+      } else {
+        loadPage(1)
+      }
     }
     prevSortRef.current = store.sort
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -182,16 +186,20 @@ export default function SearchPage(): React.JSX.Element {
       store.setLoading(true)
       resultsContainerRef.current?.scrollTo(0, 0)
       try {
-        const result = await window.api.getLatest(page)
+        const isPopular = store.sort === 'popular-today'
+        const result = isPopular
+          ? await window.api.getPopular()
+          : await window.api.getLatest(page)
         if (result.success && result.data) {
-          const statuses = await resolveDownloadStatuses(result.data.result.map((r) => r.id))
-          store.setResults(result.data.result, statuses, page, result.data.num_pages)
+          const data = result.data
+          const statuses = await resolveDownloadStatuses(data.result.map((r) => r.id))
+          store.setResults(data.result, statuses, isPopular ? 1 : page, data.num_pages)
         }
       } catch {
         store.setError('Failed to load')
       }
     },
-    [store.query, performSearch, resolveDownloadStatuses]
+    [store.query, store.sort, performSearch, resolveDownloadStatuses]
   )
 
   const handlePrevPage = (): void => {
