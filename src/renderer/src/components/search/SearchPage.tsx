@@ -122,6 +122,7 @@ export default function SearchPage(): React.JSX.Element {
       if (!trimmedQuery) return
 
       store.setLoading(true)
+      resultsContainerRef.current?.scrollTo(0, 0)
 
       try {
         const result = await window.api.search(trimmedQuery, {
