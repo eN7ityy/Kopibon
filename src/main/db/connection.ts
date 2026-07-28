@@ -35,6 +35,7 @@ export function initDatabase(): ReturnType<typeof drizzle> {
   }
 
   sqlite = new Database(DB_PATH)
+  sqlite.pragma('encoding = "UTF-8"')
   sqlite.pragma('journal_mode = WAL')
   sqlite.pragma('foreign_keys = ON')
 
@@ -230,6 +231,7 @@ function runMigrations(sqlite: Database.Database): void {
  */
 export function openWorkerConnection(): Database.Database {
   const workerDb = new Database(DB_PATH)
+  workerDb.pragma('encoding = "UTF-8"')
   workerDb.pragma('journal_mode = WAL')
   workerDb.pragma('foreign_keys = ON')
   workerDb.pragma('busy_timeout = 5000')
