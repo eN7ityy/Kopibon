@@ -3,6 +3,7 @@ import type { DownloadStatus } from '../../types/api.types'
 interface StatusBadgeProps {
   status: DownloadStatus
   size?: 'sm' | 'md'
+  showLabel?: boolean
 }
 
 const STATUS_CONFIG: Record<
@@ -53,7 +54,7 @@ const STATUS_CONFIG: Record<
   }
 }
 
-export default function StatusBadge({ status, size = 'sm' }: StatusBadgeProps): React.JSX.Element | null {
+export default function StatusBadge({ status, size = 'sm', showLabel = true }: StatusBadgeProps): React.JSX.Element | null {
   if (status === 'not_downloaded') return null
 
   const config = STATUS_CONFIG[status]
@@ -64,7 +65,7 @@ export default function StatusBadge({ status, size = 'sm' }: StatusBadgeProps): 
       className={`inline-flex items-center gap-1 rounded-full font-medium ${sizeClasses} ${config.bg} ${config.text}`}
     >
       <span>{config.icon}</span>
-      {config.label}
+      {showLabel && config.label}
     </span>
   )
 }

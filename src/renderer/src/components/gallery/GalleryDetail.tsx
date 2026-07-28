@@ -207,7 +207,35 @@ export default function GalleryDetailPanel({
             </div>
 
             <div className="flex items-center justify-between mb-4">
-              <StatusBadge status={downloadStatus} size="md" />
+              <div className="flex items-center gap-2">
+                <StatusBadge status={downloadStatus} size="md" />
+                {auth.loggedIn && (
+                  <button
+                    onClick={async () => {
+                      setFavLoading(true)
+                      try {
+                        if (isFavorited) {
+                          await window.api.removeFavorite(galleryId)
+                          setIsFavorited(false)
+                        } else {
+                          await window.api.addFavorite(galleryId)
+                          setIsFavorited(true)
+                        }
+                      } catch { /* silently fail */ }
+                      setFavLoading(false)
+                    }}
+                    disabled={favLoading}
+                    className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-sm font-medium transition-colors disabled:opacity-50 ${
+                      isFavorited
+                        ? 'bg-pink-100 dark:bg-pink-900/30 text-pink-600 dark:text-pink-400 hover:bg-pink-200 dark:hover:bg-pink-900/50'
+                        : 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700'
+                    }`}
+                    title={isFavorited ? 'Remove from favorites' : 'Add to favorites'}
+                  >
+                    {favLoading ? '...' : isFavorited ? '♥' : '♡'}
+                  </button>
+                )}
+              </div>
               <span className="text-sm text-gray-500 dark:text-gray-400">{detail.num_pages} pages</span>
             </div>
 
@@ -402,32 +430,6 @@ export default function GalleryDetailPanel({
                   className="w-full px-4 py-3 rounded-lg bg-purple-600 text-white font-medium hover:bg-purple-700 transition-colors"
                 >
                   Download
-                </button>
-              )}
-
-              {auth.loggedIn && (
-                <button
-                  onClick={async () => {
-                    setFavLoading(true)
-                    try {
-                      if (isFavorited) {
-                        await window.api.removeFavorite(galleryId)
-                        setIsFavorited(false)
-                      } else {
-                        await window.api.addFavorite(galleryId)
-                        setIsFavorited(true)
-                      }
-                    } catch { /* silently fail */ }
-                    setFavLoading(false)
-                  }}
-                  disabled={favLoading}
-                  className="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
-                >
-                  {favLoading ? '...' : isFavorited ? (
-                    <span className="text-red-500">♥ Unfavorite</span>
-                  ) : (
-                    <span className="text-gray-400">♡ Favorite</span>
-                  )}
                 </button>
               )}
 
