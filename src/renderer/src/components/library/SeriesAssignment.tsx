@@ -37,13 +37,37 @@ export default function SeriesAssignment({
       setSeriesName('')
     }
 
-    // Pre-fill volumes from existing seriesIndex or sequential
+    // Pre-fill volumes from existing seriesIndex, title regex, or sequential
+    const volumePatterns = [
+      /vol\.?\s*(\d+(?:\.\d+)?)/i,
+      /ch\.?\s*(\d+(?:\.\d+)?)/i,
+      /chapter\s*(\d+(?:\.\d+)?)/i,
+      /ep\.?\s*(\d+(?:\.\d+)?)/i,
+      /episode\s*(\d+(?:\.\d+)?)/i,
+      /part\s*(\d+(?:\.\d+)?)/i,
+      /#(\d+(?:\.\d+)?)/
+    ]
+
     const next = new Map<number, string>()
     items.forEach((item, idx) => {
       if (item.seriesIndex != null) {
         next.set(item.id, String(item.seriesIndex))
       } else {
-        next.set(item.id, String(idx + 1))
+        // Try regex patterns on title first
+        const title = item.customTitle || ''
+        let found = false
+        for (const pattern of volumePatterns) {
+          const match = title.match(pattern)
+          if (match) {
+            next.set(item.id, match[1])
+            found = true
+            break
+          }
+        }
+        // Fall back to sequential
+        if (!found) {
+          next.set(item.id, String(idx + 1))
+        }
       }
     })
     setVolumes(next)
