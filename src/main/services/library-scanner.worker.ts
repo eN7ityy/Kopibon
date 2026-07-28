@@ -99,6 +99,12 @@ const XMP_SERIES_INDEX_ALT_REGEX = /<calibreSI:series_index[^>]*>([^<]+)<\/calib
 const XMP_LANGUAGE_REGEX = /<dc:language[^>]*>([^<]+)<\/dc:language>/i
 const XMP_PUBLISHER_REGEX = /<dc:publisher[^>]*>([^<]+)<\/dc:publisher>/i
 const XMP_DESCRIPTION_REGEX = /<dc:description[^>]*>([\s\S]*?)<\/dc:description>/i
+
+// XMP fields needed for pikepdf-processed files (no docinfo)
+const XMP_TITLE_REGEX = /<dc:title[^>]*>[\s\S]*?<rdf:li[^>]*>([^<]+)<\/rdf:li>/i
+const XMP_CREATOR_REGEX = /<dc:creator[^>]*>[\s\S]*?<rdf:li[^>]*>([^<]+)<\/rdf:li>/gi
+const XMP_DATE_REGEX = /<dc:date[^>]*>([^<]+)<\/dc:date>/i
+const XMP_ISBN_REGEX = /<pdfx:isbn[^>]*>(\d+)<\/pdfx:isbn>/i
 /**
  * Extract XMP metadata from raw PDF buffer by searching for the XMP packet.
  * XMP metadata streams in PDF are typically stored uncompressed for compatibility.
@@ -134,6 +140,27 @@ function extractXmpFromBuffer(buffer: Buffer): Record<string, string> {
     // dc:description (F6)
     const descM = xmp.match(XMP_DESCRIPTION_REGEX)
     if (descM) result.description = descM[1].trim()
+
+    // dc:title — fallback for pikepdf-processed files (no docinfo)
+    const titleM = xmp.match(XMP_TITLE_REGEX)
+    if (titleM) result.xmpTitle = titleM[1].trim()
+
+    // dc:creator — fallback for pikepdf-processed files
+    const creators: string[] = []
+    let creatorM: RegExpExecArray | null
+    while ((creatorM = XMP_CREATOR_REGEX.exec(xmp)) !== null) {
+      creators.push(creatorM[1].trim())
+    }
+    if (creators.length > 0) result.xmpCreators = creators.join(', ')
+
+    // dc:date — fallback for pikepdf-processed files
+    const dateM = xmp.match(XMP_DATE_REGEX)
+    if (dateM) result.xmpDate = dateM[1].trim()
+
+    // pdfx:isbn — nhentai gallery ID fallback
+    const isbnM = xmp.match(XMP_ISBN_REGEX)
+    if (isbnM) result.xmpGalleryId = isbnM[1]
+    XMP_CREATOR_REGEX.lastIndex = 0 // reset global regex
   } catch { /* XMP parse failure is non-fatal */ }
   return result
 }
@@ -199,7 +226,19 @@ async function extractPdfMetadata(filePath: string): Promise<PdfMetadata> {
   // XMP fields (will also populate from Keywords tokens above)
   if (xmp.language && !metadata.language) metadata.language = xmp.language
   if (xmp.publisher && !metadata.publisher) metadata.publisher = xmp.publisher
-  if (xmp.description) metadata.description = xmp.description
+  if (xmp.description) metadata.description = metadata.description || xmp.description
+
+  // XMP fallbacks for pikepdf-processed files (no docinfo)
+  if (!metadata.title && xmp.xmpTitle) metadata.title = xmp.xmpTitle
+  if (metadata.authors.length === 0 && xmp.xmpCreators) {
+    metadata.authors = xmp.xmpCreators.split(',').map(s => s.trim()).filter(Boolean)
+  }
+  if (!metadata.creationDate && xmp.xmpDate) {
+    try { metadata.creationDate = new Date(xmp.xmpDate) } catch { /* */ }
+  }
+  if (!metadata.galleryId && xmp.xmpGalleryId) {
+    metadata.galleryId = parseInt(xmp.xmpGalleryId, 10)
+  }
 
   return metadata
 }

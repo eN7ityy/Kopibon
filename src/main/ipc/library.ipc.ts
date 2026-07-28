@@ -8,8 +8,7 @@ import { dirname, join, basename } from 'path'
 // ─── Metadata Worker Helper ────────────────────────────────────────────────
 
 function spawnMetadataWorker(
-  command: { type: 'embed'; pdfPath: string; metadata: Record<string, unknown> }
-          | { type: 'setSeries'; pdfPath: string; seriesName: string }
+  command: { type: 'apply'; pdfPath: string; metadata: Record<string, unknown> }
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     const workerPath = pathJoin(__dirname, 'services/metadata.worker.js')
@@ -280,7 +279,7 @@ export function registerLibraryIpc(): void {
         try {
           // 1. Embed series into PDF metadata (offloaded to worker)
           try {
-            await spawnMetadataWorker({ type: 'setSeries', pdfPath: item.filePath, seriesName })
+            await spawnMetadataWorker({ type: 'apply', pdfPath: item.filePath, metadata: { seriesName } })
           } catch (err) {
             errors.push(`Failed to embed series in PDF for item ${id}: ${String(err)}`)
             // Continue — DB update is still valid
@@ -398,7 +397,7 @@ export function registerLibraryIpc(): void {
 
       // Embed metadata (offloaded to worker thread)
       await spawnMetadataWorker({
-        type: 'embed',
+        type: 'apply',
         pdfPath: finalPdfPath,
         metadata: {
           id: 0,
@@ -572,7 +571,7 @@ export function registerLibraryIpc(): void {
           : Math.floor(Date.now() / 1000)
 
         await spawnMetadataWorker({
-          type: 'embed',
+          type: 'apply',
           pdfPath: item.filePath,
           metadata: {
             id: item.galleryId ?? 0,

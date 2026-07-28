@@ -2,8 +2,8 @@
  * Download PDF Worker Thread
  *
  * Offloads CPU-bound PDF generation (pdf-lib + sharp WebP conversion),
- * metadata embedding, and thumbnail generation to a separate thread to
- * keep the Electron main process responsive.
+ * metadata embedding (pikepdf XMP), and thumbnail generation to a
+ * separate thread to keep the Electron main process responsive.
  *
  * Message Protocol:
  *   Main → Worker: { type: 'generate', imagePaths, outputPath, options,
@@ -15,7 +15,7 @@
 
 import { parentPort } from 'worker_threads'
 import { generatePdf } from './pdf-generator'
-import { embedMetadata } from './metadata-writer'
+import { applyXmpWithPikepdf, type XmpMetadata } from './xmp-inject'
 import type { PdfOptions } from './pdf-generator'
 import type { GalleryMetadata } from './metadata-writer'
 
@@ -30,11 +30,33 @@ interface GenerateCommand {
   galleryId?: number
 }
 
+function convertMetadata(meta: GalleryMetadata, language: string | null): XmpMetadata {
+  const tagNames = meta.tags.map((t) => t.name)
+  const artistNames = meta.tags.filter((t) => t.type === 'artist').map((t) => t.name)
+  const langTag = meta.tags.find((t) => t.type === 'language')
+  const langCode = language || langTag?.name || null
+
+  return {
+    title: meta.title.pretty,
+    creators: artistNames.length > 0 ? artistNames : ['Unknown'],
+    tags: tagNames,
+    nhentaiId: meta.id,
+    language: langCode,
+    date: meta.uploadDate
+      ? new Date(meta.uploadDate * 1000).toISOString()
+      : null,
+    seriesName: meta.seriesName || null,
+    seriesIndex: meta.seriesIndex != null ? meta.seriesIndex : null,
+    description: meta.description || null,
+    publisher: meta.publisher || null
+  }
+}
+
 parentPort?.on('message', async (cmd: GenerateCommand) => {
   if (cmd.type !== 'generate') return
 
   try {
-    // Step 1: Generate PDF from images
+    // Step 1: Generate PDF from images (pdf-lib)
     const outputPath = await generatePdf(
       cmd.imagePaths,
       cmd.outputPath,
@@ -44,17 +66,23 @@ parentPort?.on('message', async (cmd: GenerateCommand) => {
       }
     )
 
-    // Step 2: Embed metadata (if provided) — now in worker, not main thread
+    // Step 2: Apply full XMP metadata via pikepdf (Dr Stein format)
     if (cmd.metadata) {
       try {
-        await embedMetadata(outputPath, cmd.metadata)
+        const xmpMeta = convertMetadata(
+          cmd.metadata,
+          null
+        )
+        const result = await applyXmpWithPikepdf(outputPath, xmpMeta)
+        if (!result.success) {
+          console.error('[pdf-worker] Pikepdf XMP injection failed:', result.error)
+        }
       } catch (metaErr) {
-        // Non-fatal: metadata embedding failure shouldn't block completion
-        console.error('[pdf-worker] Metadata embedding failed:', metaErr)
+        console.error('[pdf-worker] Metadata injection error:', metaErr)
       }
     }
 
-    // Step 3: Generate thumbnail (if first image + thumbnail dir provided) — now in worker
+    // Step 3: Generate thumbnail
     let thumbnailPath: string | undefined
     if (cmd.firstImagePath && cmd.thumbnailDir && cmd.galleryId != null) {
       try {
@@ -72,7 +100,6 @@ parentPort?.on('message', async (cmd: GenerateCommand) => {
           .toFile(thumbPath)
         thumbnailPath = thumbPath
       } catch (thumbErr) {
-        // Non-critical: thumbnail generation can fail silently
         console.error('[pdf-worker] Thumbnail generation failed:', thumbErr)
       }
     }
