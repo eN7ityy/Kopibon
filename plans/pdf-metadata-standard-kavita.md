@@ -63,16 +63,24 @@ The only working XMP format was found in files processed by **pikepdf 10.8.0** i
 5. `dc:creator` MUST use `<rdf:Seq>` even for a single artist
 6. `dc:subject` SHOULD use `<rdf:Bag>` for tags (Kavita reads these as genres)
 
-### 1.4 CRITICAL: Info Dictionary Must Be Uncompressed
+### 1.4 CRITICAL: Info Dictionary Must Be Uncompressed + Traditional XRef
 
-**pikepdf's `pdf.save()` compresses the Info dictionary with FlateDecode by default. Kavita does NOT decompress the Info dict** — it reads the raw compressed bytes as garbage, resulting in no metadata being displayed. The Dr Stein files work because their Info dict was saved uncompressed.
+**Kavita has two PDF read limitations:**
 
-**Fix**: `pdf.save(path, compress_streams=False)`
+1. **Compressed Info dicts**: pikepdf's `pdf.save()` compresses the Info dictionary with FlateDecode by default. Kavita does NOT decompress the Info dict.
 
-| ❌ Broken | ✅ Working |
+2. **Cross-reference streams + Object Streams (ObjStm)**: pdf-lib generates PDFs with `/Type /XRef` cross-reference streams and compressed Object Streams. pikepdf preserves this structure by default. The Info dict ends up INSIDE a compressed ObjStm object — Kavita cannot read Info from within an ObjStm.
+
+**Fix**: `pdf.save(path, compress_streams=False, object_stream_mode=0)`
+
+- `compress_streams=False` — prevents FlateDecode compression of individual objects
+- `object_stream_mode=0` — disables Object Streams, uses traditional `xref` table format
+
+| ❌ Broken | ✅ Working (Dr Stein format) |
 |----------|----------|
-| Info dict: `/Filter /FlateDecode` | Info dict: plain text with `/Title (...)`, `/Author (...)`, etc. |
-| Kavita sees: compressed binary garbage | Kavita reads: correct Title, Author, Keywords |
+| `/Type /XRef` + `/ObjStm` | Traditional `xref` table |
+| Info dict: inside compressed ObjStm or FlateDecode | Info dict: plain dictionary with `/Title`, `/Author`, `/Keywords` |
+| Kavita sees: nothing | Kavita reads: correct metadata |
 
 ### 1.5 ALL Required Fields (confirmed by forensic comparison)
 
@@ -487,8 +495,8 @@ def process_pdf(input_path: str, output_path: str, metadata: dict):
     # Inject
     inject_xmp(pdf, xmp)
     
-    # Save
-    pdf.save(output_path)
+    # Save with traditional xref + uncompressed streams
+    pdf.save(output_path, compress_streams=False, object_stream_mode=0)
     pdf.close()
 
 
