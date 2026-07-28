@@ -119,7 +119,7 @@ pdf = Pdf.open(pdf_path)
 # Write docinfo fields alongside XMP (Kavita reads both)
 pdf.docinfo['/Title'] = data.get('title', '')
 pdf.docinfo['/Author'] = data.get('author', '')
-pdf.docinfo['/Keywords'] = data.get('keywords', '') + (data.get('publisher', '') ? ', publisher:' + data.get('publisher', '') : '')
+pdf.docinfo['/Keywords'] = data.get('keywords', '') + (', publisher:' + data.get('publisher', '') if data.get('publisher', '') else '')
 pdf.docinfo['/Trapped'] = '/False'
 
 # Nuke existing catalog Metadata reference
