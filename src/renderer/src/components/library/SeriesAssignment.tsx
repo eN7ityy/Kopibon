@@ -25,12 +25,26 @@ export default function SeriesAssignment({
   const [applying, setApplying] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Initialize per-item volumes with sequential defaults when modal opens
+  // Pre-fill series name and volumes from existing data
   useEffect(() => {
     if (!isOpen) return
+
+    // Pre-fill series name if all items have the same series
+    const allSeries = items.map((i) => i.seriesName).filter(Boolean)
+    if (allSeries.length === items.length && new Set(allSeries).size === 1) {
+      setSeriesName(allSeries[0]!)
+    } else {
+      setSeriesName('')
+    }
+
+    // Pre-fill volumes from existing seriesIndex or sequential
     const next = new Map<number, string>()
     items.forEach((item, idx) => {
-      next.set(item.id, String(idx + 1))
+      if (item.seriesIndex != null) {
+        next.set(item.id, String(item.seriesIndex))
+      } else {
+        next.set(item.id, String(idx + 1))
+      }
     })
     setVolumes(next)
   }, [isOpen])
