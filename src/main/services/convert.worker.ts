@@ -46,7 +46,7 @@ parentPort?.on('message', async (cmd: ConvertCommand) => {
     }
 
     // Step 2: Rename file if needed (move [nhentai-XXXXX] to end)
-    if (metadata.nhentaiId) {
+    if (metadata.nhentaiId != null) {
       const dir = dirname(filePath)
       const currentName = basename(filePath)
       const prefixPattern = new RegExp(`^\\[nhentai-${metadata.nhentaiId}\\]\\s*`)

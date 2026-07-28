@@ -738,7 +738,7 @@ export function registerLibraryIpc(): void {
 
         const processNext = () => {
           if (conversionCancelled || queueIndex >= total) {
-            worker.postMessage({ type: 'cancel' })
+            worker.terminate().then(() => resolve()).catch(() => resolve())
             return
           }
           currentItem = items[queueIndex++]
