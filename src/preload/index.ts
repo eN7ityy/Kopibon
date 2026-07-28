@@ -143,6 +143,16 @@ const api = {
     ipcRenderer.on('library:newItems', handler)
     return () => ipcRenderer.removeListener('library:newItems', handler)
   },
+  onSyncProgress: (callback: (progress: { current: number; total: number; title: string; etaSeconds: number | null }) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, progress: { current: number; total: number; title: string; etaSeconds: number | null }) => callback(progress)
+    ipcRenderer.on('library:syncProgress', handler)
+    return () => ipcRenderer.removeListener('library:syncProgress', handler)
+  },
+  onSyncComplete: (callback: (data: { succeeded: number; failed: number; total: number }) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: { succeeded: number; failed: number; total: number }) => callback(data)
+    ipcRenderer.on('library:syncComplete', handler)
+    return () => ipcRenderer.removeListener('library:syncComplete', handler)
+  },
   onConvertProgress: (callback: (progress: { current: number; total: number; converted: number; failed: number }) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, progress: { current: number; total: number; converted: number; failed: number }) => callback(progress)
     ipcRenderer.on('library:convertProgress', handler)

@@ -901,6 +901,12 @@ export function registerLibraryIpc(): void {
     const win = BrowserWindow.fromWebContents(event.sender)
     let succeeded = 0
     let failed = 0
+    const total = ids.length
+    const startTime = Date.now()
+
+    if (win) {
+      win.webContents.send('library:syncProgress', { current: 0, total, title: 'Starting...', etaSeconds: null })
+    }
 
     for (let i = 0; i < ids.length; i++) {
       const item = libraryRepo.findById(ids[i])
@@ -915,10 +921,28 @@ export function registerLibraryIpc(): void {
       if (result.success) succeeded++
       else failed++
 
-      // 3-second delay between syncs to respect rate limit
+      // Send progress to renderer
+      if (win) {
+        const elapsed = (Date.now() - startTime) / 1000
+        const rate = (i + 1) / Math.max(elapsed, 1)
+        const eta = rate > 0 ? Math.round((total - i - 1) / rate) : null
+        win.webContents.send('library:syncProgress', {
+          current: i + 1,
+          total,
+          title: `Syncing #${item?.galleryId || '?'}`,
+          etaSeconds: eta
+        })
+      }
+
+      // 3-second delay between syncs
       if (i < ids.length - 1) {
         await new Promise((r) => setTimeout(r, 3000))
       }
+    }
+
+    // Send completion
+    if (win) {
+      win.webContents.send('library:syncComplete', { succeeded, failed, total })
     }
 
     // Send notification

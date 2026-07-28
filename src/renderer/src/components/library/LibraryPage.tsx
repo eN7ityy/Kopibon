@@ -9,6 +9,7 @@ import EmptyState from '../shared/EmptyState'
 import ErrorState from '../shared/ErrorState'
 import LoadingSkeleton from '../shared/LoadingSkeleton'
 import { useConversionStore } from '../../stores/conversion.store'
+import SyncProgressBar from './SyncProgressBar'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -445,6 +446,7 @@ export default function LibraryPage(): React.JSX.Element {
           )}
         </p>
       </div>
+      <SyncProgressBar />
 
       {/* Error banner */}
       {error && (
