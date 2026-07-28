@@ -104,7 +104,7 @@ export const libraryRepo = {
     if (params.searchQuery) {
       const q = params.searchQuery.replace(/'/g, "''")
       conditions.push(
-        `(custom_title LIKE '%${q}%' OR primary_artist LIKE '%${q}%' OR series_name LIKE '%${q}%')`
+        `(custom_title LIKE '%${q}%' COLLATE NOCASE OR primary_artist LIKE '%${q}%' COLLATE NOCASE OR series_name LIKE '%${q}%' COLLATE NOCASE OR custom_tags LIKE '%${q}%' COLLATE NOCASE OR publisher LIKE '%${q}%' COLLATE NOCASE OR language LIKE '%${q}%' COLLATE NOCASE OR description LIKE '%${q}%' COLLATE NOCASE)`
       )
     }
     if (params.artistFilters && params.artistFilters.length > 0) {
