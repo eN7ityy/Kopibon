@@ -224,22 +224,34 @@ export default function GalleryDetailPanel({
 
         {detail && !loading && !error && (
           <div className="p-6">
-            {/* Cover image */}
-            <div className="aspect-[3/4] max-w-sm mx-auto mb-6 bg-gray-200 dark:bg-gray-800 rounded-lg overflow-hidden">
+            {/* Cover image — clickable to open gallery viewer */}
+            <button
+              onClick={() => setShowViewer(true)}
+              className="aspect-[3/4] max-w-sm mx-auto mb-6 bg-gray-200 dark:bg-gray-800 rounded-lg overflow-hidden block w-full relative group cursor-pointer"
+              title="Read gallery"
+            >
               {coverUrl && !imgError ? (
-                <img
-                  src={coverUrl}
-                  alt={detail.title.pretty}
-                  draggable={false}
-                  onError={() => setImgError(true)}
-                  className="w-full h-full object-cover"
-                />
+                <>
+                  <img
+                    src={coverUrl}
+                    alt={detail.title.pretty}
+                    draggable={false}
+                    onError={() => setImgError(true)}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                  />
+                  {/* Hover overlay */}
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
+                    <span className="text-white text-lg font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+                      📖 Read
+                    </span>
+                  </div>
+                </>
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-gray-400">
                   <span className="text-5xl">📖</span>
                 </div>
               )}
-            </div>
+            </button>
 
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
@@ -491,13 +503,6 @@ export default function GalleryDetailPanel({
                   Download
                 </button>
               )}
-
-              <button
-                onClick={() => setShowViewer(true)}
-                className="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-              >
-                📖 Read
-              </button>
 
               <button
                 onClick={() => window.api.shell.openExternal(`https://nhentai.net/g/${galleryId}`)}
