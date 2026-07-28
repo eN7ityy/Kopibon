@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { VirtuosoGrid } from 'react-virtuoso'
+import { VirtuosoGrid, Virtuoso } from 'react-virtuoso'
 import type { LibraryItemData } from './LibraryCard'
 import LibraryCard from './LibraryCard'
 import SeriesAssignment from './SeriesAssignment'
@@ -14,6 +14,9 @@ import SyncProgressBar from './SyncProgressBar'
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 type SortField = 'added' | 'title' | 'artist'
+type ViewMode = 'grid' | 'compact' | 'list'
+
+const VIEW_MODE_KEY = 'library.viewMode'
 
 interface ScanProgress {
   current: number
@@ -178,6 +181,15 @@ export default function LibraryPage(): React.JSX.Element {
 
   // Path accessibility
   const [pathAccessible, setPathAccessible] = useState<boolean | null>(null)
+
+  // View mode (persisted to localStorage)
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    try {
+      const saved = localStorage.getItem(VIEW_MODE_KEY)
+      if (saved === 'grid' || saved === 'compact' || saved === 'list') return saved
+    } catch { /* ignore */ }
+    return 'grid'
+  })
 
   // ─── Fetch page from DB ────────────────────────────────────────────────────
 
@@ -479,17 +491,25 @@ export default function LibraryPage(): React.JSX.Element {
   // ─── Virtuoso Grid List Component ──────────────────────────────────────────
 
   const virtuosoList = useMemo(() => {
+    const gridCols = viewMode === 'compact'
+      ? 'grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12 gap-2'
+      : 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4'
     return React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
       (props, ref) => (
         <div
           ref={ref}
           {...props}
-          className={
-            `grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 ${props.className || ''}`
-          }
+          className={`${gridCols} ${props.className || ''}`}
         />
       )
     )
+  }, [viewMode])
+
+  // ─── View mode persistence ─────────────────────────────────────────────────
+
+  const setViewModePersisted = useCallback((mode: ViewMode) => {
+    setViewMode(mode)
+    try { localStorage.setItem(VIEW_MODE_KEY, mode) } catch { /* ignore */ }
   }, [])
 
   // ─── Loading State ─────────────────────────────────────────────────────────
@@ -671,6 +691,24 @@ export default function LibraryPage(): React.JSX.Element {
             <span className="ml-1 text-xs">({selectedArtistFilters.size + selectedSeriesFilters.size + (showUnmatchedOnly ? 1 : 0)})</span>
           )}
         </button>
+
+        {/* View mode toggle */}
+        <div className="flex rounded-lg border border-gray-300 dark:border-gray-600 overflow-hidden">
+          {(['grid', 'compact', 'list'] as ViewMode[]).map((mode) => (
+            <button
+              key={mode}
+              onClick={() => setViewModePersisted(mode)}
+              className={`px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                viewMode === mode
+                  ? 'bg-purple-600 text-white'
+                  : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+              }`}
+              title={mode === 'grid' ? 'Grid view' : mode === 'compact' ? 'Compact view' : 'List view'}
+            >
+              {mode === 'grid' ? '▦' : mode === 'compact' ? '⊞' : '☰'}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Scan progress bar */}
@@ -750,6 +788,91 @@ export default function LibraryPage(): React.JSX.Element {
       {/* Content area */}
       {items.length === 0 ? (
         <EmptyState icon="📚" title="Library is empty" description="Download your first doujin or add a custom entry to get started" actionLabel="Rescan Library" onAction={handleRescan} />
+      ) : viewMode === 'list' ? (
+        <div className="flex-1">
+          <Virtuoso
+            totalCount={items.length}
+            endReached={loadMore}
+            overscan={400}
+            useWindowScroll={false}
+            components={{
+              Footer: hasMore
+                ? () => (
+                    <div className="flex justify-center py-4">
+                      <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+                    </div>
+                  )
+                : undefined as any
+            }}
+            itemContent={(index) => {
+              const item = items[index]
+              if (!item) return null
+              const title = item.customTitle || item.primaryArtist || `Item #${item.id}`
+              const formatSize = (bytes: number | null): string => {
+                if (!bytes) return '—'
+                if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+                return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+              }
+              const addedDate = new Date(item.addedAt).toLocaleDateString()
+              return (
+                <div
+                  className={`flex items-center gap-3 px-4 py-2 border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer transition-colors ${selectedIds.has(item.id) ? 'bg-purple-50 dark:bg-purple-900/20' : ''}`}
+                  onClick={() => {
+                    if (selectMode) {
+                      toggleSelect(item.id)
+                    } else {
+                      const found = items.find((i) => i.id === item.id)
+                      if (found) setDetailItem(found)
+                    }
+                  }}
+                >
+                  {/* Checkbox */}
+                  <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(item.id)}
+                      onChange={() => handleCheckboxToggle(item.id)}
+                      className="w-3.5 h-3.5 rounded border-gray-400 text-purple-600 focus:ring-purple-500"
+                    />
+                  </div>
+                  {/* Title */}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{title}</p>
+                  </div>
+                  {/* Artist */}
+                  <div className="w-32 shrink-0">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{item.primaryArtist || '—'}</p>
+                  </div>
+                  {/* Series */}
+                  <div className="w-28 shrink-0">
+                    <p className="text-xs text-blue-600 dark:text-blue-400 truncate">{item.seriesName || '—'}</p>
+                  </div>
+                  {/* Volume */}
+                  <div className="w-12 shrink-0 text-right">
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{item.seriesIndex != null ? `V${item.seriesIndex}` : '—'}</p>
+                  </div>
+                  {/* Language */}
+                  <div className="w-16 shrink-0">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{item.language || item.customLanguage || '—'}</p>
+                  </div>
+                  {/* Format */}
+                  <div className="w-14 shrink-0">
+                    <span className="text-xs px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300">{item.format?.toUpperCase() || 'PDF'}</span>
+                  </div>
+                  {/* Size */}
+                  <div className="w-20 shrink-0 text-right">
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{formatSize(item.fileSize)}</p>
+                  </div>
+                  {/* Date */}
+                  <div className="w-24 shrink-0 text-right">
+                    <p className="text-xs text-gray-400">{addedDate}</p>
+                  </div>
+                </div>
+              )
+            }}
+            style={{ height: '100%' }}
+          />
+        </div>
       ) : (
         <div className="flex-1">
           <VirtuosoGrid
@@ -776,6 +899,7 @@ export default function LibraryPage(): React.JSX.Element {
                   item={item}
                   selected={selectedIds.has(item.id)}
                   onToggleSelect={handleCheckboxToggle}
+                  compact={viewMode === 'compact'}
                   onClick={(id) => {
                     if (selectMode) {
                       toggleSelect(id)

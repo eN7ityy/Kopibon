@@ -31,6 +31,7 @@ interface LibraryCardProps {
   onToggleSelect: (id: number) => void
   onClick: (id: number) => void
   onContextMenu?: (id: number, event: React.MouseEvent) => void
+  compact?: boolean
 }
 
 interface ContextMenuState {
@@ -44,7 +45,8 @@ export default function LibraryCard({
   selected,
   onToggleSelect,
   onClick,
-  onContextMenu
+  onContextMenu,
+  compact = false
 }: LibraryCardProps): React.JSX.Element {
   const [imgError, setImgError] = useState(false)
   const [thumbDataUrl, setThumbDataUrl] = useState<string | null>(null)
@@ -129,7 +131,7 @@ export default function LibraryCard({
         className="text-left w-full"
       >
         {/* Cover image */}
-        <div className="aspect-[3/4] bg-gray-200 dark:bg-gray-700 relative overflow-hidden">
+        <div className={`${compact ? 'aspect-[2/3]' : 'aspect-[3/4]'} bg-gray-200 dark:bg-gray-700 relative overflow-hidden`}>
           {coverSrc ? (
             <img
               src={coverSrc}
@@ -141,30 +143,32 @@ export default function LibraryCard({
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-gray-400">
-              <span className="text-3xl">📖</span>
+              <span className={compact ? 'text-xl' : 'text-3xl'}>📖</span>
             </div>
           )}
 
-          {/* Format badge */}
-          <span className="absolute top-2 right-2 bg-purple-600/80 text-white text-xs px-1.5 py-0.5 rounded font-medium">
-            {item.format?.toUpperCase() || 'PDF'}
-          </span>
+          {/* Format badge — hide in compact mode */}
+          {!compact && (
+            <span className="absolute top-2 right-2 bg-purple-600/80 text-white text-xs px-1.5 py-0.5 rounded font-medium">
+              {item.format?.toUpperCase() || 'PDF'}
+            </span>
+          )}
         </div>
 
         {/* Info section */}
-        <div className="p-3 space-y-1">
+        <div className={compact ? 'p-1.5 space-y-0.5' : 'p-3 space-y-1'}>
           {/* Title */}
-          <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100 line-clamp-2 leading-snug">
+          <h3 className={`${compact ? 'text-xs' : 'text-sm'} font-medium text-gray-900 dark:text-gray-100 line-clamp-2 leading-snug`}>
             {title}
           </h3>
 
           {/* Artist */}
-          <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+          <p className={`${compact ? 'text-[10px]' : 'text-xs'} text-gray-500 dark:text-gray-400 truncate`}>
             {artist}
           </p>
 
-          {/* Series badge if set — single line, truncated */}
-          {item.seriesName && (
+          {/* Series badge — hide in compact mode */}
+          {!compact && item.seriesName && (
             <p className="text-xs text-blue-600 dark:text-blue-400 truncate">
               {item.seriesName}
             </p>
