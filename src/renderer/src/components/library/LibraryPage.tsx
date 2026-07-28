@@ -242,7 +242,6 @@ export default function LibraryPage(): React.JSX.Element {
           })
         }
         if (newItems.length > 0) {
-          setTotalCount((t) => t + newItems.length)
           return [...newItems, ...prev]
         }
         return prev
