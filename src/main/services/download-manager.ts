@@ -179,8 +179,11 @@ export class DownloadManager {
       const totalPages = gallery.num_pages
 
       // Extract primary artist from tags
+      // Artist priority: artist tag → group tag → 'Unknown'
       const primaryArtist =
-        gallery.tags.find((t) => t.type === 'artist')?.name || 'Unknown'
+        gallery.tags.find((t) => t.type === 'artist')?.name ||
+        gallery.tags.find((t) => t.type === 'group')?.name ||
+        'Unknown'
       // Determine library root from settings (stored as 'libraryPath')
       const libraryRoot =
         settingsRepo.get('libraryPath') ||
@@ -364,7 +367,8 @@ export class DownloadManager {
         title: gallery.title,
         tags: gallery.tags,
         uploadDate: gallery.upload_date,
-        numPages: gallery.num_pages
+        numPages: gallery.num_pages,
+        publisher: gallery.tags.find((t) => t.type === 'group')?.name || undefined
       }
 
       const workerResult = await new Promise<{ thumbnailPath?: string }>((resolve, reject) => {
