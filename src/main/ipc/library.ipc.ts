@@ -686,88 +686,120 @@ export function registerLibraryIpc(): void {
 
   // ─── Batch Metadata Conversion ───────────────────────────────────────
 
+  let conversionCancelled = false
+  const CONVERSION_CONCURRENCY = 3
+
   ipcMain.handle('library:convertAllMetadata', async (event) => {
     const win = BrowserWindow.fromWebContents(event.sender)
     if (!win) return { success: false, error: 'No window found' }
 
-    try {
-      const items = libraryRepo.findAll()
-      const { applyXmpWithPikepdf } = await import('../services/xmp-inject')
-      const { renameSync, existsSync } = await import('fs')
-      const { basename, dirname, join } = await import('path')
+    conversionCancelled = false
+    const items = libraryRepo.findAll()
+    const total = items.length
+    let queueIndex = 0
+    let converted = 0
+    let failed = 0
+    const errors: string[] = []
+    const logLines: string[] = []
 
-      let converted = 0
-      let failed = 0
-      const errors: string[] = []
+    function sendProgress() {
+      win!.webContents.send('library:convertProgress', {
+        current: converted + failed,
+        total,
+        converted,
+        failed,
+        logLines: logLines.splice(0, logLines.length) // send and clear
+      })
+    }
 
-      for (let i = 0; i < items.length; i++) {
-        const item = items[i]
-
-        try {
-          // Build XMP metadata from DB record
-          const tags = item.customTags
-            ? item.customTags.split(',').map((t: string) => t.trim()).filter(Boolean)
-            : []
-
-          const result = await applyXmpWithPikepdf(item.filePath, {
-            title: item.customTitle || `Gallery #${item.galleryId || item.id}`,
-            creators: [item.primaryArtist || 'Unknown'],
-            tags,
-            nhentaiId: item.galleryId,
-            seriesName: item.seriesName,
-            seriesIndex: item.seriesIndex ?? undefined,
-            language: item.language || item.customLanguage,
-            publisher: item.publisher || undefined,
-            description: item.description || undefined
-          })
-
-          if (result.success) {
-            // Rename file if needed (move [nhentai-XXXXX] to end)
-            if (item.galleryId) {
-              const dir = dirname(item.filePath)
-              const currentName = basename(item.filePath)
-              const prefixPattern = new RegExp(`^\\[nhentai-${item.galleryId}\\]\\s*`)
-              if (prefixPattern.test(currentName)) {
-                const newName = currentName.replace(prefixPattern, '').replace(/\.pdf$/, '') + ` [nhentai-${item.galleryId}].pdf`
-                const newPath = join(dir, newName)
-                if (newPath !== item.filePath && existsSync(item.filePath)) {
-                  try {
-                    renameSync(item.filePath, newPath)
-                    libraryRepo.update(item.id, { filePath: newPath } as Record<string, unknown>)
-                  } catch (renameErr) {
-                    errors.push(`${currentName}: rename failed - ${String(renameErr)}`)
-                  }
-                }
-              }
-            }
-
-            converted++
-          } else {
-            failed++
-            errors.push(`${basename(item.filePath)}: ${result.error || 'pikepdf failed'}`)
-          }
-        } catch (itemErr) {
-          failed++
-          errors.push(`${basename(item.filePath)}: ${String(itemErr)}`)
-        }
-
-        // Send progress every 10 items
-        if (i % 10 === 0 || i === items.length - 1) {
-          win.webContents.send('library:convertProgress', {
-            current: i + 1,
-            total: items.length,
-            converted,
-            failed
-          })
-        }
+    function buildMetadata(item: ReturnType<typeof libraryRepo.findById>): Record<string, unknown> {
+      if (!item) return {}
+      const tags = item.customTags
+        ? item.customTags.split(',').map((t: string) => t.trim()).filter(Boolean)
+        : []
+      return {
+        title: item.customTitle || `Gallery #${item.galleryId || item.id}`,
+        creators: [item.primaryArtist || 'Unknown'],
+        tags,
+        nhentaiId: item.galleryId,
+        seriesName: item.seriesName,
+        seriesIndex: item.seriesIndex,
+        language: item.language || item.customLanguage,
+        publisher: item.publisher,
+        description: item.description
       }
+    }
+
+    function spawnWorker(): Promise<void> {
+      return new Promise((resolve) => {
+        const workerPath = pathJoin(__dirname, 'services/convert.worker.js')
+        const worker = new Worker(workerPath)
+        let currentItem: ReturnType<typeof libraryRepo.findById> | null = null
+
+        const processNext = () => {
+          if (conversionCancelled || queueIndex >= total) {
+            worker.postMessage({ type: 'cancel' })
+            return
+          }
+          currentItem = items[queueIndex++]
+          if (!currentItem) return
+          worker.postMessage({
+            type: 'convert',
+            item: {
+              id: currentItem.id,
+              filePath: currentItem.filePath,
+              metadata: buildMetadata(currentItem)
+            }
+          })
+        }
+
+        worker.on('message', (msg: { type: string; itemId?: number; success?: boolean; newPath?: string; error?: string; log?: string }) => {
+          if (msg.type === 'done') {
+            if (msg.success) {
+              converted++
+              if (msg.newPath && currentItem && msg.newPath !== currentItem.filePath) {
+                try { libraryRepo.update(currentItem.id, { filePath: msg.newPath } as Record<string, unknown>) } catch { /* */ }
+              }
+            } else {
+              failed++
+              if (msg.error) errors.push(msg.error)
+            }
+            if (msg.log) logLines.push(msg.log)
+
+            sendProgress()
+            processNext()
+          }
+        })
+
+        worker.on('error', () => { failed++; processNext() })
+        worker.on('exit', (code) => {
+          if (code !== 0 && currentItem) { failed++; sendProgress() }
+          resolve()
+        })
+
+        processNext()
+      })
+    }
+
+    try {
+      // Start N parallel workers
+      const workers = Array.from({ length: CONVERSION_CONCURRENCY }, () => spawnWorker())
+      await Promise.all(workers)
+
+      // Final progress
+      sendProgress()
 
       return {
         success: true,
-        data: { converted, failed, total: items.length, errors: errors.length > 0 ? errors.slice(0, 20) : undefined }
+        data: { converted, failed, total, cancelled: conversionCancelled, errors: errors.slice(0, 20) }
       }
     } catch (error) {
       return { success: false, error: String(error) }
     }
+  })
+
+  ipcMain.handle('library:cancelConversion', async () => {
+    conversionCancelled = true
+    return { success: true }
   })
 }

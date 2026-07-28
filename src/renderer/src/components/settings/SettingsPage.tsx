@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useSettingsStore } from '../../stores/settings.store'
+import { useConversionStore } from '../../stores/conversion.store'
 import { useUiStore } from '../../stores/ui.store'
 import { useAuthStore } from '../../stores/auth.store'
 import type { ThemeMode } from '../../stores/ui.store'
@@ -392,55 +393,116 @@ function AppVersion(): React.JSX.Element {
 }
 
 function MetadataConverter(): React.JSX.Element {
-  const [converting, setConverting] = useState(false)
-  const [progress, setProgress] = useState<{ current: number; total: number; converted: number; failed: number } | null>(null)
-  const [result, setResult] = useState<string | null>(null)
+  const store = useConversionStore()
+  const [showConfirm, setShowConfirm] = useState(false)
+  const logRef = useRef<HTMLDivElement>(null)
 
+  // Auto-scroll log to bottom
   useEffect(() => {
-    if (!converting) return undefined
+    if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight
+  }, [store.logLines])
+
+  // Listen for progress from main process when running
+  useEffect(() => {
+    if (!store.running) return undefined
     const cleanup = window.api.onConvertProgress((p) => {
-      setProgress(p)
+      store.updateProgress({
+        current: p.current,
+        total: p.total,
+        converted: p.converted,
+        failed: p.failed,
+        logLines: (p as any).logLines
+      })
     })
     return () => { cleanup() }
-  }, [converting])
+  }, [store.running])
 
-  const handleConvert = async (): Promise<void> => {
-    setConverting(true)
-    setResult(null)
-    setProgress(null)
+  const handleStart = async () => {
+    setShowConfirm(false)
+    store.setRunning(true)
+    store.reset()
     try {
       const r = await window.api.library.convertAllMetadata()
       if (r.success && r.data) {
-        const d = r.data as { converted: number; failed: number; total: number; errors?: string[] }
-        setResult(`Done: ${d.converted} converted, ${d.failed} failed (${d.total} total)`)
+        const d = r.data as any
+        store.addLogLine(`COMPLETE: ${d.converted} converted, ${d.failed} failed, ${d.total} total`)
       } else {
-        setResult(`Error: ${r.error || 'Unknown'}`)
+        store.addLogLine(`ERROR: ${r.error || 'Unknown'}`)
       }
     } catch (e) {
-      setResult(`Error: ${String(e)}`)
+      store.addLogLine(`ERROR: ${String(e)}`)
     }
-    setConverting(false)
+    store.setRunning(false)
   }
+
+  const handleCancel = async () => {
+    await window.api.library.cancelConversion()
+    store.addLogLine('Cancelling after current items finish...')
+  }
+
+  const pct = store.total > 0 ? Math.round((store.current / store.total) * 100) : 0
+  const etaMin = Math.floor(store.etaSeconds / 60)
+  const etaSec = store.etaSeconds % 60
+  const etaStr = store.etaSeconds > 0
+    ? `${etaMin}m ${etaSec}s remaining`
+    : ''
 
   return (
     <div className="space-y-2">
       <button
-        onClick={handleConvert}
-        disabled={converting}
+        onClick={() => setShowConfirm(true)}
+        disabled={store.running}
         className="px-4 py-2 rounded-lg border border-orange-300 dark:border-orange-700 bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 text-sm font-medium hover:bg-orange-100 dark:hover:bg-orange-900/30 disabled:opacity-50 transition-colors"
       >
-        {converting ? 'Converting...' : 'Convert Library Metadata'}
+        {store.running ? 'Converting...' : 'Convert Library Metadata'}
       </button>
       <p className="text-xs text-gray-400 dark:text-gray-500">
         Re-applies correct XMP metadata to all files and fixes filenames.
       </p>
-      {progress && (
-        <p className="text-xs text-purple-600 dark:text-purple-400">
-          {progress.current}/{progress.total} ({progress.converted} ok, {progress.failed} failed)
-        </p>
+
+      {/* Confirmation Dialog */}
+      {showConfirm && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 max-w-md mx-4 shadow-2xl">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Convert Library Metadata?</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              This will rewrite XMP metadata on ALL files in your library using pikepdf. This may take several minutes for large libraries. Downloads and other operations will not be affected.
+            </p>
+            <div className="flex gap-3">
+              <button onClick={handleStart} className="flex-1 px-4 py-2 rounded-lg bg-orange-600 text-white text-sm font-medium hover:bg-orange-700">Start Conversion</button>
+              <button onClick={() => setShowConfirm(false)} className="flex-1 px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm">Cancel</button>
+            </div>
+          </div>
+        </div>
       )}
-      {result && (
-        <p className="text-xs text-green-600 dark:text-green-400">{result}</p>
+
+      {/* Progress bar */}
+      {store.running && (
+        <div className="space-y-1">
+          <div className="flex justify-between text-xs text-gray-500">
+            <span>{store.current}/{store.total} ({store.converted} ok, {store.failed} fail)</span>
+            <span>{etaStr}</span>
+          </div>
+          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+            <div className="bg-orange-500 h-2 rounded-full transition-all duration-300" style={{ width: `${pct}%` }} />
+          </div>
+        </div>
+      )}
+
+      {/* Scrollable log */}
+      {store.logLines.length > 0 && (
+        <div ref={logRef} className="max-h-40 overflow-y-auto rounded-lg bg-gray-900 text-green-400 text-xs font-mono p-2 space-y-0.5">
+          {store.logLines.map((line, i) => (
+            <div key={i} className={line.startsWith('ERROR') || line.startsWith('FAIL') ? 'text-red-400' : line.startsWith('COMPLETE') ? 'text-yellow-300' : ''}>{line}</div>
+          ))}
+        </div>
+      )}
+
+      {/* Cancel button */}
+      {store.running && (
+        <button onClick={handleCancel} className="px-3 py-1 rounded text-xs border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20">
+          Cancel Conversion
+        </button>
       )}
     </div>
   )

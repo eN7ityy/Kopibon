@@ -8,6 +8,7 @@ import LibraryDetail from './LibraryDetail'
 import EmptyState from '../shared/EmptyState'
 import ErrorState from '../shared/ErrorState'
 import LoadingSkeleton from '../shared/LoadingSkeleton'
+import { useConversionStore } from '../../stores/conversion.store'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -37,6 +38,8 @@ const PAGE_SIZE = 100
 // ─── Library Page ────────────────────────────────────────────────────────────
 
 export default function LibraryPage(): React.JSX.Element {
+  const conversionStore = useConversionStore()
+
   // Paginated data
   const [items, setItems] = useState<LibraryItemData[]>([])
   const [totalCount, setTotalCount] = useState(0)
@@ -447,6 +450,12 @@ export default function LibraryPage(): React.JSX.Element {
         <div className="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 text-sm flex items-center justify-between">
           <span>⚠️ {error}</span>
           <button onClick={() => setError(null)} className="ml-2 text-red-500 hover:text-red-700 dark:hover:text-red-300">✕</button>
+          {conversionStore.running && (
+            <div className="mt-1 p-1.5 rounded bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 text-orange-700 dark:text-orange-400 text-xs flex items-center gap-2">
+              <div className="w-3 h-3 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+              Converting metadata... {conversionStore.current}/{conversionStore.total}
+            </div>
+          )}
         </div>
       )}
 
@@ -461,7 +470,12 @@ export default function LibraryPage(): React.JSX.Element {
       <div className="flex flex-wrap items-center gap-3 mb-4">
         {/* Rescan / Pause / Resume button */}
         {!scanning && !scanPaused && (
-          <button onClick={handleRescan} className="px-4 py-2 rounded-lg bg-purple-600 text-white font-medium text-sm hover:bg-purple-700 transition-colors flex items-center gap-2">
+          <button
+            onClick={handleRescan}
+            disabled={conversionStore.running}
+            title={conversionStore.running ? 'Scan disabled during metadata conversion' : 'Rescan Library'}
+            className="px-4 py-2 rounded-lg bg-purple-600 text-white font-medium text-sm hover:bg-purple-700 transition-colors flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
             🔄 Rescan Library
           </button>
         )}
