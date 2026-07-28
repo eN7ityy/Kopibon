@@ -117,9 +117,10 @@ output_path = data.get('outputPath', pdf_path)
 
 pdf = Pdf.open(pdf_path)
 
-# Clear all docinfo fields (Title, Author, Keywords, etc.)
-for key in list(pdf.docinfo.keys()):
-    del pdf.docinfo[key]
+# Write docinfo fields alongside XMP (Kavita reads both)
+pdf.docinfo['/Title'] = data.get('title', '')
+pdf.docinfo['/Author'] = data.get('author', '')
+pdf.docinfo['/Keywords'] = data.get('keywords', '')
 
 # Nuke existing catalog Metadata reference
 if Name.Metadata in pdf.Root:
@@ -185,7 +186,13 @@ export function applyXmpWithPikepdf(
     })
 
     // Send metadata via stdin
-    proc.stdin.write(JSON.stringify({ pdfPath, xmp }) + '\n')
+    proc.stdin.write(JSON.stringify({
+      pdfPath,
+      xmp,
+      title: metadata.title,
+      author: metadata.creators.join(', '),
+      keywords: metadata.tags.join(', ')
+    }) + '\n')
     proc.stdin.end()
   })
 }
@@ -232,7 +239,14 @@ export function applyXmpToNewFile(
       }
     })
 
-    proc.stdin.write(JSON.stringify({ pdfPath, outputPath, xmp }) + '\n')
+    proc.stdin.write(JSON.stringify({
+      pdfPath,
+      outputPath,
+      xmp,
+      title: metadata.title,
+      author: metadata.creators.join(', '),
+      keywords: metadata.tags.join(', ')
+    }) + '\n')
     proc.stdin.end()
   })
 }
