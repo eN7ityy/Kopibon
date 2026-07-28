@@ -89,7 +89,17 @@ parentPort?.on('message', async (cmd: SyncCommand) => {
     const result = await applyXmpWithPikepdf(cmd.filePath, meta)
 
     if (result.success) {
-      parentPort?.postMessage({ type: 'complete', itemId: cmd.itemId, success: true })
+      parentPort?.postMessage({
+        type: 'complete',
+        itemId: cmd.itemId,
+        success: true,
+        metadata: {
+          title,
+          primaryArtist: artistTags[0] || 'Unknown',
+          tags: allTags.join(', '),
+          language: language || null
+        }
+      })
     } else {
       parentPort?.postMessage({
         type: 'error',

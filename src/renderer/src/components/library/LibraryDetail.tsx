@@ -46,6 +46,7 @@ export default function LibraryDetail({
   const [saving, setSaving] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState<'none' | 'remove' | 'deleteFile'>('none')
   const [deleting, setDeleting] = useState(false)
+  const [detailSyncing, setDetailSyncing] = useState(false)
   const [thumbDataUrl, setThumbDataUrl] = useState<string | null>(null)
 
   // Autocomplete suggestions for tags
@@ -318,7 +319,27 @@ export default function LibraryDetail({
               <div><span className="text-xs font-medium text-gray-500 dark:text-gray-400">Format</span><p className="text-sm text-gray-900 dark:text-gray-100">{detail.format?.toUpperCase() || 'PDF'}</p></div>
               <div><span className="text-xs font-medium text-gray-500 dark:text-gray-400">File Size</span><p className="text-sm text-gray-900 dark:text-gray-100">{formatFileSize(detail.fileSize)}</p></div>
               <div><span className="text-xs font-medium text-gray-500 dark:text-gray-400">File Path</span><p className="text-xs text-gray-500 dark:text-gray-400 break-all font-mono mt-0.5">{detail.filePath}</p></div>
-              {detail.galleryId && (<div><span className="text-xs font-medium text-gray-500 dark:text-gray-400">nhentai ID</span><p className="text-sm text-purple-600 dark:text-purple-400">#{detail.galleryId}</p></div>)}
+              {detail.galleryId && (
+                <div>
+                  <span className="text-xs font-medium text-gray-500 dark:text-gray-400">nhentai ID</span>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm text-purple-600 dark:text-purple-400">#{detail.galleryId}</p>
+                    <button
+                      onClick={async () => {
+                        setDetailSyncing(true)
+                        try {
+                          await window.api.library.syncItem(detail.id)
+                        } catch { /* */ }
+                        setDetailSyncing(false)
+                      }}
+                      disabled={detailSyncing}
+                      className="px-2 py-0.5 rounded text-xs border border-green-300 dark:border-green-700 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 disabled:opacity-40"
+                    >
+                      {detailSyncing ? '⟳ Syncing...' : '⟳ Sync'}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

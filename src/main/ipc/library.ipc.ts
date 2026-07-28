@@ -859,10 +859,19 @@ export function registerLibraryIpc(): void {
         } catch { /* ignore — sync without auth is fine */ }
       }
 
-      worker.on('message', (msg: { type: string; itemId: number; success?: boolean; message?: string }) => {
+      worker.on('message', (msg: { type: string; itemId: number; success?: boolean; message?: string; metadata?: { title: string; primaryArtist: string; tags: string; language: string | null } }) => {
         if (msg.type === 'complete') {
           const now = Date.now()
-          try { libraryRepo.update(msg.itemId, { synced: 1, syncedAt: now } as Record<string, unknown>) } catch { /* */ }
+          try {
+            const updateData: Record<string, unknown> = { synced: 1, syncedAt: now }
+            if (msg.metadata) {
+              updateData.customTitle = msg.metadata.title
+              updateData.primaryArtist = msg.metadata.primaryArtist
+              updateData.customTags = msg.metadata.tags
+              updateData.customLanguage = msg.metadata.language
+            }
+            libraryRepo.update(msg.itemId, updateData)
+          } catch { /* */ }
           syncingItems.delete(msg.itemId)
           resolve({ success: true })
         } else if (msg.type === 'error') {

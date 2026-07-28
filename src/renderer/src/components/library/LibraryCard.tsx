@@ -49,8 +49,6 @@ export default function LibraryCard({
   const [imgError, setImgError] = useState(false)
   const [thumbDataUrl, setThumbDataUrl] = useState<string | null>(null)
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ visible: false, x: 0, y: 0 })
-  const [syncing, setSyncing] = useState(false)
-  const [synced, setSynced] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
   const title = item.customTitle || item.primaryArtist || `Item #${item.id}`
@@ -170,26 +168,6 @@ export default function LibraryCard({
             <p className="text-xs text-blue-600 dark:text-blue-400 truncate">
               {item.seriesName}
             </p>
-          )}
-
-          {/* Nhentai Sync button */}
-          {item.galleryId != null && (
-            <button
-              onClick={async (e) => {
-                e.stopPropagation()
-                setSyncing(true)
-                try {
-                  const r = await window.api.library.syncItem(item.id)
-                  if (r.success) setSynced(true)
-                } catch { /* */ }
-                setSyncing(false)
-              }}
-              disabled={syncing}
-              className="mt-1 px-2 py-0.5 rounded text-xs border border-green-300 dark:border-green-700 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 disabled:opacity-40 transition-colors"
-              title={synced ? 'Synced' : 'Sync with nhentai'}
-            >
-              {syncing ? '⟳ Syncing...' : synced ? '✓ Synced' : `⟳ Sync #${item.galleryId}`}
-            </button>
           )}
         </div>
       </button>

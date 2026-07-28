@@ -519,13 +519,9 @@ export default function LibraryPage(): React.JSX.Element {
                 if (ids.length === 0) return
                 setBatchSyncing(true)
                 try {
-                  const r = await window.api.library.syncBatch(ids)
-                  if (r.success) {
-                    const d = r.data as any
-                    alert(`Sync complete: ${d.succeeded} succeeded, ${d.failed} failed`)
-                  }
+                  await window.api.library.syncBatch(ids)
                 } catch (e) {
-                  alert(`Sync error: ${String(e)}`)
+                  console.error('Batch sync error:', e)
                 }
                 setBatchSyncing(false)
               }}
