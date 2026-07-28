@@ -687,9 +687,8 @@ export function registerLibraryIpc(): void {
   // ─── Batch Metadata Conversion ───────────────────────────────────────
 
   let conversionCancelled = false
-  const CONVERSION_CONCURRENCY = 3
 
-  ipcMain.handle('library:convertAllMetadata', async (event) => {
+  ipcMain.handle('library:convertAllMetadata', async (event, runners: number = 3) => {
     const win = BrowserWindow.fromWebContents(event.sender)
     if (!win) return { success: false, error: 'No window found' }
 
@@ -701,6 +700,7 @@ export function registerLibraryIpc(): void {
     let failed = 0
     const errors: string[] = []
     const logLines: string[] = []
+    const concurrency = Math.max(1, Math.min(runners, 20))
 
     function sendProgress() {
       win!.webContents.send('library:convertProgress', {
@@ -755,7 +755,7 @@ export function registerLibraryIpc(): void {
 
         worker.on('message', (msg: { type: string; itemId?: number; success?: boolean; newPath?: string; error?: string; log?: string }) => {
           if (msg.type === 'done') {
-            if (msg.success) {
+            if (!conversionCancelled && msg.success) {
               converted++
               if (msg.newPath && currentItem && msg.newPath !== currentItem.filePath) {
                 try { libraryRepo.update(currentItem.id, { filePath: msg.newPath } as Record<string, unknown>) } catch { /* */ }
@@ -783,7 +783,7 @@ export function registerLibraryIpc(): void {
 
     try {
       // Start N parallel workers
-      const workers = Array.from({ length: CONVERSION_CONCURRENCY }, () => spawnWorker())
+      const workers = Array.from({ length: concurrency }, () => spawnWorker())
       await Promise.all(workers)
 
       // Final progress
@@ -791,7 +791,7 @@ export function registerLibraryIpc(): void {
 
       return {
         success: true,
-        data: { converted, failed, total, cancelled: conversionCancelled, errors: errors.slice(0, 20) }
+        data: { converted, failed, total, cancelled: conversionCancelled, errors: errors.length > 0 ? errors.slice(0, 20) : undefined }
       }
     } catch (error) {
       return { success: false, error: String(error) }

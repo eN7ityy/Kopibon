@@ -395,6 +395,7 @@ function AppVersion(): React.JSX.Element {
 function MetadataConverter(): React.JSX.Element {
   const store = useConversionStore()
   const [showConfirm, setShowConfirm] = useState(false)
+  const [runners, setRunners] = useState(3)
   const logRef = useRef<HTMLDivElement>(null)
 
   // Auto-scroll log to bottom
@@ -422,10 +423,14 @@ function MetadataConverter(): React.JSX.Element {
     store.reset()
     store.setRunning(true)
     try {
-      const r = await window.api.library.convertAllMetadata()
+      const r = await window.api.library.convertAllMetadata(runners)
       if (r.success && r.data) {
         const d = r.data as any
-        store.addLogLine(`COMPLETE: ${d.converted} converted, ${d.failed} failed, ${d.total} total`)
+        if (d.cancelled) {
+          store.addLogLine(`CANCELLED: ${d.converted} converted, ${d.total} total`)
+        } else {
+          store.addLogLine(`COMPLETE: ${d.converted} converted, ${d.failed} failed, ${d.total} total`)
+        }
       } else {
         store.addLogLine(`ERROR: ${r.error || 'Unknown'}`)
       }
@@ -459,6 +464,14 @@ function MetadataConverter(): React.JSX.Element {
       <p className="text-xs text-gray-400 dark:text-gray-500">
         Re-applies correct XMP metadata to all files and fixes filenames.
       </p>
+      {!store.running && (
+        <div className="flex items-center gap-2">
+          <label className="text-xs text-gray-500">Runners:</label>
+          <input type="number" min={1} max={20} value={runners}
+            onChange={(e) => setRunners(Math.max(1, Math.min(20, parseInt(e.target.value) || 3)))}
+            className="w-16 px-2 py-1 text-xs rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700" />
+        </div>
+      )}
 
       {/* Confirmation Dialog */}
       {showConfirm && (

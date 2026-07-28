@@ -92,7 +92,7 @@ const api = {
     addCustom: (metadata: Record<string, unknown>, libraryRoot: string) =>
       ipcRenderer.invoke('library:addCustom', metadata, libraryRoot),
     isPathAccessible: (dirPath: string) => ipcRenderer.invoke('library:isPathAccessible', dirPath),
-    convertAllMetadata: () => ipcRenderer.invoke('library:convertAllMetadata'),
+    convertAllMetadata: (runners?: number) => ipcRenderer.invoke('library:convertAllMetadata', runners),
     cancelConversion: () => ipcRenderer.invoke('library:cancelConversion')
   },
 
