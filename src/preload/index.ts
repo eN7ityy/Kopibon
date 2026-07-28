@@ -91,7 +91,8 @@ const api = {
       ipcRenderer.invoke('library:updateMetadata', id, metadata, libraryRoot),
     addCustom: (metadata: Record<string, unknown>, libraryRoot: string) =>
       ipcRenderer.invoke('library:addCustom', metadata, libraryRoot),
-    isPathAccessible: (dirPath: string) => ipcRenderer.invoke('library:isPathAccessible', dirPath)
+    isPathAccessible: (dirPath: string) => ipcRenderer.invoke('library:isPathAccessible', dirPath),
+    convertAllMetadata: () => ipcRenderer.invoke('library:convertAllMetadata')
   },
 
   // Events
@@ -137,6 +138,11 @@ const api = {
     const handler = (_event: Electron.IpcRendererEvent, items: Array<{ id: number; title: string; artist: string }>) => callback(items)
     ipcRenderer.on('library:newItems', handler)
     return () => ipcRenderer.removeListener('library:newItems', handler)
+  },
+  onConvertProgress: (callback: (progress: { current: number; total: number; converted: number; failed: number }) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, progress: { current: number; total: number; converted: number; failed: number }) => callback(progress)
+    ipcRenderer.on('library:convertProgress', handler)
+    return () => ipcRenderer.removeListener('library:convertProgress', handler)
   },
   onLibraryScanPaused: (callback: () => void) => {
     const handler = () => callback()

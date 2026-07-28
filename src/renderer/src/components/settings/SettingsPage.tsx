@@ -351,16 +351,14 @@ export default function SettingsPage(): React.JSX.Element {
             <button
               onClick={async () => {
                 try {
-                  const result = await window.api.app.checkForUpdates()
-                  if (result.success) {
-                    // autoUpdater handles notification via electron-updater's built-in dialog
-                  }
+                  await window.api.app.checkForUpdates()
                 } catch { /* silently ignore */ }
               }}
               className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
             >
               Check for Updates
             </button>
+            <MetadataConverter />
             <AppVersion />
           </div>
         </section>
@@ -390,5 +388,60 @@ function AppVersion(): React.JSX.Element {
     <p className="text-xs text-gray-400 dark:text-gray-500">
       Doujin Downloader v{version}
     </p>
+  )
+}
+
+function MetadataConverter(): React.JSX.Element {
+  const [converting, setConverting] = useState(false)
+  const [progress, setProgress] = useState<{ current: number; total: number; converted: number; failed: number } | null>(null)
+  const [result, setResult] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!converting) return undefined
+    const cleanup = window.api.onConvertProgress((p) => {
+      setProgress(p)
+    })
+    return () => { cleanup() }
+  }, [converting])
+
+  const handleConvert = async (): Promise<void> => {
+    setConverting(true)
+    setResult(null)
+    setProgress(null)
+    try {
+      const r = await window.api.library.convertAllMetadata()
+      if (r.success && r.data) {
+        const d = r.data as { converted: number; failed: number; total: number; errors?: string[] }
+        setResult(`Done: ${d.converted} converted, ${d.failed} failed (${d.total} total)`)
+      } else {
+        setResult(`Error: ${r.error || 'Unknown'}`)
+      }
+    } catch (e) {
+      setResult(`Error: ${String(e)}`)
+    }
+    setConverting(false)
+  }
+
+  return (
+    <div className="space-y-2">
+      <button
+        onClick={handleConvert}
+        disabled={converting}
+        className="px-4 py-2 rounded-lg border border-orange-300 dark:border-orange-700 bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 text-sm font-medium hover:bg-orange-100 dark:hover:bg-orange-900/30 disabled:opacity-50 transition-colors"
+      >
+        {converting ? 'Converting...' : 'Convert Library Metadata'}
+      </button>
+      <p className="text-xs text-gray-400 dark:text-gray-500">
+        Re-applies correct XMP metadata to all files and fixes filenames.
+      </p>
+      {progress && (
+        <p className="text-xs text-purple-600 dark:text-purple-400">
+          {progress.current}/{progress.total} ({progress.converted} ok, {progress.failed} failed)
+        </p>
+      )}
+      {result && (
+        <p className="text-xs text-green-600 dark:text-green-400">{result}</p>
+      )}
+    </div>
   )
 }
