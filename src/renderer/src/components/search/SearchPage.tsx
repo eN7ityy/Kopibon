@@ -40,6 +40,25 @@ export default function SearchPage(): React.JSX.Element {
     }
   }, [store.pendingGalleryId])
 
+  // Auto-load latest uploads on mount (nhentai homepage)
+  useEffect(() => {
+    const loadLatest = async () => {
+      store.setLoading(true)
+      try {
+        const result = await window.api.getLatest(1)
+        if (result.success && result.data) {
+          const statuses = await resolveDownloadStatuses(result.data.result.map((r) => r.id))
+          store.setResults(result.data.result, statuses, 1, result.data.num_pages)
+        }
+      } catch {
+        // silently ignore
+      }
+    }
+    if (store.results.length === 0 && !store.query.trim()) {
+      loadLatest()
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     return () => {
       if (rateLimitTimerRef.current) clearInterval(rateLimitTimerRef.current)
@@ -154,14 +173,35 @@ export default function SearchPage(): React.JSX.Element {
     performSearch(1)
   }
 
+  const loadPage = useCallback(
+    async (page: number) => {
+      if (store.query.trim()) {
+        performSearch(page)
+        return
+      }
+      store.setLoading(true)
+      resultsContainerRef.current?.scrollTo(0, 0)
+      try {
+        const result = await window.api.getLatest(page)
+        if (result.success && result.data) {
+          const statuses = await resolveDownloadStatuses(result.data.result.map((r) => r.id))
+          store.setResults(result.data.result, statuses, page, result.data.num_pages)
+        }
+      } catch {
+        store.setError('Failed to load')
+      }
+    },
+    [store.query, performSearch, resolveDownloadStatuses]
+  )
+
   const handlePrevPage = (): void => {
     const prev = Math.max(1, store.currentPage - 1)
-    if (prev !== store.currentPage) performSearch(prev)
+    if (prev !== store.currentPage) loadPage(prev)
   }
 
   const handleNextPage = (): void => {
     if (store.currentPage < store.totalPages) {
-      performSearch(store.currentPage + 1)
+      loadPage(store.currentPage + 1)
     }
   }
 

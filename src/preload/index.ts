@@ -8,6 +8,8 @@ const api = {
   search: (query: string, options?: { page?: number; sort?: string }) =>
     ipcRenderer.invoke('api:search', query, options),
   getGallery: (id: number) => ipcRenderer.invoke('api:getGallery', id),
+  getLatest: (page?: number) => ipcRenderer.invoke('api:getLatest', page ?? 1),
+  getPopular: () => ipcRenderer.invoke('api:getPopular'),
   getCdnConfig: () => ipcRenderer.invoke('api:getCdnConfig'),
   getApiConfig: () => ipcRenderer.invoke('api:getConfig'),
   setApiKey: (key: string | null) => ipcRenderer.invoke('api:setApiKey', key),

@@ -21,6 +21,24 @@ export function registerApiIpc(): void {
     }
   )
 
+  ipcMain.handle('api:getLatest', async (_event, page?: number) => {
+    try {
+      const results = await client.getLatestGalleries(page ?? 1)
+      return { success: true, data: results }
+    } catch (error) {
+      return { success: false, error: String(error) }
+    }
+  })
+
+  ipcMain.handle('api:getPopular', async () => {
+    try {
+      const results = await client.getPopularGalleries()
+      return { success: true, data: results }
+    } catch (error) {
+      return { success: false, error: String(error) }
+    }
+  })
+
   ipcMain.handle('api:getGallery', async (_event, id: number) => {
     try {
       const cached = galleryCache.get(id)

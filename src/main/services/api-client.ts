@@ -189,6 +189,16 @@ export class ApiClient {
     return this.request<SearchResponse>(`/search?${params.toString()}`)
   }
 
+  async getLatestGalleries(page = 1): Promise<SearchResponse> {
+    const params = new URLSearchParams()
+    params.set('page', String(page))
+    return this.request<SearchResponse>(`/galleries?${params.toString()}`)
+  }
+
+  async getPopularGalleries(): Promise<SearchResponse> {
+    return this.request<SearchResponse>('/galleries/popular')
+  }
+
   async getGallery(id: number): Promise<GalleryDetail> {
     return this.request<GalleryDetail>(`/galleries/${id}`)
   }
