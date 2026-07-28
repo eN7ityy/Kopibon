@@ -104,6 +104,9 @@ const api = {
     isSyncing: (itemId: number) => ipcRenderer.invoke('library:isSyncing', itemId)
   },
 
+  // File read (for PDF viewer)
+  readFile: (filePath: string) => ipcRenderer.invoke('file:read', filePath),
+
   // Events
   onDownloadProgress: (callback: (progress: {
     queueId: number

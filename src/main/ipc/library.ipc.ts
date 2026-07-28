@@ -3,7 +3,7 @@ import { Worker } from 'worker_threads'
 import { join as pathJoin } from 'path'
 import { libraryRepo } from '../db/repositories/library.repo'
 import { settingsRepo } from '../db/repositories/settings.repo'
-import { renameSync, mkdirSync, existsSync, appendFileSync, writeFileSync } from 'fs'
+import { renameSync, mkdirSync, existsSync, appendFileSync, writeFileSync, readFileSync } from 'fs'
 import { dirname, join, basename } from 'path'
 import { homedir } from 'os'
 
@@ -962,5 +962,16 @@ export function registerLibraryIpc(): void {
 
   ipcMain.handle('library:isSyncing', async (_event, itemId: number) => {
     return { success: true, data: syncingItems.has(itemId) }
+  })
+
+  // ─── File Read ─────────────────────────────────────────────────────────
+
+  ipcMain.handle('file:read', async (_event, filePath: string) => {
+    try {
+      const buffer = readFileSync(filePath)
+      return { success: true, data: buffer.toString('base64') }
+    } catch (error) {
+      return { success: false, error: String(error) }
+    }
   })
 }

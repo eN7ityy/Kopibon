@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import AutocompleteInput from '../shared/AutocompleteInput'
+import PdfViewer from './PdfViewer'
 import type { LibraryItemData } from './LibraryCard'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -54,6 +55,7 @@ export default function LibraryDetail({
   const [detailSyncing, setDetailSyncing] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
   const [thumbDataUrl, setThumbDataUrl] = useState<string | null>(null)
+  const [showPdfViewer, setShowPdfViewer] = useState(false)
 
   // Autocomplete suggestions for tags
   const [tagSuggestions, setTagSuggestions] = useState<string[]>([])
@@ -199,10 +201,28 @@ export default function LibraryDetail({
         </div>
 
         <div className="px-6 py-4 space-y-6">
-          {thumbDataUrl && (
-            <div className="aspect-[3/4] max-w-[200px] mx-auto rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-700">
-              <img src={thumbDataUrl} alt={detail.customTitle || 'Cover'} draggable={false} className="w-full h-full object-cover" />
-            </div>
+          {thumbDataUrl ? (
+            <button
+              onClick={() => setShowPdfViewer(true)}
+              className="aspect-[3/4] max-w-[200px] mx-auto rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-700 group relative block w-full"
+            >
+              <img src={thumbDataUrl} alt={detail.customTitle || 'Cover'} draggable={false} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
+                <span className="text-white font-medium opacity-0 group-hover:opacity-100 transition-opacity">📖 Read</span>
+              </div>
+            </button>
+          ) : (
+            <button
+              onClick={() => setShowPdfViewer(true)}
+              className="aspect-[3/4] max-w-[200px] mx-auto rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-700 group relative block w-full"
+            >
+              <div className="w-full h-full flex items-center justify-center text-gray-400">
+                <span className="text-4xl">📖</span>
+              </div>
+              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
+                <span className="text-white font-medium opacity-0 group-hover:opacity-100 transition-opacity">📖 Read</span>
+              </div>
+            </button>
           )}
 
           <div className="space-y-3">
@@ -427,6 +447,15 @@ export default function LibraryDetail({
           )}
         </div>
       </div>
+
+      {/* PDF Viewer */}
+      {showPdfViewer && (
+        <PdfViewer
+          filePath={detail.filePath}
+          title={detail.customTitle || 'Untitled'}
+          onClose={() => setShowPdfViewer(false)}
+        />
+      )}
     </div>
   )
 }
