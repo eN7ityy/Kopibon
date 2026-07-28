@@ -207,6 +207,7 @@ export class DownloadManager {
           format: 'pdf',
           primaryArtist,
           seriesName: null,
+          publisher: gallery.tags.find((t) => t.type === 'group')?.name || null,
           readProgress: 0,
           fileMtime: Date.now(),
           addedAt: Date.now(),
@@ -425,6 +426,7 @@ export class DownloadManager {
           customDate: dateStr,
           filePath: pdfPath,
           fileSize,
+          publisher: gallery.tags.find((t) => t.type === 'group')?.name || null,
           fileMtime: Date.now(),
           updatedAt: Date.now()
         })
