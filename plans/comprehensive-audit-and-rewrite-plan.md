@@ -908,7 +908,7 @@ At read time, the library scanner extracts the ID by regex-matching `nhentai:(\d
 | # | Question | Decision |
 |---|----------|----------|
 | 1 | Concurrent download slots | 3 simultaneous downloads, each with up to 3 parallel page fetches. Total: 9 concurrent CDN connections max. CDN requests do not consume API rate limit; API calls (metadata fetch, search) are rate-limited separately via token bucket. |
-| 2 | PDF naming convention | `[nhentai-{id}] {safe_title}.pdf`. The title is truncated at 120 characters (leaving room for the ID prefix, extension, and directory path) to stay within filesystem limits. The truncation preserves whole words where possible and appends no ellipsis — it simply cuts at the last space before the limit. |
+| 2 | PDF naming convention | `{safe_title} [nhentai-{id}].pdf`. The `[nhentai-{id}]` tag is placed at the END of the filename to prevent Kavita's bracket parser from interpreting `[nhentai` as a series tag. Title truncated at 180 chars. |
 | 3 | Library path | Default: `/mnt/bragi/Kavita/Doujins/`. App data (SQLite database, settings, download temp files, logs) stored separately at `~/.config/doujin-downloader/` following the XDG Base Directory Specification. |
 | 4 | Login is always built, never required | The app has full login/auth capability built into the codebase (API client, rate limiter, IPC handlers, settings UI), but never requires a key for basic usage. Search, download, and library all work anonymously. Favorites tab is hidden from the sidebar when not logged in. The validated key is stored in `app_settings` table as `nhentai_api_key`. Rate limiter auto-upgrades from 30 req/min anonymous to the `/api/v2/config` value (default 60) when a key is present. |
 
@@ -917,7 +917,7 @@ At read time, the library scanner extracts the ID by regex-matching `nhentai:(\d
 | # | Question | Decision |
 |---|----------|----------|
 | 1 | Concurrent download slots | 3 downloads × 3 page fetches, token-bucket rate limited |
-| 2 | PDF naming convention | `[nhentai-{id}] {title truncated to 120 chars}.pdf` universally. Series items simply live in a series subdirectory; no volume numbering in filenames |
+| 2 | PDF naming convention | `{title} [nhentai-{id}].pdf` universally. Bracket at END to prevent Kavita bracket parser from creating phantom `[nhentai` series. Series items live in series subdirectory. |
 | 3 | Library vs app data paths | Library: `/mnt/bragi/Kavita/Doujins/`; app data: `~/.config/doujin-downloader/` |
 | 4 | Calibre marker files | Leave untouched, ignore |
 | 5 | Kavita integration | No ComicInfo.xml or folder.jpg needed. Kavita reads embedded PDF metadata. Structure: `{Artist}/{Series}/[nhentai-{id}] {Title}.pdf` for series items, `{Artist}/[nhentai-{id}] {Title}.pdf` for standalone. EPUB output in Phase 3. |

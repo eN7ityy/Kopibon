@@ -339,7 +339,7 @@ export class DownloadManager {
         mkdirSync(outputDir, { recursive: true })
       }
       const safeTitle = title.replace(/[/\\?%*:|"<>]/g, '_').substring(0, 180)
-      const pdfPath = join(outputDir, `[nhentai-${galleryId}] ${safeTitle}.pdf`)
+      const pdfPath = join(outputDir, `${safeTitle} [nhentai-${galleryId}].pdf`)
 
       const compressPdf = settingsRepo.get('compressPdf') !== 'false'
       const compressQuality = Number(settingsRepo.get('compressionQuality') || '80')
