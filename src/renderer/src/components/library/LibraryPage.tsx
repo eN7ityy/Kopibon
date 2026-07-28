@@ -36,6 +36,103 @@ function useDebounce<T>(value: T, delay: number): T {
 
 const PAGE_SIZE = 100
 
+// ─── Searchable Filter Dropdown ──────────────────────────────────────────────
+
+function SearchableFilterDropdown({
+  label,
+  allItems,
+  selected,
+  onToggle,
+  placeholder
+}: {
+  label: string
+  allItems: string[]
+  selected: Set<string>
+  onToggle: (item: string) => void
+  placeholder: string
+}): React.JSX.Element {
+  const [query, setQuery] = useState('')
+  const [showDropdown, setShowDropdown] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  const filtered = useMemo(() => {
+    if (!query.trim()) return allItems.slice(0, 50)
+    const lower = query.toLowerCase()
+    return allItems.filter((i) => i.toLowerCase().includes(lower)).slice(0, 50)
+  }, [allItems, query])
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setShowDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  return (
+    <div ref={containerRef} className="min-w-[180px] max-w-[240px]">
+      <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{label}</h4>
+
+      {/* Search input */}
+      <div className="relative mb-2">
+        <input
+          type="text"
+          placeholder={placeholder}
+          value={query}
+          onChange={(e) => { setQuery(e.target.value); setShowDropdown(true) }}
+          onFocus={() => setShowDropdown(true)}
+          className="w-full pl-7 pr-2 py-1.5 text-xs rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+        />
+        <svg className="absolute left-2 top-2 h-3 w-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+      </div>
+
+      {/* Dropdown */}
+      {showDropdown && filtered.length > 0 && (
+        <div className="max-h-40 overflow-y-auto rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg mb-2">
+          {filtered.map((item) => (
+            <label
+              key={item}
+              className="flex items-center gap-2 px-2 py-1.5 text-xs text-gray-600 dark:text-gray-400 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
+            >
+              <input
+                type="checkbox"
+                checked={selected.has(item)}
+                onChange={() => onToggle(item)}
+                className="w-3 h-3 rounded border-gray-400 text-purple-600 focus:ring-purple-500"
+              />
+              <span className="truncate">{item}</span>
+            </label>
+          ))}
+        </div>
+      )}
+
+      {/* Selected chips */}
+      {selected.size > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {[...selected].slice(0, 15).map((item) => (
+            <span
+              key={item}
+              onClick={() => onToggle(item)}
+              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 cursor-pointer hover:bg-purple-200 dark:hover:bg-purple-900/60 transition-colors"
+            >
+              {item.length > 20 ? item.slice(0, 20) + '…' : item}
+              <span className="ml-0.5 text-purple-500">×</span>
+            </span>
+          ))}
+          {selected.size > 15 && (
+            <span className="text-xs text-gray-400 self-center">+{selected.size - 15} more</span>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Library Page ────────────────────────────────────────────────────────────
 
 export default function LibraryPage(): React.JSX.Element {
@@ -594,46 +691,33 @@ export default function LibraryPage(): React.JSX.Element {
         <div className="mb-4 p-4 rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700">
           <div className="flex flex-wrap gap-6">
             {artistNames.length > 0 && (
-              <div>
-                <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Artists</h4>
-                <div className="max-h-40 overflow-y-auto space-y-1">
-                  {artistNames.slice(0, 50).map((artist) => (
-                    <label key={artist} className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 cursor-pointer hover:text-gray-900 dark:hover:text-gray-200">
-                      <input type="checkbox" checked={selectedArtistFilters.has(artist)} onChange={() => toggleArtistFilter(artist)} className="w-3.5 h-3.5 rounded border-gray-400 text-purple-600 focus:ring-purple-500" />
-                      {artist}
-                    </label>
-                  ))}
-                  {artistNames.length > 50 && <p className="text-xs text-gray-400">...and {artistNames.length - 50} more</p>}
-                </div>
-              </div>
+              <SearchableFilterDropdown
+                label="Artists"
+                allItems={artistNames}
+                selected={selectedArtistFilters}
+                onToggle={toggleArtistFilter}
+                placeholder="Search artists..."
+              />
             )}
 
             {seriesNames.length > 0 && (
-              <div>
-                <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Series</h4>
-                <div className="max-h-40 overflow-y-auto space-y-1">
-                  {seriesNames.slice(0, 50).map((series) => (
-                    <label key={series} className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 cursor-pointer hover:text-gray-900 dark:hover:text-gray-200">
-                      <input type="checkbox" checked={selectedSeriesFilters.has(series)} onChange={() => toggleSeriesFilter(series)} className="w-3.5 h-3.5 rounded border-gray-400 text-purple-600 focus:ring-purple-500" />
-                      {series}
-                    </label>
-                  ))}
-                </div>
-              </div>
+              <SearchableFilterDropdown
+                label="Series"
+                allItems={seriesNames}
+                selected={selectedSeriesFilters}
+                onToggle={toggleSeriesFilter}
+                placeholder="Search series..."
+              />
             )}
 
             {tagNames.length > 0 && (
-              <div>
-                <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Tags</h4>
-                <div className="max-h-40 overflow-y-auto space-y-1">
-                  {tagNames.slice(0, 50).map((tag) => (
-                    <label key={tag} className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 cursor-pointer hover:text-gray-900 dark:hover:text-gray-200">
-                      <input type="checkbox" checked={selectedTagFilters.has(tag)} onChange={() => toggleTagFilter(tag)} className="w-3.5 h-3.5 rounded border-gray-400 text-purple-600 focus:ring-purple-500" />
-                      {tag}
-                    </label>
-                  ))}
-                </div>
-              </div>
+              <SearchableFilterDropdown
+                label="Tags"
+                allItems={tagNames}
+                selected={selectedTagFilters}
+                onToggle={toggleTagFilter}
+                placeholder="Search tags..."
+              />
             )}
 
             <div>
