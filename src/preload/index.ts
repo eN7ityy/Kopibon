@@ -93,7 +93,10 @@ const api = {
       ipcRenderer.invoke('library:addCustom', metadata, libraryRoot),
     isPathAccessible: (dirPath: string) => ipcRenderer.invoke('library:isPathAccessible', dirPath),
     convertAllMetadata: (runners?: number) => ipcRenderer.invoke('library:convertAllMetadata', runners),
-    cancelConversion: () => ipcRenderer.invoke('library:cancelConversion')
+    cancelConversion: () => ipcRenderer.invoke('library:cancelConversion'),
+    syncItem: (itemId: number) => ipcRenderer.invoke('library:syncItem', itemId),
+    syncBatch: (ids: number[]) => ipcRenderer.invoke('library:syncBatch', ids),
+    isSyncing: (itemId: number) => ipcRenderer.invoke('library:isSyncing', itemId)
   },
 
   // Events

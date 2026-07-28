@@ -2,6 +2,7 @@ import { ipcMain, BrowserWindow } from 'electron'
 import { Worker } from 'worker_threads'
 import { join as pathJoin } from 'path'
 import { libraryRepo } from '../db/repositories/library.repo'
+import { settingsRepo } from '../db/repositories/settings.repo'
 import { renameSync, mkdirSync, existsSync, appendFileSync, writeFileSync } from 'fs'
 import { dirname, join, basename } from 'path'
 import { homedir } from 'os'
@@ -834,5 +835,106 @@ export function registerLibraryIpc(): void {
   ipcMain.handle('library:cancelConversion', async () => {
     conversionCancelled = true
     return { success: true }
+  })
+
+  // ─── Nhentai Sync ────────────────────────────────────────────────────
+
+  const syncingItems = new Set<number>()
+
+  function spawnSyncWorker(itemId: number, nhentaiId: number, filePath: string): Promise<{ success: boolean; message?: string }> {
+    return new Promise((resolve) => {
+      const workerPath = pathJoin(__dirname, 'services/sync.worker.js')
+      const worker = new Worker(workerPath)
+
+      // Get API key from settings
+      const encryptedKey = settingsRepo.get('nhentai_api_key')
+      let apiKey: string | undefined
+      if (encryptedKey) {
+        try {
+          // Simple decrypt — auth.ipc has encryptKey/decryptKey functions
+          const auth = require('../ipc/auth.ipc')
+          if (auth.decryptKey && typeof auth.decryptKey === 'function') {
+            apiKey = auth.decryptKey(encryptedKey as string)
+          }
+        } catch { /* ignore — sync without auth is fine */ }
+      }
+
+      worker.on('message', (msg: { type: string; itemId: number; success?: boolean; message?: string }) => {
+        if (msg.type === 'complete') {
+          const now = Date.now()
+          try { libraryRepo.update(msg.itemId, { synced: 1, syncedAt: now } as Record<string, unknown>) } catch { /* */ }
+          syncingItems.delete(msg.itemId)
+          resolve({ success: true })
+        } else if (msg.type === 'error') {
+          syncingItems.delete(msg.itemId)
+          resolve({ success: false, message: msg.message })
+        }
+        worker.terminate()
+      })
+
+      worker.on('error', () => {
+        syncingItems.delete(itemId)
+        resolve({ success: false, message: 'Worker error' })
+      })
+
+      worker.postMessage({ type: 'sync', itemId, nhentaiId, filePath, apiKey })
+    })
+  }
+
+  ipcMain.handle('library:syncItem', async (_event, itemId: number) => {
+    if (syncingItems.has(itemId)) return { success: false, error: 'Already syncing' }
+
+    const item = libraryRepo.findById(itemId)
+    if (!item || !item.galleryId) return { success: false, error: 'No nhentai ID' }
+
+    syncingItems.add(itemId)
+    const result = await spawnSyncWorker(itemId, item.galleryId, item.filePath)
+
+    if (result.success) {
+      return { success: true, data: { synced: true } }
+    }
+    return { success: false, error: result.message }
+  })
+
+  ipcMain.handle('library:syncBatch', async (event, ids: number[]) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    let succeeded = 0
+    let failed = 0
+
+    for (let i = 0; i < ids.length; i++) {
+      const item = libraryRepo.findById(ids[i])
+      if (!item || !item.galleryId || syncingItems.has(ids[i])) {
+        failed++
+        continue
+      }
+
+      syncingItems.add(ids[i])
+      const result = await spawnSyncWorker(ids[i], item.galleryId, item.filePath)
+
+      if (result.success) succeeded++
+      else failed++
+
+      // 3-second delay between syncs to respect rate limit
+      if (i < ids.length - 1) {
+        await new Promise((r) => setTimeout(r, 3000))
+      }
+    }
+
+    // Send notification
+    if (win) {
+      try {
+        const { Notification } = require('electron')
+        new Notification({
+          title: 'Nhentai Sync Complete',
+          body: `${succeeded} succeeded, ${failed} failed (${ids.length} total)`
+        }).show()
+      } catch { /* notification is best-effort */ }
+    }
+
+    return { success: true, data: { succeeded, failed, total: ids.length } }
+  })
+
+  ipcMain.handle('library:isSyncing', async (_event, itemId: number) => {
+    return { success: true, data: syncingItems.has(itemId) }
   })
 }

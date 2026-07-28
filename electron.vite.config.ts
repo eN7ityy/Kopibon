@@ -12,7 +12,8 @@ export default defineConfig({
           'services/library-scanner.worker': resolve('src/main/services/library-scanner.worker.ts'),
           'services/download-pdf.worker': resolve('src/main/services/download-pdf.worker.ts'),
           'services/metadata.worker': resolve('src/main/services/metadata.worker.ts'),
-          'services/convert.worker': resolve('src/main/services/convert.worker.ts')
+          'services/convert.worker': resolve('src/main/services/convert.worker.ts'),
+          'services/sync.worker': resolve('src/main/services/sync.worker.ts')
         }
       }
     },

@@ -66,6 +66,7 @@ export default function LibraryPage(): React.JSX.Element {
   // Selection state (for batch operations)
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [, setSelectionTick] = useState(0)
+  const [batchSyncing, setBatchSyncing] = useState(false)
   const [selectMode, setSelectMode] = useState(false)
   const [showSeriesModal, setShowSeriesModal] = useState(false)
   const [showCustomForm, setShowCustomForm] = useState(false)
@@ -512,6 +513,27 @@ export default function LibraryPage(): React.JSX.Element {
           <>
             <button onClick={() => setShowSeriesModal(true)} className="px-3 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors">Assign Series</button>
             <button onClick={handleBatchUnassignSeries} className="px-3 py-2 rounded-lg bg-gray-600 text-white text-sm font-medium hover:bg-gray-700 transition-colors">Unassign Series</button>
+            <button
+              onClick={async () => {
+                const ids = [...selectedIds]
+                if (ids.length === 0) return
+                setBatchSyncing(true)
+                try {
+                  const r = await window.api.library.syncBatch(ids)
+                  if (r.success) {
+                    const d = r.data as any
+                    alert(`Sync complete: ${d.succeeded} succeeded, ${d.failed} failed`)
+                  }
+                } catch (e) {
+                  alert(`Sync error: ${String(e)}`)
+                }
+                setBatchSyncing(false)
+              }}
+              disabled={batchSyncing}
+              className="px-3 py-2 rounded-lg bg-green-600 text-white text-sm font-medium hover:bg-green-700 disabled:opacity-40 transition-colors"
+            >
+              {batchSyncing ? 'Syncing...' : 'Sync with Nhentai'}
+            </button>
             <button onClick={handleBatchRemove} className="px-3 py-2 rounded-lg bg-orange-600 text-white text-sm font-medium hover:bg-orange-700 transition-colors">Remove from Library</button>
             <button onClick={handleBatchDelete} className="px-3 py-2 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700 transition-colors">Delete Files</button>
           </>
