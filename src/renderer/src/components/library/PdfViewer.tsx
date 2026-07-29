@@ -35,13 +35,45 @@ export default function PdfViewer({
   const [pageCanvases, setPageCanvases] = useState<HTMLCanvasElement[]>([])
   const [visiblePage, setVisiblePage] = useState(1)
   const [renderProgress, setRenderProgress] = useState<string | null>(null)
+  const [retryKey, setRetryKey] = useState(0)
   const containerRef = useRef<HTMLDivElement>(null)
   const bottomBarRef = useRef<HTMLDivElement>(null)
+  const pdfDocRef = useRef<pdfjsLib.PDFDocumentProxy | null>(null)
+  const cancelledRef = useRef(false)
 
-  // ─── Load & render PDF ───────────────────────────────────────────────────
+  // ─── Render pages helper ─────────────────────────────────────────────────
+
+  const renderPages = useCallback(
+    async (pdf: pdfjsLib.PDFDocumentProxy, s: number): Promise<HTMLCanvasElement[]> => {
+      const canvases: HTMLCanvasElement[] = []
+      for (let i = 1; i <= pdf.numPages; i++) {
+        if (cancelledRef.current) break
+
+        setRenderProgress(`Rendering page ${i}/${pdf.numPages}...`)
+
+        const page = await pdf.getPage(i)
+        const viewport = page.getViewport({ scale: s })
+        const canvas = document.createElement('canvas')
+        canvas.width = viewport.width
+        canvas.height = viewport.height
+        canvas.style.display = 'block'
+        canvas.style.width = '100%'
+        canvas.style.height = 'auto'
+        await page.render({ canvas, viewport }).promise
+        canvases.push(canvas)
+
+        // Yield to event loop every 5 pages to prevent UI freeze
+        if (i % 5 === 0) await new Promise((r) => setTimeout(r, 0))
+      }
+      return canvases
+    },
+    []
+  )
+
+  // ─── Load PDF document (only when filePath changes) ──────────────────────
 
   useEffect(() => {
-    let cancelled = false
+    cancelledRef.current = false
 
     const loadPdf = async () => {
       setLoading(true)
@@ -53,6 +85,7 @@ export default function PdfViewer({
         const result = await window.api.readFile(filePath)
         if (!result.success) {
           setError(result.error || 'Failed to read file')
+          setLoading(false)
           return
         }
 
@@ -62,48 +95,29 @@ export default function PdfViewer({
         for (let i = 0; i < binaryStr.length; i++) {
           bytes[i] = binaryStr.charCodeAt(i)
         }
-        const arrayBuffer = bytes.buffer
 
-        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
-        if (cancelled) return
+        const pdf = await pdfjsLib.getDocument({ data: bytes.buffer }).promise
+        if (cancelledRef.current) return
 
+        pdfDocRef.current = pdf
         setTotalPages(pdf.numPages)
 
         if (pdf.numPages === 0) {
           setError('This PDF has no pages')
+          setLoading(false)
           return
         }
 
-        // Render all pages to canvases
-        const canvases: HTMLCanvasElement[] = []
-        for (let i = 1; i <= pdf.numPages; i++) {
-          if (cancelled) return
+        const canvases = await renderPages(pdf, scale)
+        if (cancelledRef.current) return
 
-          setRenderProgress(`Rendering page ${i}/${pdf.numPages}...`)
-
-          const page = await pdf.getPage(i)
-          const viewport = page.getViewport({ scale })
-          const canvas = document.createElement('canvas')
-          canvas.width = viewport.width
-          canvas.height = viewport.height
-          canvas.style.display = 'block'
-          canvas.style.width = '100%'
-          canvas.style.height = 'auto'
-          await page.render({ canvas, viewport }).promise
-          canvases.push(canvas)
-
-          // Yield to event loop every 5 pages to prevent UI freeze
-          if (i % 5 === 0) await new Promise((r) => setTimeout(r, 0))
-        }
-
-        if (cancelled) return
         setPageCanvases(canvases)
       } catch (err) {
-        if (!cancelled) {
+        if (!cancelledRef.current) {
           setError(err instanceof Error ? err.message : 'Failed to load PDF')
         }
       } finally {
-        if (!cancelled) {
+        if (!cancelledRef.current) {
           setLoading(false)
           setRenderProgress(null)
         }
@@ -112,9 +126,48 @@ export default function PdfViewer({
 
     loadPdf()
     return () => {
-      cancelled = true
+      cancelledRef.current = true
     }
-  }, [filePath, scale])
+  }, [filePath, retryKey]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ─── Re-render on scale change (use cached document, preserve scroll) ────
+
+  useEffect(() => {
+    const pdf = pdfDocRef.current
+    if (!pdf || error) return
+
+    cancelledRef.current = false
+
+    // Save scroll position before re-render
+    const savedScroll = containerRef.current?.scrollTop ?? 0
+
+    const rerender = async () => {
+      setLoading(true)
+      setPageCanvases([])
+
+      const canvases = await renderPages(pdf, scale)
+      if (cancelledRef.current) return
+
+      setPageCanvases(canvases)
+      setLoading(false)
+      setRenderProgress(null)
+
+      // Restore scroll position after DOM paints
+      requestAnimationFrame(() => {
+        if (containerRef.current) {
+          containerRef.current.scrollTop = Math.min(
+            savedScroll,
+            containerRef.current.scrollHeight
+          )
+        }
+      })
+    }
+
+    rerender()
+    return () => {
+      cancelledRef.current = true
+    }
+  }, [scale]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Intersection Observer for visible page ──────────────────────────────
 
@@ -264,11 +317,7 @@ export default function PdfViewer({
             <p className="text-sm font-medium">Failed to load PDF</p>
             <p className="text-xs text-gray-500 dark:text-gray-400 text-center">{error}</p>
             <button
-              onClick={() => {
-                setError(null)
-                setLoading(true)
-                setPageCanvases([])
-              }}
+              onClick={() => setRetryKey((k) => k + 1)}
               className="mt-2 px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700"
             >
               Retry
