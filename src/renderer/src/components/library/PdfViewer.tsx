@@ -281,7 +281,7 @@ export default function PdfViewer({
           <div
             key={i}
             data-page={i + 1}
-            className="w-full shadow-lg bg-white rounded overflow-hidden"
+            className="w-full shrink-0 shadow-lg bg-white rounded overflow-hidden"
             ref={(el) => {
               if (el && canvas.parentElement !== el) el.appendChild(canvas)
             }}
