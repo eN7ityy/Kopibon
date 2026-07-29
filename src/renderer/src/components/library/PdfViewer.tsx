@@ -47,9 +47,14 @@ export default function PdfViewer({
     // Cancel any in-progress rendering
     cancelledRef.current = true
 
-    // Destroy PDF document (releases fonts, pages, cached resources)
+    // Destroy PDF document (releases fonts, pages, cached resources).
+    // Legacy build may not expose destroy(); fall back to just clearing the ref.
     if (pdfDocRef.current) {
-      pdfDocRef.current.destroy()
+      try {
+        ;(pdfDocRef.current as pdfjsLib.PDFDocumentProxy & { destroy?: () => void }).destroy?.()
+      } catch {
+        /* best effort — GC will collect when ref is cleared */
+      }
       pdfDocRef.current = null
     }
 
