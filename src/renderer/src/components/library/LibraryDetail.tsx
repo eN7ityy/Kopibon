@@ -189,19 +189,22 @@ export default function LibraryDetail({
   const detail = freshItem || item
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/30" />
+    <>
+      {/* Backdrop layer — clicking closes everything */}
+      <div className="fixed inset-0 bg-black/30 z-40" onClick={onClose} />
 
-      {/* PDF Viewer — sits to the left of the detail panel */}
-      {showPdfViewer && (
-        <PdfViewer
-          filePath={detail.filePath}
-          title={detail.customTitle || 'Untitled'}
-          onClose={() => setShowPdfViewer(false)}
-        />
-      )}
+      {/* Content layer — viewer + detail panel side by side */}
+      <div className="fixed inset-0 z-50 flex justify-end">
+        {/* PDF Viewer — sits to the left of the detail panel */}
+        {showPdfViewer && (
+          <PdfViewer
+            filePath={detail.filePath}
+            title={detail.customTitle || 'Untitled'}
+            onClose={() => setShowPdfViewer(false)}
+          />
+        )}
 
-      <div className="relative w-full max-w-md bg-white dark:bg-gray-900 shadow-2xl overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="relative w-full max-w-md bg-white dark:bg-gray-900 shadow-2xl overflow-y-auto" onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="sticky top-0 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex items-center justify-between z-10">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 truncate">{detail.customTitle || 'Item Detail'}</h2>
@@ -457,6 +460,7 @@ export default function LibraryDetail({
           )}
         </div>
       </div>
-    </div>
+      </div>
+    </>
   )
 }

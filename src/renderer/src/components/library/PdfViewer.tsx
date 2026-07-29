@@ -86,7 +86,8 @@ export default function PdfViewer({
           const canvas = document.createElement('canvas')
           canvas.width = viewport.width
           canvas.height = viewport.height
-          canvas.style.maxWidth = '100%'
+          canvas.style.display = 'block'
+          canvas.style.width = '100%'
           canvas.style.height = 'auto'
           await page.render({ canvas, viewport }).promise
           canvases.push(canvas)
@@ -223,7 +224,7 @@ export default function PdfViewer({
       {/* Page canvases (scrollable) */}
       <div
         ref={containerRef}
-        className="flex-1 overflow-y-auto px-2 py-4 flex flex-col items-center gap-2 bg-gray-100 dark:bg-gray-950"
+        className="flex-1 overflow-y-auto px-2 py-4 flex flex-col items-stretch gap-2 bg-gray-100 dark:bg-gray-950"
       >
         {/* Loading state */}
         {loading && (
@@ -280,7 +281,7 @@ export default function PdfViewer({
           <div
             key={i}
             data-page={i + 1}
-            className="shadow-lg bg-white rounded overflow-hidden"
+            className="w-full shadow-lg bg-white rounded overflow-hidden"
             ref={(el) => {
               if (el && canvas.parentElement !== el) el.appendChild(canvas)
             }}
