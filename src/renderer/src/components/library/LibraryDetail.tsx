@@ -189,12 +189,7 @@ export default function LibraryDetail({
   const detail = freshItem || item
 
   return (
-    <>
-      {/* Backdrop layer — clicking closes everything */}
-      <div className="fixed inset-0 bg-black/30 z-40" onClick={onClose} />
-
-      {/* Content layer — viewer + detail panel side by side */}
-      <div className="fixed inset-0 z-50 flex justify-end">
+    <div className="fixed inset-0 z-50 flex justify-end bg-black/30" onClick={onClose}>
         {/* PDF Viewer — sits to the left of the detail panel */}
         {showPdfViewer && (
           <PdfViewer
@@ -460,7 +455,6 @@ export default function LibraryDetail({
           )}
         </div>
       </div>
-      </div>
-    </>
+    </div>
   )
 }
