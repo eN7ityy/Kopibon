@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import * as pdfjsLib from 'pdfjs-dist'
+import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.min.mjs'
 
 // Set worker using legacy build (avoids private-fields compatibility issue);
 // fall back to CDN if the bundled path doesn't resolve in the renderer.
@@ -196,7 +196,10 @@ export default function PdfViewer({
   // ─── Render ──────────────────────────────────────────────────────────────
 
   return (
-    <div className="w-full max-w-lg h-full bg-white dark:bg-gray-950 shadow-2xl flex flex-col">
+    <div
+      className="w-full max-w-lg h-full bg-white dark:bg-gray-950 shadow-2xl flex flex-col"
+      onClick={(e) => e.stopPropagation()}
+    >
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
         <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate flex-1 mr-2">
