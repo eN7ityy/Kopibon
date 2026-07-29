@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.min.mjs'
 
 // Set worker using legacy build (avoids private-fields compatibility issue);
@@ -31,7 +31,6 @@ export default function PdfViewer({
   const [loading, setLoading] = useState(true)
   const [totalPages, setTotalPages] = useState(0)
   const [error, setError] = useState<string | null>(null)
-  const [scale, setScale] = useState(1.0)
   const [pageCanvases, setPageCanvases] = useState<HTMLCanvasElement[]>([])
   const [visiblePage, setVisiblePage] = useState(1)
   const [renderProgress, setRenderProgress] = useState<string | null>(null)
@@ -43,32 +42,29 @@ export default function PdfViewer({
 
   // ─── Render pages helper ─────────────────────────────────────────────────
 
-  const renderPages = useCallback(
-    async (pdf: pdfjsLib.PDFDocumentProxy, s: number): Promise<HTMLCanvasElement[]> => {
-      const canvases: HTMLCanvasElement[] = []
-      for (let i = 1; i <= pdf.numPages; i++) {
-        if (cancelledRef.current) break
+  async function renderPages(pdf: pdfjsLib.PDFDocumentProxy): Promise<HTMLCanvasElement[]> {
+    const canvases: HTMLCanvasElement[] = []
+    for (let i = 1; i <= pdf.numPages; i++) {
+      if (cancelledRef.current) break
 
-        setRenderProgress(`Rendering page ${i}/${pdf.numPages}...`)
+      setRenderProgress(`Rendering page ${i}/${pdf.numPages}...`)
 
-        const page = await pdf.getPage(i)
-        const viewport = page.getViewport({ scale: s })
-        const canvas = document.createElement('canvas')
-        canvas.width = viewport.width
-        canvas.height = viewport.height
-        canvas.style.display = 'block'
-        canvas.style.width = '100%'
-        canvas.style.height = 'auto'
-        await page.render({ canvas, viewport }).promise
-        canvases.push(canvas)
+      const page = await pdf.getPage(i)
+      const viewport = page.getViewport({ scale: 1.0 })
+      const canvas = document.createElement('canvas')
+      canvas.width = viewport.width
+      canvas.height = viewport.height
+      canvas.style.display = 'block'
+      canvas.style.width = '100%'
+      canvas.style.height = 'auto'
+      await page.render({ canvas, viewport }).promise
+      canvases.push(canvas)
 
-        // Yield to event loop every 5 pages to prevent UI freeze
-        if (i % 5 === 0) await new Promise((r) => setTimeout(r, 0))
-      }
-      return canvases
-    },
-    []
-  )
+      // Yield to event loop every 5 pages to prevent UI freeze
+      if (i % 5 === 0) await new Promise((r) => setTimeout(r, 0))
+    }
+    return canvases
+  }
 
   // ─── Load PDF document (only when filePath changes) ──────────────────────
 
@@ -108,7 +104,7 @@ export default function PdfViewer({
           return
         }
 
-        const canvases = await renderPages(pdf, scale)
+        const canvases = await renderPages(pdf)
         if (cancelledRef.current) return
 
         setPageCanvases(canvases)
@@ -129,45 +125,6 @@ export default function PdfViewer({
       cancelledRef.current = true
     }
   }, [filePath, retryKey]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ─── Re-render on scale change (use cached document, preserve scroll) ────
-
-  useEffect(() => {
-    const pdf = pdfDocRef.current
-    if (!pdf || error) return
-
-    cancelledRef.current = false
-
-    // Save scroll position before re-render
-    const savedScroll = containerRef.current?.scrollTop ?? 0
-
-    const rerender = async () => {
-      setLoading(true)
-      setPageCanvases([])
-
-      const canvases = await renderPages(pdf, scale)
-      if (cancelledRef.current) return
-
-      setPageCanvases(canvases)
-      setLoading(false)
-      setRenderProgress(null)
-
-      // Restore scroll position after DOM paints
-      requestAnimationFrame(() => {
-        if (containerRef.current) {
-          containerRef.current.scrollTop = Math.min(
-            savedScroll,
-            containerRef.current.scrollHeight
-          )
-        }
-      })
-    }
-
-    rerender()
-    return () => {
-      cancelledRef.current = true
-    }
-  }, [scale]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Intersection Observer for visible page ──────────────────────────────
 
@@ -191,11 +148,6 @@ export default function PdfViewer({
 
     return () => observer.disconnect()
   }, [pageCanvases])
-
-  // ─── Zoom ────────────────────────────────────────────────────────────────
-
-  const zoomIn = useCallback(() => setScale((s) => Math.min(s + 0.25, 4)), [])
-  const zoomOut = useCallback(() => setScale((s) => Math.max(s - 0.25, 0.5)), [])
 
   // ─── Keyboard navigation ─────────────────────────────────────────────────
 
@@ -234,18 +186,11 @@ export default function PdfViewer({
             behavior: 'smooth'
           })
           break
-        case '+':
-        case '=':
-          zoomIn()
-          break
-        case '-':
-          zoomOut()
-          break
       }
     }
     document.addEventListener('keydown', handleKey)
     return () => document.removeEventListener('keydown', handleKey)
-  }, [onClose, zoomIn, zoomOut])
+  }, [onClose])
 
   // ─── Render ──────────────────────────────────────────────────────────────
 
@@ -343,29 +288,16 @@ export default function PdfViewer({
         ref={bottomBarRef}
         className="flex items-center justify-between px-4 py-2 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900"
       >
-        <div className="flex items-center gap-3">
-          <button
-            onClick={zoomOut}
-            className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 text-lg font-bold w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 dark:hover:bg-gray-800"
-            title="Zoom out"
-          >
-            −
-          </button>
-          <span className="text-xs text-gray-400 tabular-nums w-10 text-center">
-            {Math.round(scale * 100)}%
-          </span>
-          <button
-            onClick={zoomIn}
-            className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 text-lg font-bold w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 dark:hover:bg-gray-800"
-            title="Zoom in"
-          >
-            +
-          </button>
-        </div>
+        <span className="text-xs text-gray-400">PDF</span>
         <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
           {visiblePage} / {totalPages}
         </span>
-        <span className="text-xs text-gray-400">PDF</span>
+        <button
+          onClick={onClose}
+          className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+        >
+          Close
+        </button>
       </div>
     </div>
   )
