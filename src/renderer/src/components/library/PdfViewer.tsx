@@ -38,7 +38,39 @@ export default function PdfViewer({
   const containerRef = useRef<HTMLDivElement>(null)
   const bottomBarRef = useRef<HTMLDivElement>(null)
   const pdfDocRef = useRef<pdfjsLib.PDFDocumentProxy | null>(null)
+  const canvasesRef = useRef<HTMLCanvasElement[]>([])
   const cancelledRef = useRef(false)
+
+  // ─── Cleanup ──────────────────────────────────────────────────────────────
+
+  function cleanupPdf(): void {
+    // Cancel any in-progress rendering
+    cancelledRef.current = true
+
+    // Destroy PDF document (releases fonts, pages, cached resources)
+    if (pdfDocRef.current) {
+      pdfDocRef.current.destroy()
+      pdfDocRef.current = null
+    }
+
+    // Release canvas pixel buffers and remove from DOM
+    for (const canvas of canvasesRef.current) {
+      canvas.width = 0
+      canvas.height = 0
+      if (canvas.parentElement) {
+        canvas.parentElement.removeChild(canvas)
+      }
+    }
+    canvasesRef.current = []
+
+    // Clear UI state
+    setPageCanvases([])
+    setTotalPages(0)
+    setError(null)
+    setLoading(false)
+    setRenderProgress(null)
+    setVisiblePage(1)
+  }
 
   // ─── Render pages helper ─────────────────────────────────────────────────
 
@@ -58,6 +90,7 @@ export default function PdfViewer({
       canvas.style.width = '100%'
       canvas.style.height = 'auto'
       await page.render({ canvas, viewport }).promise
+      page.cleanup()
       canvases.push(canvas)
 
       // Yield to event loop every 5 pages to prevent UI freeze
@@ -69,12 +102,13 @@ export default function PdfViewer({
   // ─── Load PDF document (only when filePath changes) ──────────────────────
 
   useEffect(() => {
+    // Destroy previous document and release canvases before loading new one
+    cleanupPdf()
     cancelledRef.current = false
 
     const loadPdf = async () => {
       setLoading(true)
       setError(null)
-      setPageCanvases([])
 
       try {
         // Read file via IPC → base64 string
@@ -107,6 +141,7 @@ export default function PdfViewer({
         const canvases = await renderPages(pdf)
         if (cancelledRef.current) return
 
+        canvasesRef.current = canvases
         setPageCanvases(canvases)
       } catch (err) {
         if (!cancelledRef.current) {
@@ -122,7 +157,7 @@ export default function PdfViewer({
 
     loadPdf()
     return () => {
-      cancelledRef.current = true
+      cleanupPdf()
     }
   }, [filePath, retryKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
