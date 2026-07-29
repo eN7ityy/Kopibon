@@ -11,7 +11,7 @@ export default function AppRoutes(): React.JSX.Element {
   return (
     <Routes>
       <Route element={<AppShell />}>
-        <Route path="/" element={<Navigate to="/search" replace />} />
+        <Route path="/" element={<Navigate to="/library" replace />} />
         <Route path="/search" element={<SearchPage />} />
         <Route path="/library" element={<LibraryPage />} />
         <Route

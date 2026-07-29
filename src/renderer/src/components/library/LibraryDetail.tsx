@@ -217,7 +217,7 @@ export default function LibraryDetail({
           {thumbDataUrl ? (
             <button
               onClick={() => setShowPdfViewer(true)}
-              className="aspect-[3/4] max-w-[200px] mx-auto rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-700 group relative block w-full"
+              className="aspect-[3/4] w-full rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-700 group relative"
             >
               <img src={thumbDataUrl} alt={detail.customTitle || 'Cover'} draggable={false} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
               <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
@@ -227,7 +227,7 @@ export default function LibraryDetail({
           ) : (
             <button
               onClick={() => setShowPdfViewer(true)}
-              className="aspect-[3/4] max-w-[200px] mx-auto rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-700 group relative block w-full"
+              className="aspect-[3/4] w-full rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-700 group relative"
             >
               <div className="w-full h-full flex items-center justify-center text-gray-400">
                 <span className="text-4xl">📖</span>
