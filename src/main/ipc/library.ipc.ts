@@ -1,8 +1,8 @@
-import { ipcMain, BrowserWindow } from 'electron'
+import { ipcMain, BrowserWindow, app } from 'electron'
 import { Worker } from 'worker_threads'
 import { join as pathJoin } from 'path'
 import { libraryRepo } from '../db/repositories/library.repo'
-import { settingsRepo } from '../db/repositories/settings.repo'
+import { getStoredApiKey } from './auth.ipc'
 import { renameSync, mkdirSync, existsSync, appendFileSync, writeFileSync, readFileSync } from 'fs'
 import { dirname, join, basename } from 'path'
 import { homedir } from 'os'
@@ -194,7 +194,13 @@ export function registerLibraryIpc(): void {
       isScanning = false
     })
 
-    scanWorker.postMessage({ type: 'start', libraryRoot })
+    scanWorker.postMessage({
+      type: 'start',
+      libraryRoot,
+      // Same persistent cache the download pipeline writes to, so covers
+      // survive a reboot instead of living in os.tmpdir().
+      thumbnailDir: join(app.getPath('userData'), 'thumbnails')
+    })
     return { success: true, data: { scanning: true } }
   })
 
@@ -756,14 +762,29 @@ export function registerLibraryIpc(): void {
         const workerPath = pathJoin(__dirname, 'services/convert.worker.js')
         const worker = new Worker(workerPath)
         let currentItem: ReturnType<typeof libraryRepo.findById> | null = null
+        // Set once we deliberately stop this runner. worker.terminate() exits
+        // with code 1, which the exit handler would otherwise count as a
+        // failure — one phantom failure per runner on every clean run.
+        let stopping = false
 
-        const processNext = () => {
+        const stop = (): void => {
+          if (stopping) return
+          stopping = true
+          worker.terminate().then(() => resolve()).catch(() => resolve())
+        }
+
+        const processNext = (): void => {
           if (conversionCancelled || queueIndex >= total) {
-            worker.terminate().then(() => resolve()).catch(() => resolve())
+            stop()
             return
           }
           currentItem = items[queueIndex++]
-          if (!currentItem) return
+          // Defensive: a hole in the array used to leave the runner pending
+          // forever, hanging Promise.all and the whole conversion.
+          if (!currentItem) {
+            stop()
+            return
+          }
           worker.postMessage({
             type: 'convert',
             item: {
@@ -795,9 +816,20 @@ export function registerLibraryIpc(): void {
           }
         })
 
-        worker.on('error', () => { failed++; processNext() })
+        worker.on('error', (err) => {
+          if (!stopping) {
+            failed++
+            errors.push(String(err))
+            sendProgress()
+          }
+          // The worker is unusable after an uncaught error — retire this runner
+          // rather than posting more work into a dead thread.
+          stop()
+        })
         worker.on('exit', (code) => {
-          if (code !== 0 && currentItem) { failed++; sendProgress() }
+          // Only a code we did not ask for counts as a real failure.
+          if (!stopping && code !== 0 && currentItem) { failed++; sendProgress() }
+          stopping = true
           resolve()
         })
 
@@ -838,18 +870,10 @@ export function registerLibraryIpc(): void {
       const workerPath = pathJoin(__dirname, 'services/sync.worker.js')
       const worker = new Worker(workerPath)
 
-      // Get API key from settings
-      const encryptedKey = settingsRepo.get('nhentai_api_key')
-      let apiKey: string | undefined
-      if (encryptedKey) {
-        try {
-          // Simple decrypt — auth.ipc has encryptKey/decryptKey functions
-          const auth = require('../ipc/auth.ipc')
-          if (auth.decryptKey && typeof auth.decryptKey === 'function') {
-            apiKey = auth.decryptKey(encryptedKey as string)
-          }
-        } catch { /* ignore — sync without auth is fine */ }
-      }
+      // Get the decrypted API key so sync runs at authenticated rate limits.
+      // (Previously this used a runtime require() for a function that was
+      // never exported, so sync was always anonymous.)
+      const apiKey = getStoredApiKey()
 
       worker.on('message', (msg: { type: string; itemId: number; success?: boolean; message?: string; metadata?: { title: string; primaryArtist: string; tags: string; language: string | null; publisher: string | null } }) => {
         if (msg.type === 'complete') {
