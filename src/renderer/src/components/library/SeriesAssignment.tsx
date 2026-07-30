@@ -85,20 +85,20 @@ export default function SeriesAssignment({
     setError(null)
 
     try {
-      // Assign series name to all items, then update each item's volume
-      const ids = items.map((item) => item.id)
-      const result = await window.api.library.assignSeries(ids, seriesName.trim())
-      
-      // Apply per-item volumes
-      for (const item of items) {
-        const volStr = volumes.get(item.id)
-        if (volStr && volStr.trim()) {
-          const volNum = parseFloat(volStr.trim())
-          if (!isNaN(volNum)) {
-            await window.api.library.updateMetadata(item.id, { seriesIndex: volNum })
-          }
+      // Send each item's volume with the assignment so the series and the
+      // volume are embedded in a single pass. This used to assign the series
+      // first and then call updateMetadata() per item to correct the volume,
+      // rewriting every PDF twice.
+      const entries = items.map((item) => {
+        const volStr = (volumes.get(item.id) ?? '').trim()
+        const volNum = volStr ? parseFloat(volStr) : NaN
+        return {
+          id: item.id,
+          seriesIndex: Number.isFinite(volNum) ? volNum : null
         }
-      }
+      })
+
+      const result = await window.api.library.assignSeries(entries, seriesName.trim())
 
       if (result.success) {
         onAssigned()

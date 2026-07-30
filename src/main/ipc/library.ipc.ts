@@ -150,7 +150,7 @@ export function registerLibraryIpc(): void {
     const workerPath = pathJoin(__dirname, 'services/library-scanner.worker.js')
     scanWorker = new Worker(workerPath)
 
-    scanWorker.on('message', (msg: { type: string; current?: number; total?: number; status?: string; item?: { id: number; title: string; artist: string }; items?: Array<{ id: number; title: string; artist: string }>; result?: { total: number; newItems: number; removedItems: number; errors: string[]; cancelled: boolean }; message?: string }) => {
+    scanWorker.on('message', (msg: { type: string; current?: number; total?: number; status?: string; item?: { id: number; title: string; artist: string }; items?: Array<{ id: number; title: string; artist: string }>; result?: { total: number; newItems: number; removedItems: number; errors: string[]; cancelled: boolean; removalSkippedReason?: string | null }; message?: string }) => {
       switch (msg.type) {
         case 'newItems':
           // Send batched items as a single event to avoid flooding the renderer
@@ -226,6 +226,10 @@ export function registerLibraryIpc(): void {
       rawDb.exec('DELETE FROM library_item_artist')
       rawDb.exec('DELETE FROM library_item')
       rawDb.exec('DELETE FROM library_scan_log')
+      // The scan queue is keyed by file path and populated with INSERT OR
+      // IGNORE, so leaving it behind meant a reset library rescanned against a
+      // stale queue instead of a clean one.
+      rawDb.exec('DELETE FROM scan_queue')
       return { success: true }
     } catch (error) {
       return { success: false, error: String(error) }
@@ -272,87 +276,102 @@ export function registerLibraryIpc(): void {
 
   // ─── Series Assignment ─────────────────────────────────────────────
 
-  ipcMain.handle('library:assignSeries', async (_event, ids: number[], seriesName: string, seriesIndex?: number) => {
-    try {
-      const errors: string[] = []
-      let updated = 0
+  /**
+   * Assign a series to a batch of items, each with its own volume number.
+   *
+   * Previously this took a single optional seriesIndex and then ignored it,
+   * embedding `item.seriesIndex` (the item's *old* volume) into the PDF while
+   * writing the new value to the database. The renderer compensated by calling
+   * updateMetadata() for every item afterwards, which meant a second full
+   * pikepdf pass per file on every batch assignment.
+   */
+  ipcMain.handle(
+    'library:assignSeries',
+    async (
+      _event,
+      entries: Array<{ id: number; seriesIndex?: number | null }>,
+      seriesName: string
+    ) => {
+      try {
+        const errors: string[] = []
+        let updated = 0
 
-      for (const id of ids) {
-        const item = libraryRepo.findById(id)
-        if (!item) {
-          errors.push(`Item ${id} not found`)
-          continue
-        }
+        for (const entry of entries) {
+          const item = libraryRepo.findById(entry.id)
+          if (!item) {
+            errors.push(`Item ${entry.id} not found`)
+            continue
+          }
 
-        try {
-          // 1. Embed series into PDF metadata (offloaded to worker)
+          // The volume for THIS item, as chosen by the caller. Blank clears it.
+          const volume =
+            entry.seriesIndex != null && Number.isFinite(Number(entry.seriesIndex))
+              ? Number(entry.seriesIndex)
+              : null
+
           try {
-            await spawnMetadataWorker({
-              type: 'apply',
-              pdfPath: item.filePath,
-              metadata: {
-                title: item.customTitle || `Gallery #${item.galleryId || item.id}`,
-                creators: [item.primaryArtist || 'Unknown'],
-                tags: item.customTags ? item.customTags.split(',').map((t: string) => t.trim()).filter(Boolean) : [],
-                nhentaiId: item.galleryId,
-                seriesName,
-                seriesIndex: item.seriesIndex ?? undefined,
-                language: item.language || item.customLanguage,
-                publisher: item.publisher || undefined,
-                description: item.description || undefined
-              }
-            })
-          } catch (err) {
-            errors.push(`Failed to embed series in PDF for item ${id}: ${String(err)}`)
-            // Continue — DB update is still valid
-          }
-
-          // 2. Move file if currently in artist root (no series dir)
-          const currentDir = dirname(item.filePath)
-          const fileName = basename(item.filePath)
-
-          // Check if file is directly under artist dir (no series subdir)
-          // The structure is: {libraryRoot}/{artist}/{series?}/{file}
-          // If the current dir's basename matches the primary artist, we need to create series subdir
-          const parentDirName = basename(currentDir)
-
-          if (parentDirName === item.primaryArtist || !item.seriesName) {
-            // File is in artist root — move to series subdirectory
-            const seriesDir = join(currentDir, seriesName)
-            if (!existsSync(seriesDir)) {
-              mkdirSync(seriesDir, { recursive: true })
-            }
-            const newPath = join(seriesDir, fileName)
+            // 1. Embed series + the new volume into the PDF in one pass
             try {
-              renameSync(item.filePath, newPath)
-              libraryRepo.update(id, {
-                seriesName,
-                seriesIndex: seriesIndex ?? undefined,
-                filePath: newPath
-              } as Record<string, unknown>)
-            } catch (moveErr) {
-              errors.push(`Failed to move file for item ${id}: ${String(moveErr)}`)
-              libraryRepo.update(id, { seriesName, seriesIndex: seriesIndex ?? undefined } as Record<string, unknown>)
+              await spawnMetadataWorker({
+                type: 'apply',
+                pdfPath: item.filePath,
+                metadata: {
+                  title: item.customTitle || `Gallery #${item.galleryId || item.id}`,
+                  creators: [item.primaryArtist || 'Unknown'],
+                  tags: item.customTags
+                    ? item.customTags.split(',').map((t: string) => t.trim()).filter(Boolean)
+                    : [],
+                  nhentaiId: item.galleryId,
+                  seriesName,
+                  seriesIndex: volume ?? undefined,
+                  language: item.language || item.customLanguage,
+                  publisher: item.publisher || undefined,
+                  description: item.description || undefined
+                }
+              })
+            } catch (err) {
+              errors.push(`Failed to embed series in PDF for item ${entry.id}: ${String(err)}`)
+              // Continue — the DB update is still valid
             }
-          } else {
-            // Already in a subdirectory — just update DB
-            libraryRepo.update(id, { seriesName, seriesIndex: seriesIndex ?? undefined } as Record<string, unknown>)
+
+            // 2. Move the file into a series subdirectory if it is still in the
+            //    artist root. Structure: {libraryRoot}/{artist}/{series?}/{file}
+            const currentDir = dirname(item.filePath)
+            const fileName = basename(item.filePath)
+            const parentDirName = basename(currentDir)
+
+            const dbUpdate: Record<string, unknown> = { seriesName, seriesIndex: volume }
+
+            if (parentDirName === item.primaryArtist || !item.seriesName) {
+              const seriesDir = join(currentDir, seriesName)
+              if (!existsSync(seriesDir)) {
+                mkdirSync(seriesDir, { recursive: true })
+              }
+              const newPath = join(seriesDir, fileName)
+              try {
+                renameSync(item.filePath, newPath)
+                dbUpdate.filePath = newPath
+              } catch (moveErr) {
+                errors.push(`Failed to move file for item ${entry.id}: ${String(moveErr)}`)
+              }
+            }
+
+            libraryRepo.update(entry.id, dbUpdate)
+            updated++
+          } catch (err) {
+            errors.push(`Error processing item ${entry.id}: ${String(err)}`)
           }
-
-          updated++
-        } catch (err) {
-          errors.push(`Error processing item ${id}: ${String(err)}`)
         }
-      }
 
-      return {
-        success: true,
-        data: { updated, errors: errors.length > 0 ? errors : undefined }
+        return {
+          success: true,
+          data: { updated, errors: errors.length > 0 ? errors : undefined }
+        }
+      } catch (error) {
+        return { success: false, error: String(error) }
       }
-    } catch (error) {
-      return { success: false, error: String(error) }
     }
-  })
+  )
 
   // ─── Custom Entry ──────────────────────────────────────────────────
 

@@ -439,6 +439,12 @@ export default function LibraryPage(): React.JSX.Element {
         newItems: result.newItems,
         totalItems: result.total
       })
+      // The scanner skips removing "missing" items when discovery looked
+      // incomplete. Surface that, otherwise the guard is invisible and stale
+      // rows look like a bug.
+      if (result.removalSkippedReason) {
+        setError(result.removalSkippedReason)
+      }
       // Refresh data after scan completes
       fetchPage(0, true)
     })

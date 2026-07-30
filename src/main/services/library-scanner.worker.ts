@@ -13,6 +13,7 @@
 import { parentPort } from 'worker_threads'
 import { readFileSync, statSync, existsSync, mkdirSync, writeFileSync, appendFileSync } from 'fs'
 import { readdir } from 'fs/promises'
+import type { Dirent } from 'fs'
 import { join, relative, basename } from 'path'
 import { execFile } from 'child_process'
 import { createHash } from 'crypto'
@@ -32,7 +33,18 @@ type WorkerEvent =
   | { type: 'progress'; current: number; total: number; status: string }
   | { type: 'newItem'; item: { id: number; title: string; artist: string } }
   | { type: 'newItems'; items: Array<{ id: number; title: string; artist: string }> }
-  | { type: 'complete'; result: { total: number; newItems: number; removedItems: number; errors: string[]; cancelled: boolean } }
+  | {
+      type: 'complete'
+      result: {
+        total: number
+        newItems: number
+        removedItems: number
+        errors: string[]
+        cancelled: boolean
+        /** Set when the removal pass was skipped for safety; shown to the user. */
+        removalSkippedReason?: string | null
+      }
+    }
   | { type: 'error'; message: string }
   | { type: 'paused' }
   | { type: 'cancelled' }
@@ -339,22 +351,46 @@ async function generateThumbnail(pdfPath: string): Promise<string | null> {
 
 // ─── Directory Walking ───────────────────────────────────────────────────────
 
-async function walkPdfs(dir: string): Promise<string[]> {
-  const results: string[] = []
+interface WalkResult {
+  files: string[]
+  /** Directories that could not be read. Non-empty means the walk is partial. */
+  failedDirs: Array<{ dir: string; error: string }>
+}
+
+/**
+ * Recursively collect PDF paths under `dir`.
+ *
+ * Read failures are reported rather than swallowed. A partial walk used to be
+ * indistinguishable from a complete one, and the removal pass then deleted
+ * every library row whose file "wasn't found" — so one unreadable directory on
+ * a network share silently dropped rows from the database.
+ */
+async function walkPdfs(dir: string): Promise<WalkResult> {
+  const files: string[] = []
+  const failedDirs: Array<{ dir: string; error: string }> = []
+
+  let entries: Dirent[]
   try {
-    const entries = await readdir(dir, { withFileTypes: true })
-    for (const entry of entries) {
-      if (entry.name.startsWith('.')) continue
-      if (entry.name === '_Unsorted' || entry.name === '_migration_staging') continue
-      const fullPath = join(dir, entry.name)
-      if (entry.isDirectory()) {
-        results.push(...(await walkPdfs(fullPath)))
-      } else if (entry.isFile() && entry.name.toLowerCase().endsWith('.pdf')) {
-        results.push(fullPath)
-      }
+    entries = await readdir(dir, { withFileTypes: true })
+  } catch (err) {
+    failedDirs.push({ dir, error: err instanceof Error ? err.message : String(err) })
+    return { files, failedDirs }
+  }
+
+  for (const entry of entries) {
+    if (entry.name.startsWith('.')) continue
+    if (entry.name === '_Unsorted' || entry.name === '_migration_staging') continue
+    const fullPath = join(dir, entry.name)
+    if (entry.isDirectory()) {
+      const nested = await walkPdfs(fullPath)
+      files.push(...nested.files)
+      failedDirs.push(...nested.failedDirs)
+    } else if (entry.isFile() && entry.name.toLowerCase().endsWith('.pdf')) {
+      files.push(fullPath)
     }
-  } catch { /* */ }
-  return results
+  }
+
+  return { files, failedDirs }
 }
 
 // ─── Queue Management ────────────────────────────────────────────────────────
@@ -369,9 +405,20 @@ function populateQueue(filePaths: string[]): void {
   log(`QUEUE populated ${filePaths.length} paths`)
 }
 
-function resetPausedToPending(): void {
-  if (!db) return
-  db.prepare("UPDATE scan_queue SET status = 'pending' WHERE status = 'scanning'").run()
+/**
+ * Requeue anything left incomplete by a previous run.
+ *
+ * 'scanning' rows are from a scan that stopped mid-item. 'failed' rows were
+ * previously left alone forever: populateQueue uses INSERT OR IGNORE and the
+ * work query only selects pending/scanning, so a file that errored once was
+ * invisible to every later scan. Pressing Rescan should retry it.
+ */
+function requeueIncompleteItems(): number {
+  if (!db) return 0
+  const result = db
+    .prepare("UPDATE scan_queue SET status = 'pending' WHERE status IN ('scanning', 'failed')")
+    .run()
+  return result.changes
 }
 
 // ─── Incremental Check ───────────────────────────────────────────────────────
@@ -571,16 +618,21 @@ async function runScan(): Promise<void> {
     return
   }
 
-  const pdfFiles = await walkPdfs(currentLibraryRoot)
+  const walk = await walkPdfs(currentLibraryRoot)
+  const pdfFiles = walk.files
   // Sort by modification time (newest first) so recent downloads are scanned first
   pdfFiles.sort((a, b) => {
     try { return statSync(b).mtimeMs - statSync(a).mtimeMs } catch { return 0 }
   })
   log(`DISCOVERY found ${pdfFiles.length} PDFs`)
+  for (const failure of walk.failedDirs) {
+    log(`DISCOVERY_ERROR ${failure.dir}: ${failure.error}`)
+  }
 
   // Phase 2: Populate queue
   populateQueue(pdfFiles)
-  resetPausedToPending()
+  const requeued = requeueIncompleteItems()
+  if (requeued > 0) log(`QUEUE requeued ${requeued} incomplete/failed item(s)`)
 
   // Phase 3: Get pending items
   const queueItems = db.prepare(
@@ -662,8 +714,46 @@ async function runScan(): Promise<void> {
   flushNewItemBatch()
 
   // Phase 5: Detect removed items
+  //
+  // Deleting rows because a file "wasn't discovered" is only safe if discovery
+  // was actually complete. Two guards decide that, and either one skips the
+  // removal pass entirely rather than risking the library metadata.
   let removedItems = 0
-  const allDbPaths = db.prepare('SELECT id, file_path FROM library_item').all() as Array<{ id: number; file_path: string }>
+  let removalSkippedReason: string | null = null
+
+  if (walk.failedDirs.length > 0) {
+    const sample = walk.failedDirs
+      .slice(0, 3)
+      .map((f) => f.dir)
+      .join(', ')
+    removalSkippedReason =
+      `${walk.failedDirs.length} directory/directories could not be read ` +
+      `(${sample}${walk.failedDirs.length > 3 ? ', …' : ''}), so files may exist that this ` +
+      `scan did not see. Skipped removing missing items to avoid deleting metadata.`
+  } else {
+    // Backstop for a readable-but-wrong root (e.g. an empty mountpoint where
+    // the share failed to mount): a sudden collapse in discovered files is far
+    // more likely to be an environment problem than a real mass deletion.
+    const lastLog = db
+      .prepare('SELECT total_items FROM library_scan_log ORDER BY scanned_at DESC LIMIT 1')
+      .get() as { total_items: number } | undefined
+    const previousTotal = lastLog?.total_items ?? 0
+    if (previousTotal >= 50 && pdfFiles.length < previousTotal * 0.8) {
+      removalSkippedReason =
+        `Discovered ${pdfFiles.length} files but the last scan saw ${previousTotal} ` +
+        `(a drop of over 20%). Skipped removing missing items — check that the library ` +
+        `path is correct and fully mounted, then rescan.`
+    }
+  }
+
+  if (removalSkippedReason) {
+    log(`REMOVAL_SKIPPED ${removalSkippedReason}`)
+    errors.push(removalSkippedReason)
+  }
+
+  const allDbPaths = removalSkippedReason
+    ? []
+    : (db.prepare('SELECT id, file_path FROM library_item').all() as Array<{ id: number; file_path: string }>)
   const pdfSet = new Set(pdfFiles)
   const gone = allDbPaths.filter((dbItem) => !pdfSet.has(dbItem.file_path))
 
@@ -692,7 +782,7 @@ async function runScan(): Promise<void> {
   state = 'idle'
   send({
     type: 'complete',
-    result: { total, newItems, removedItems, errors, cancelled: false }
+    result: { total, newItems, removedItems, errors, cancelled: false, removalSkippedReason }
   })
 }
 

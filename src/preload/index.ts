@@ -87,8 +87,10 @@ const api = {
     autocompleteArtists: (query: string) => ipcRenderer.invoke('library:autocompleteArtists', query),
     autocompleteSeries: (query: string) => ipcRenderer.invoke('library:autocompleteSeries', query),
     autocompleteTags: (query: string) => ipcRenderer.invoke('library:autocompleteTags', query),
-    assignSeries: (ids: number[], seriesName: string, seriesIndex?: number) =>
-      ipcRenderer.invoke('library:assignSeries', ids, seriesName, seriesIndex),
+    assignSeries: (
+      entries: Array<{ id: number; seriesIndex?: number | null }>,
+      seriesName: string
+    ) => ipcRenderer.invoke('library:assignSeries', entries, seriesName),
     delete: (id: number) => ipcRenderer.invoke('library:delete', id),
     deleteFile: (id: number) => ipcRenderer.invoke('library:deleteFile', id),
     getThumbnail: (id: number) => ipcRenderer.invoke('library:getThumbnail', id),
@@ -130,8 +132,8 @@ const api = {
     ipcRenderer.on('library:scanProgress', handler)
     return () => ipcRenderer.removeListener('library:scanProgress', handler)
   },
-  onLibraryScanComplete: (callback: (result: { total: number; newItems: number; removedItems: number; errors: string[] }) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, result: { total: number; newItems: number; removedItems: number; errors: string[] }) =>
+  onLibraryScanComplete: (callback: (result: { total: number; newItems: number; removedItems: number; errors: string[]; removalSkippedReason?: string | null }) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, result: { total: number; newItems: number; removedItems: number; errors: string[]; removalSkippedReason?: string | null }) =>
       callback(result)
     ipcRenderer.on('library:scanComplete', handler)
     return () => ipcRenderer.removeListener('library:scanComplete', handler)
