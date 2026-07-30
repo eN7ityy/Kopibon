@@ -1,6 +1,8 @@
 import { ipcMain, BrowserWindow } from 'electron'
 import { downloadRepo } from '../db/repositories/download.repo'
+import { settingsRepo } from '../db/repositories/settings.repo'
 import { getDownloadManager, type DownloadProgress } from '../services/download-manager'
+import { resolveOutputFormat } from '../services/output-format'
 
 export function registerDownloadIpc(): void {
   const manager = getDownloadManager()
@@ -61,13 +63,15 @@ export function registerDownloadIpc(): void {
           return { success: true, data: { id: existing.id, duplicate: true } }
         }
 
+        // Explicit choice wins, else the persisted setting, else PDF.
+        const format = resolveOutputFormat(outputFormat, settingsRepo.get('outputFormat'))
         const id = downloadRepo.insert({
           galleryId,
           status: 'queued',
           priority: 0,
           retryCount: 0,
           maxRetries: 3,
-          outputFormat: outputFormat ?? 'pdf',
+          outputFormat: format,
           outputDirectory: outputDirectory ?? null
         })
         // Start processing if not already running
