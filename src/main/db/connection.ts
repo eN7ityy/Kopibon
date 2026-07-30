@@ -71,7 +71,10 @@ function seedDefaults(sqlite: Database.Database): void {
     compressPdf: 'true',
     compressionQuality: '80',
     pageSize: 'Dynamic',
-    blackBackground: 'true'
+    blackBackground: 'true',
+    cbzMangaDirection: 'YesAndRightToLeft',
+    cbzParodyAsCollection: 'false',
+    cbzKeepOriginal: 'true'
   }
 
   const insert = sqlite.prepare('INSERT OR IGNORE INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)')

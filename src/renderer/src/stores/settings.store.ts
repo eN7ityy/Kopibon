@@ -7,7 +7,7 @@ import { create } from 'zustand'
  * persists it to localStorage. It previously lived in both places, and only
  * the ui store copy was ever read.
  */
-export type OutputFormat = 'pdf' | 'epub'
+export type OutputFormat = 'pdf' | 'cbz'
 export type PageSizeOption = 'Dynamic' | 'Fit to Image' | 'Letter' | 'A4'
 
 interface SettingsState {

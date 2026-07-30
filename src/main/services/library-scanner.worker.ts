@@ -62,6 +62,7 @@ interface PdfMetadata {
   description: string | null
 }
 
+
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 const NHENTAI_ID_REGEX = /nhentai:(\d+)/i
@@ -315,6 +316,156 @@ function extractIdFromFilename(filePath: string): number | null {
   return m ? parseInt(m[1], 10) : null
 }
 
+// ─── CBZ Metadata ────────────────────────────────────────────────────────────
+
+/**
+ * Extract metadata from a ComicInfo.xml inside a CBZ archive.
+ *
+ * Uses yauzl to stream the single entry without loading the whole archive
+ * into memory. Returns the same PdfMetadata shape so processFile() can
+ * dispatch on extension with no downstream changes.
+ */
+async function extractCbzMetadata(filePath: string): Promise<PdfMetadata> {
+  const metadata: PdfMetadata = {
+    title: null, authors: [], tags: [], galleryId: null, creationDate: null,
+    seriesName: null, seriesIndex: null, language: null, publisher: null, description: null
+  }
+
+  try {
+    const { open } = await import('yauzl')
+    const { parseComicInfoXml } = await import('./comicinfo')
+
+    const xml = await new Promise<string>((resolve, reject) => {
+      open(filePath, { lazyEntries: true }, (err, zipfile) => {
+        if (err) return reject(err)
+        if (!zipfile) return reject(new Error('Failed to open zip'))
+
+        let found = false
+        zipfile.readEntry()
+
+        zipfile.on('entry', (entry) => {
+          // ComicInfo.xml at the root — first entry per §1.4
+          if (entry.fileName === 'ComicInfo.xml') {
+            found = true
+            const chunks: Buffer[] = []
+            zipfile.openReadStream(entry, (openErr, readStream) => {
+              if (openErr) return reject(openErr)
+              if (!readStream) return reject(new Error('No read stream'))
+              readStream.on('data', (chunk: Buffer) => chunks.push(chunk))
+              readStream.on('end', () => {
+                const xmlStr = Buffer.concat(chunks).toString('utf-8')
+                resolve(xmlStr)
+              })
+              readStream.on('error', reject)
+            })
+          } else {
+            zipfile.readEntry()
+          }
+        })
+
+        zipfile.on('end', () => {
+          if (!found) resolve('')
+        })
+
+        zipfile.on('error', reject)
+      })
+    })
+
+    if (!xml) return metadata
+
+    const parsed = parseComicInfoXml(xml)
+
+    metadata.title = parsed.title || null
+    metadata.authors = parsed.writers || []
+    metadata.tags = [...(parsed.genres || []), ...(parsed.tags || [])]
+    // §4.3 always writes Series (falls back to title). On read, treat Series==Title
+    // as "no real series" to avoid fabricating phantom one-item series on rescan.
+    metadata.seriesName =
+      parsed.series && parsed.title && parsed.series !== parsed.title
+        ? parsed.series
+        : null
+    metadata.seriesIndex = parsed.volume ?? null
+    metadata.language = parsed.languageIso || null
+    metadata.publisher = parsed.publisher || null
+    metadata.description = parsed.summary || null
+
+    // Gallery ID recovery — §2.1.6 precedence: Web > Notes > filename
+    if (parsed.webUrl) {
+      const webMatch = parsed.webUrl.match(/nhentai\.net\/g\/(\d+)/)
+      if (webMatch) metadata.galleryId = parseInt(webMatch[1], 10)
+    }
+    if (!metadata.galleryId && parsed.notes) {
+      const notesMatch = parsed.notes.match(/nhentai gallery (\d+)/i)
+      if (notesMatch) metadata.galleryId = parseInt(notesMatch[1], 10)
+    }
+    // filename fallback is handled by the caller (extractIdFromFilename)
+
+    return metadata
+  } catch {
+    return metadata
+  }
+}
+
+/**
+ * Generate a thumbnail for a CBZ file by extracting the first image entry
+ * and resizing with sharp.
+ */
+async function generateCbzThumbnail(filePath: string): Promise<string | null> {
+  const thumbDir = currentThumbnailDir
+  if (!existsSync(thumbDir)) {
+    try { mkdirSync(thumbDir, { recursive: true }) } catch { return null }
+  }
+  const { createHash } = await import('crypto')
+  const hash = createHash('sha1').update(filePath).digest('hex').slice(0, 16)
+  const thumbPath = join(thumbDir, `${hash}.jpg`)
+  if (existsSync(thumbPath)) return thumbPath
+
+  try {
+    const { open } = await import('yauzl')
+    const sharp = (await import('sharp')).default
+
+    const imageBuffer = await new Promise<Buffer | null>((resolve, reject) => {
+      open(filePath, { lazyEntries: true }, (err, zipfile) => {
+        if (err) return reject(err)
+        if (!zipfile) return reject(new Error('Failed to open zip'))
+
+        zipfile.readEntry()
+
+        zipfile.on('entry', (entry) => {
+          if (entry.fileName === 'ComicInfo.xml') {
+            // Skip metadata — look for first image
+            zipfile.readEntry()
+            return
+          }
+          // First non-ComicInfo entry — should be an image
+          const chunks: Buffer[] = []
+          zipfile.openReadStream(entry, (openErr, readStream) => {
+            if (openErr) return reject(openErr)
+            if (!readStream) return reject(new Error('No read stream'))
+            readStream.on('data', (chunk: Buffer) => chunks.push(chunk))
+            readStream.on('end', () => resolve(Buffer.concat(chunks)))
+            readStream.on('error', reject)
+          })
+        })
+
+        zipfile.on('end', () => resolve(null))
+        zipfile.on('error', reject)
+      })
+    })
+
+    if (!imageBuffer) return null
+
+    await sharp(imageBuffer)
+      .resize(300, 400, { fit: 'inside' })
+      .jpeg({ quality: 80 })
+      .toFile(thumbPath)
+
+    return thumbPath
+  } catch {
+    return null
+  }
+}
+
 // ─── Thumbnail Generation ────────────────────────────────────────────────────
 
 async function generateThumbnail(pdfPath: string): Promise<string | null> {
@@ -358,14 +509,14 @@ interface WalkResult {
 }
 
 /**
- * Recursively collect PDF paths under `dir`.
+ * Recursively collect PDF and CBZ paths under `dir`.
  *
  * Read failures are reported rather than swallowed. A partial walk used to be
  * indistinguishable from a complete one, and the removal pass then deleted
  * every library row whose file "wasn't found" — so one unreadable directory on
  * a network share silently dropped rows from the database.
  */
-async function walkPdfs(dir: string): Promise<WalkResult> {
+async function walkLibraryFiles(dir: string): Promise<WalkResult> {
   const files: string[] = []
   const failedDirs: Array<{ dir: string; error: string }> = []
 
@@ -379,14 +530,18 @@ async function walkPdfs(dir: string): Promise<WalkResult> {
 
   for (const entry of entries) {
     if (entry.name.startsWith('.')) continue
-    if (entry.name === '_Unsorted' || entry.name === '_migration_staging') continue
+    // Exclude special directories — _originals holds archived originals (§1.3)
+    if (entry.name === '_Unsorted' || entry.name === '_migration_staging' || entry.name === '_originals') continue
     const fullPath = join(dir, entry.name)
     if (entry.isDirectory()) {
-      const nested = await walkPdfs(fullPath)
+      const nested = await walkLibraryFiles(fullPath)
       files.push(...nested.files)
       failedDirs.push(...nested.failedDirs)
-    } else if (entry.isFile() && entry.name.toLowerCase().endsWith('.pdf')) {
-      files.push(fullPath)
+    } else if (entry.isFile()) {
+      const lower = entry.name.toLowerCase()
+      if (lower.endsWith('.pdf') || lower.endsWith('.cbz')) {
+        files.push(fullPath)
+      }
     }
   }
 
@@ -524,7 +679,10 @@ async function processFile(filePath: string): Promise<{ status: 'new' | 'skipped
   }
 
   try {
-    const metadata = await extractPdfMetadata(filePath)
+    // Dispatch by file extension — PDF or CBZ
+    const isCbz = filePath.toLowerCase().endsWith('.cbz')
+    const format = isCbz ? 'cbz' : 'pdf'
+    const metadata = isCbz ? await extractCbzMetadata(filePath) : await extractPdfMetadata(filePath)
 
     let galleryId = metadata.galleryId
     if (!galleryId) galleryId = extractIdFromFilename(filePath)
@@ -536,7 +694,8 @@ async function processFile(filePath: string): Promise<{ status: 'new' | 'skipped
     const dirSeriesName = parts.length >= 3 ? parts[1] : null
     const seriesName = metadata.seriesName || dirSeriesName
     const artists = metadata.authors.length > 0 ? metadata.authors : [primaryArtist]
-    const title = metadata.title || basename(filePath).replace(/\.pdf$/i, '').replace(/^\[nhentai-\d+\]\s*/, '')
+    const extRe = isCbz ? /\.cbz$/i : /\.pdf$/i
+    const title = metadata.title || basename(filePath).replace(extRe, '').replace(/^\[nhentai-\d+\]\s*/, '')
     const isCustom = galleryId ? 0 : 1
 
     let statInfo: { mtimeMs: number; size: number }
@@ -561,10 +720,12 @@ async function processFile(filePath: string): Promise<{ status: 'new' | 'skipped
       return { status: 'skipped' }
     }
 
-    // Generate thumbnail
+    // Generate thumbnail — PDF uses pdftoppm, CBZ uses sharp
     let thumbnailPath: string | null = null
     if (!db!.prepare('SELECT thumbnail_path FROM library_item WHERE file_path = ?').get(filePath)) {
-      try { thumbnailPath = await generateThumbnail(filePath) } catch { /* */ }
+      try {
+        thumbnailPath = isCbz ? await generateCbzThumbnail(filePath) : await generateThumbnail(filePath)
+      } catch { /* */ }
     }
 
     const now = Date.now()
@@ -574,7 +735,7 @@ async function processFile(filePath: string): Promise<{ status: 'new' | 'skipped
       customTags: metadata.tags.length > 0 ? metadata.tags.join(', ') : null,
       customLanguage: metadata.language || null,
       customDate: metadata.creationDate ? metadata.creationDate.toISOString().split('T')[0] : null,
-      customCoverPath: thumbnailPath, filePath, fileSize: statInfo.size, format: 'pdf',
+      customCoverPath: thumbnailPath, filePath, fileSize: statInfo.size, format,
       primaryArtist: artists[0] || 'Unknown', seriesName,
       seriesIndex: metadata.seriesIndex,
       language: metadata.language,
@@ -618,19 +779,19 @@ async function runScan(): Promise<void> {
     return
   }
 
-  const walk = await walkPdfs(currentLibraryRoot)
-  const pdfFiles = walk.files
+  const walk = await walkLibraryFiles(currentLibraryRoot)
+  const discoveredFiles = walk.files
   // Sort by modification time (newest first) so recent downloads are scanned first
-  pdfFiles.sort((a, b) => {
+  discoveredFiles.sort((a, b) => {
     try { return statSync(b).mtimeMs - statSync(a).mtimeMs } catch { return 0 }
   })
-  log(`DISCOVERY found ${pdfFiles.length} PDFs`)
+  log(`DISCOVERY found ${discoveredFiles.length} files`)
   for (const failure of walk.failedDirs) {
     log(`DISCOVERY_ERROR ${failure.dir}: ${failure.error}`)
   }
 
   // Phase 2: Populate queue
-  populateQueue(pdfFiles)
+  populateQueue(discoveredFiles)
   const requeued = requeueIncompleteItems()
   if (requeued > 0) log(`QUEUE requeued ${requeued} incomplete/failed item(s)`)
 
@@ -738,9 +899,9 @@ async function runScan(): Promise<void> {
       .prepare('SELECT total_items FROM library_scan_log ORDER BY scanned_at DESC LIMIT 1')
       .get() as { total_items: number } | undefined
     const previousTotal = lastLog?.total_items ?? 0
-    if (previousTotal >= 50 && pdfFiles.length < previousTotal * 0.8) {
+    if (previousTotal >= 50 && discoveredFiles.length < previousTotal * 0.8) {
       removalSkippedReason =
-        `Discovered ${pdfFiles.length} files but the last scan saw ${previousTotal} ` +
+        `Discovered ${discoveredFiles.length} files but the last scan saw ${previousTotal} ` +
         `(a drop of over 20%). Skipped removing missing items — check that the library ` +
         `path is correct and fully mounted, then rescan.`
     }
@@ -754,8 +915,8 @@ async function runScan(): Promise<void> {
   const allDbPaths = removalSkippedReason
     ? []
     : (db.prepare('SELECT id, file_path FROM library_item').all() as Array<{ id: number; file_path: string }>)
-  const pdfSet = new Set(pdfFiles)
-  const gone = allDbPaths.filter((dbItem) => !pdfSet.has(dbItem.file_path))
+  const discoveredSet = new Set(discoveredFiles)
+  const gone = allDbPaths.filter((dbItem) => !discoveredSet.has(dbItem.file_path))
 
   if (gone.length > 0) {
     // Nothing declares a foreign key, so artist rows must be removed by hand

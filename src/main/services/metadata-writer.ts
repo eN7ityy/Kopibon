@@ -29,27 +29,7 @@ export interface GalleryMetadata {
   description?: string
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-/** Map human-readable language names to ISO 639-1 codes */
-const LANGUAGE_TO_ISO: Record<string, string> = {
-  english: 'en',
-  japanese: 'ja',
-  chinese: 'zh',
-  korean: 'ko',
-  french: 'fr',
-  spanish: 'es',
-  german: 'de',
-  other: 'ot'
-}
-
-function toIsoLanguage(lang: string | undefined): string | null {
-  if (!lang) return null
-  const lower = lang.toLowerCase().trim()
-  // If already a 2-letter code, return as-is
-  if (/^[a-z]{2}$/.test(lower)) return lower
-  return LANGUAGE_TO_ISO[lower] || lower
-}
+import { toIsoLanguage } from './xml-utils'
 
 /**
  * Move a file from srcPath to destPath, handling cross-device moves.

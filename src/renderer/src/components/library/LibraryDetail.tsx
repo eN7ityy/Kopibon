@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import AutocompleteInput from '../shared/AutocompleteInput'
 import PdfViewer from './PdfViewer'
+import CbzViewer from './CbzViewer'
 import type { LibraryItemData } from './LibraryCard'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -188,11 +189,21 @@ export default function LibraryDetail({
   // Use freshly fetched data when available, fall back to prop
   const detail = freshItem || item
 
+  // Choose viewer by format
+  const isCbz = detail.format === 'cbz'
+
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/30" onClick={onClose}>
-        {/* PDF Viewer — sits to the left of the detail panel */}
-        {showPdfViewer && (
+        {/* Viewer — sits to the left of the detail panel */}
+        {showPdfViewer && !isCbz && (
           <PdfViewer
+            filePath={detail.filePath}
+            title={detail.customTitle || 'Untitled'}
+            onClose={() => setShowPdfViewer(false)}
+          />
+        )}
+        {showPdfViewer && isCbz && (
+          <CbzViewer
             filePath={detail.filePath}
             title={detail.customTitle || 'Untitled'}
             onClose={() => setShowPdfViewer(false)}

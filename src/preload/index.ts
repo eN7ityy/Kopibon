@@ -109,6 +109,12 @@ const api = {
   // File read (for PDF viewer)
   readFile: (filePath: string) => ipcRenderer.invoke('file:read', filePath),
 
+  // CBZ reader
+  cbz: {
+    getPageCount: (filePath: string) => ipcRenderer.invoke('cbz:getPageCount', filePath),
+    readPage: (filePath: string, pageIndex: number) => ipcRenderer.invoke('cbz:readPage', filePath, pageIndex)
+  },
+
   // Events
   onDownloadProgress: (callback: (progress: {
     queueId: number

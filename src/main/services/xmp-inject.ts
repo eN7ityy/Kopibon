@@ -11,6 +11,7 @@
  */
 
 import { spawn } from 'child_process'
+import { escapeXml, toIsoLanguage } from './xml-utils'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -29,50 +30,8 @@ export interface XmpMetadata {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-/** Characters that are illegal in XML 1.0 even when escaped. */
-// eslint-disable-next-line no-control-regex
-const ILLEGAL_XML_CHARS = /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g
-
-/**
- * Escape text for inclusion in XML character data.
- *
- * This previously replaced each character with itself (`&` → `&`), which meant
- * any title containing an ampersand produced structurally invalid XMP. pikepdf
- * writes the packet as raw bytes without validating, so the damage only showed
- * up downstream in Kavita/Calibre/exiftool.
- */
-function escXml(s: string): string {
-  return s
-    .replace(ILLEGAL_XML_CHARS, '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;')
-}
-
-/** Map human-readable language names to ISO 639-1 codes for dc:language. */
-const LANGUAGE_TO_ISO: Record<string, string> = {
-  english: 'en',
-  japanese: 'ja',
-  chinese: 'zh',
-  korean: 'ko',
-  french: 'fr',
-  spanish: 'es',
-  german: 'de',
-  italian: 'it',
-  portuguese: 'pt',
-  russian: 'ru',
-  other: 'ot'
-}
-
-function toIsoLanguage(lang: string | null | undefined): string | null {
-  if (!lang) return null
-  const lower = lang.toLowerCase().trim()
-  if (!lower) return null
-  if (/^[a-z]{2}$/.test(lower)) return lower
-  return LANGUAGE_TO_ISO[lower] || lower
-}
+/** Alias kept for backward compatibility with existing callers. */
+const escXml = escapeXml
 
 /**
  * Build the docinfo /Keywords token list.

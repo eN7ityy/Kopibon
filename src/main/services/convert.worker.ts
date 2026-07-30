@@ -1,17 +1,22 @@
 /**
  * Convert Worker Thread
  *
- * Processes a single library item: applies pikepdf XMP, renames file.
+ * Processes a single library item: re-applies its metadata, renames file.
  * Multiple instances run in parallel, coordinated by the main process
  * which assigns items from a shared queue.
  *
+ * Metadata is written through applyMetadata(), which dispatches by format —
+ * pikepdf for PDF, a ComicInfo.xml rewrite for CBZ. Calling pikepdf directly
+ * here made "Convert Library Metadata" fail on every CBZ row.
+ *
  * Message Protocol:
- *   Main → Worker: { type: 'convert', item: { id, filePath, metadata } }
+ *   Main → Worker: { type: 'convert', item: { id, filePath, format, metadata } }
  *   Worker → Main: { type: 'done', itemId, success, newPath?, error?, log? }
  */
 
 import { parentPort } from 'worker_threads'
-import { applyXmpWithPikepdf, type XmpMetadata } from './xmp-inject'
+import { type XmpMetadata } from './xmp-inject'
+import { applyMetadata } from './apply-metadata'
 import { renameSync, existsSync } from 'fs'
 import { basename, dirname, join } from 'path'
 
@@ -20,6 +25,8 @@ interface ConvertCommand {
   item: {
     id: number
     filePath: string
+    /** 'pdf' | 'cbz' — defaults to 'pdf' for older callers. */
+    format?: string
     metadata: XmpMetadata
   }
 }
@@ -28,19 +35,21 @@ parentPort?.on('message', async (cmd: ConvertCommand) => {
   if (cmd.type !== 'convert') return
 
   const { id, filePath, metadata } = cmd.item
+  const format = cmd.item.format || 'pdf'
   let newPath: string | undefined
 
   try {
-    // Step 1: Apply XMP via pikepdf
-    const result = await applyXmpWithPikepdf(filePath, metadata)
+    // Step 1: Apply metadata via the format-aware dispatcher
+    const result = await applyMetadata(filePath, format, metadata)
 
     if (!result.success) {
+      const why = result.error || 'metadata write failed'
       parentPort?.postMessage({
         type: 'done',
         itemId: id,
         success: false,
-        error: result.error || 'pikepdf failed',
-        log: `FAIL ${basename(filePath)}: ${result.error || 'pikepdf failed'}`
+        error: why,
+        log: `FAIL ${basename(filePath)}: ${why}`
       })
       return
     }
@@ -52,9 +61,13 @@ parentPort?.on('message', async (cmd: ConvertCommand) => {
       const prefixPattern = new RegExp(`^\\[nhentai-${metadata.nhentaiId}\\]\\s*`)
 
       if (prefixPattern.test(currentName)) {
+        // Preserve the real extension — this used to hardcode .pdf, which
+        // would have renamed a .cbz into a .pdf.
+        const extMatch = currentName.match(/\.[A-Za-z0-9]+$/)
+        const ext = extMatch ? extMatch[0] : format === 'cbz' ? '.cbz' : '.pdf'
         const newName = currentName
           .replace(prefixPattern, '')
-          .replace(/\.pdf$/, '') + ` [nhentai-${metadata.nhentaiId}].pdf`
+          .replace(/\.[A-Za-z0-9]+$/, '') + ` [nhentai-${metadata.nhentaiId}]${ext}`
         newPath = join(dir, newName)
 
         if (newPath !== filePath && existsSync(filePath)) {

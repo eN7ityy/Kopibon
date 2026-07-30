@@ -2,16 +2,17 @@
  * Sync Worker Thread
  *
  * Fetches latest metadata from nhentai API for a gallery and
- * regenerates the PDF's XMP metadata with up-to-date fields.
+ * regenerates the file's metadata (XMP for PDF, ComicInfo for CBZ).
  *
  * Message Protocol:
- *   Main → Worker: { type: 'sync', itemId, nhentaiId, filePath, apiKey }
- *   Worker → Main: { type: 'complete', itemId, success }
+ *   Main -> Worker: { type: 'sync', itemId, nhentaiId, filePath, apiKey, format }
+ *   Worker -> Main: { type: 'complete', itemId, success }
  *                  { type: 'error', itemId, message }
  */
 
 import { parentPort } from 'worker_threads'
 import { applyXmpWithPikepdf, type XmpMetadata } from './xmp-inject'
+import { applyMetadata, type MetadataPayload } from './apply-metadata'
 
 interface SyncCommand {
   type: 'sync'
@@ -19,6 +20,7 @@ interface SyncCommand {
   nhentaiId: number
   filePath: string
   apiKey?: string
+  format?: string
 }
 
 const MAX_RETRIES = 3
@@ -36,7 +38,6 @@ async function fetchGallery(id: number, apiKey?: string): Promise<any> {
 
       if (resp.status === 429) {
         const retryAfter = parseInt(resp.headers.get('Retry-After') || '5', 10)
-        // Wait for specified delay + jitter
         await new Promise((r) => setTimeout(r, retryAfter * 1000 + Math.random() * 1000))
         continue
       }
@@ -48,7 +49,6 @@ async function fetchGallery(id: number, apiKey?: string): Promise<any> {
       return await resp.json()
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err))
-      // Wait before retry
       if (attempt < MAX_RETRIES) {
         await new Promise((r) => setTimeout(r, 2000 + attempt * 1000))
       }
@@ -62,10 +62,8 @@ parentPort?.on('message', async (cmd: SyncCommand) => {
   if (cmd.type !== 'sync') return
 
   try {
-    // Fetch gallery metadata from nhentai API
     const gallery = await fetchGallery(cmd.nhentaiId, cmd.apiKey)
 
-    // Extract fields
     const title = gallery.title?.pretty || gallery.title?.english || `Gallery #${cmd.nhentaiId}`
     const tags = gallery.tags || []
     const artistTags = tags.filter((t: any) => t.type === 'artist').map((t: any) => t.name)
@@ -74,11 +72,6 @@ parentPort?.on('message', async (cmd: SyncCommand) => {
     const langTag = tags.find((t: any) => t.type === 'language')
     const language = langTag?.name || null
 
-    // Artist/group/publisher logic:
-    // - No artist + group → group is artist AND publisher
-    // - Artist + group → artist is creator, group is publisher
-    // - Artist only → artist is creator
-    // - Neither → 'Unknown'
     const hasArtist = artistTags.length > 0
     const hasGroup = groupTags.length > 0
     const publisher = hasGroup ? groupTags[0] : null
@@ -92,42 +85,42 @@ parentPort?.on('message', async (cmd: SyncCommand) => {
       creators = ['Unknown']
     }
 
-    // Build XMP metadata
-    const meta: XmpMetadata = {
-      title,
-      creators,
-      tags: allTags,
-      nhentaiId: cmd.nhentaiId,
-      language,
-      publisher,
-      date: gallery.upload_date
-        ? new Date(gallery.upload_date * 1000).toISOString()
-        : null
-    }
+    const date = gallery.upload_date
+      ? new Date(gallery.upload_date * 1000).toISOString()
+      : null
 
-    // Apply XMP to PDF
-    const result = await applyXmpWithPikepdf(cmd.filePath, meta)
+    const format = cmd.format || 'pdf'
 
-    if (result.success) {
-      parentPort?.postMessage({
-        type: 'complete',
-        itemId: cmd.itemId,
-        success: true,
-        metadata: {
-          title,
-          primaryArtist: creators[0] || 'Unknown',
-          tags: allTags.join(', '),
-          language: language || null,
-          publisher: publisher || null
-        }
-      })
+    if (format === 'cbz') {
+      const meta: MetadataPayload = { title, creators, tags: allTags, nhentaiId: cmd.nhentaiId, language, publisher, date }
+      const result = await applyMetadata(cmd.filePath, 'cbz', meta)
+
+      if (!result.success) {
+        parentPort?.postMessage({ type: 'error', itemId: cmd.itemId, message: result.error || 'ComicInfo rewrite failed' })
+        return
+      }
     } else {
-      parentPort?.postMessage({
-        type: 'error',
-        itemId: cmd.itemId,
-        message: result.error || 'pikepdf failed'
-      })
+      const meta: XmpMetadata = { title, creators, tags: allTags, nhentaiId: cmd.nhentaiId, language, publisher, date }
+      const result = await applyXmpWithPikepdf(cmd.filePath, meta)
+
+      if (!result.success) {
+        parentPort?.postMessage({ type: 'error', itemId: cmd.itemId, message: result.error || 'pikepdf failed' })
+        return
+      }
     }
+
+    parentPort?.postMessage({
+      type: 'complete',
+      itemId: cmd.itemId,
+      success: true,
+      metadata: {
+        title,
+        primaryArtist: creators[0] || 'Unknown',
+        tags: allTags.join(', '),
+        language: language || null,
+        publisher: publisher || null
+      }
+    })
   } catch (err) {
     parentPort?.postMessage({
       type: 'error',

@@ -217,7 +217,7 @@ export default function SettingsPage(): React.JSX.Element {
                 className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500"
               >
                 <option value="pdf">PDF</option>
-                <option value="epub">EPUB (coming soon)</option>
+                <option value="cbz">CBZ</option>
               </select>
             </div>
 

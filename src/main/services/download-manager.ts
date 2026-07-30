@@ -8,7 +8,6 @@ import { settingsRepo } from '../db/repositories/settings.repo'
 import { libraryRepo } from '../db/repositories/library.repo'
 import { getApiClient } from './api-client'
 import type { GalleryMetadata } from './metadata-writer'
-import type { PdfOptions } from './pdf-generator'
 import type { GalleryDetail } from './api-client'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -31,6 +30,7 @@ export type ProgressCallback = (progress: DownloadProgress) => void
 interface ActiveDownload {
   queueId: number
   galleryId: number
+  outputFormat: string
   cancelRequested: boolean
   paused: boolean
 }
@@ -125,6 +125,7 @@ export class DownloadManager {
         const active: ActiveDownload = {
           queueId: nextItem.id,
           galleryId: nextItem.galleryId,
+          outputFormat: nextItem.outputFormat || 'pdf',
           cancelRequested: false,
           paused: false
         }
@@ -143,7 +144,7 @@ export class DownloadManager {
     }
   }
 
-  private dequeueNext(): { id: number; galleryId: number } | null {
+  private dequeueNext(): { id: number; galleryId: number; outputFormat?: string } | null {
     const items = downloadRepo.findByStatus('queued')
     if (items.length === 0) return null
 
@@ -156,7 +157,7 @@ export class DownloadManager {
       startedAt: Date.now()
     } as Parameters<typeof downloadRepo.update>[1])
 
-    return { id: next.id, galleryId: next.galleryId }
+    return { id: next.id, galleryId: next.galleryId, outputFormat: (next as any).outputFormat || 'pdf' }
   }
 
   private emitProgress(
@@ -319,7 +320,7 @@ export class DownloadManager {
           customCoverPath: null,
           filePath: '', // placeholder, will be set on completion
           fileSize: 0,
-          format: 'pdf',
+          format: active.outputFormat || 'pdf',
           primaryArtist,
           seriesName: null,
           publisher: gallery.tags.find((t) => t.type === 'group')?.name || null,
@@ -455,27 +456,17 @@ export class DownloadManager {
         status: 'converting'
       } as Parameters<typeof downloadRepo.update>[1])
 
-      // Build output path: {libraryRoot}/{Primary Artist}/[nhentai-{id}] {safe_title}.pdf
+      // Route by output format
+      const isCbz = active.outputFormat === 'cbz'
+      const ext = isCbz ? 'cbz' : 'pdf'
+
+      // Build output path: {libraryRoot}/{Primary Artist}/[nhentai-{id}] {safe_title}.{ext}
       const outputDir = join(libraryRoot, primaryArtist)
       if (!existsSync(outputDir)) {
         mkdirSync(outputDir, { recursive: true })
       }
       const safeTitle = title.replace(/[/\\?%*:|"<>]/g, '_').substring(0, 180)
-      const pdfPath = join(outputDir, `${safeTitle} [nhentai-${galleryId}].pdf`)
-
-      const compressPdf = settingsRepo.get('compressPdf') !== 'false'
-      const compressQuality = Number(settingsRepo.get('compressionQuality') || '80')
-      const pageSize = (settingsRepo.get('pageSize') || 'Dynamic') === 'Fit to Image' ? 'fit'
-        : (settingsRepo.get('pageSize') || 'Dynamic') === 'Letter' ? 'letter'
-        : (settingsRepo.get('pageSize') || 'Dynamic') === 'A4' ? 'a4'
-        : 'dynamic'
-      const blackBg = settingsRepo.get('blackBackground') !== 'false'
-
-      const pdfOptions: PdfOptions = {
-        pageSize,
-        quality: compressPdf ? Math.max(1, Math.min(95, compressQuality)) : 100,
-        blackBackground: blackBg
-      }
+      const outputPath = join(outputDir, `${safeTitle} [nhentai-${galleryId}].${ext}`)
 
       // Preserve existing user-set metadata (series/volume) from previous download
       const existingItem = libraryRepo.findByGalleryId(galleryId)
@@ -484,7 +475,7 @@ export class DownloadManager {
 
       const validPaths = downloadedPaths.filter(Boolean) as string[]
 
-      // Offload PDF generation + metadata embedding + thumbnail to a worker thread
+      // Offload generation + metadata embedding + thumbnail to a worker thread
       const thumbDir = thumbnailRoot()
       const metadataPayload: GalleryMetadata = {
         id: gallery.id,
@@ -498,7 +489,8 @@ export class DownloadManager {
       }
 
       const workerResult = await new Promise<{ thumbnailPath?: string }>((resolve, reject) => {
-        const workerPath = join(__dirname, 'services/download-pdf.worker.js')
+        const workerName = isCbz ? 'download-cbz.worker.js' : 'download-pdf.worker.js'
+        const workerPath = join(__dirname, 'services', workerName)
         const worker = new Worker(workerPath)
 
         worker.on('message', (msg: { type: string; current?: number; total?: number; outputPath?: string; thumbnailPath?: string; message?: string }) => {
@@ -518,16 +510,32 @@ export class DownloadManager {
           if (code !== 0) reject(new Error(`PDF worker exited with code ${code}`))
         })
 
-        worker.postMessage({
+        const workerMsg: Record<string, unknown> = {
           type: 'generate',
           imagePaths: validPaths,
-          outputPath: pdfPath,
-          options: pdfOptions,
+          outputPath,
           metadata: metadataPayload,
           firstImagePath: validPaths.length > 0 ? validPaths[0] : undefined,
           thumbnailDir: thumbDir,
           galleryId
-        })
+        }
+        // Only PDF worker needs options; CBZ worker doesn't use them
+        if (!isCbz) {
+          const compressPdf = settingsRepo.get('compressPdf') !== 'false'
+          const compressQuality = Number(settingsRepo.get('compressionQuality') || '80')
+          const pageSize = (settingsRepo.get('pageSize') || 'Dynamic') === 'Fit to Image' ? 'fit'
+            : (settingsRepo.get('pageSize') || 'Dynamic') === 'Letter' ? 'letter'
+            : (settingsRepo.get('pageSize') || 'Dynamic') === 'A4' ? 'a4'
+            : 'dynamic'
+          const blackBg = settingsRepo.get('blackBackground') !== 'false'
+
+          workerMsg.options = {
+            pageSize,
+            quality: compressPdf ? Math.max(1, Math.min(95, compressQuality)) : 100,
+            blackBackground: blackBg
+          }
+        }
+        worker.postMessage(workerMsg)
       })
 
       // Step 8: Mark complete
@@ -540,7 +548,7 @@ export class DownloadManager {
       const libItem = libraryRepo.findByGalleryId(gallery.id)
       if (libItem) {
         let fileSize = 0
-        try { fileSize = statSync(pdfPath).size } catch { /* ignore */ }
+        try { fileSize = statSync(outputPath).size } catch { /* ignore */ }
         const dateStr = new Date(gallery.upload_date * 1000).toISOString().split('T')[0]
 
         libraryRepo.update(libItem.id, {
@@ -549,7 +557,7 @@ export class DownloadManager {
           customTags: tagNames,
           customLanguage: languageTag?.name || null,
           customDate: dateStr,
-          filePath: pdfPath,
+          filePath: outputPath,
           fileSize,
           publisher: gallery.tags.find((t) => t.type === 'group')?.name || null,
           fileMtime: Date.now(),

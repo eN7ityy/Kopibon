@@ -310,27 +310,25 @@ export function registerLibraryIpc(): void {
               : null
 
           try {
-            // 1. Embed series + the new volume into the PDF in one pass
+            // 1. Embed series + volume using format-aware dispatcher
             try {
-              await spawnMetadataWorker({
-                type: 'apply',
-                pdfPath: item.filePath,
-                metadata: {
-                  title: item.customTitle || `Gallery #${item.galleryId || item.id}`,
-                  creators: [item.primaryArtist || 'Unknown'],
-                  tags: item.customTags
-                    ? item.customTags.split(',').map((t: string) => t.trim()).filter(Boolean)
-                    : [],
-                  nhentaiId: item.galleryId,
-                  seriesName,
-                  seriesIndex: volume ?? undefined,
-                  language: item.language || item.customLanguage,
-                  publisher: item.publisher || undefined,
-                  description: item.description || undefined
-                }
+              const { applyMetadata } = await import('../services/apply-metadata')
+              const format = item.format || 'pdf'
+              await applyMetadata(item.filePath, format, {
+                title: item.customTitle || `Gallery #${item.galleryId || item.id}`,
+                creators: [item.primaryArtist || 'Unknown'],
+                tags: item.customTags
+                  ? item.customTags.split(',').map((t: string) => t.trim()).filter(Boolean)
+                  : [],
+                nhentaiId: item.galleryId,
+                seriesName,
+                seriesIndex: volume ?? undefined,
+                language: item.language || item.customLanguage,
+                publisher: item.publisher || undefined,
+                description: item.description || undefined
               })
             } catch (err) {
-              errors.push(`Failed to embed series in PDF for item ${entry.id}: ${String(err)}`)
+              errors.push(`Failed to embed series in ${item.format || 'PDF'} for item ${entry.id}: ${String(err)}`)
               // Continue — the DB update is still valid
             }
 
@@ -592,36 +590,33 @@ export function registerLibraryIpc(): void {
       if ('description' in metadata) dbUpdateData.description = newDescription
       libraryRepo.update(id, dbUpdateData)
 
-      // ── Re-embed metadata into PDF ────────────────────────────────
+      // ── Re-embed metadata into file ──────────────────────────────
+      // Route by format: pikepdf for PDF, ComicInfo rewrite for CBZ
       try {
+        const { applyMetadata } = await import('../services/apply-metadata')
         const tagList: Array<{ id: number; type: string; name: string }> = []
-        // Parse existing tags from customTags
         if (newTags) {
           newTags.split(',').forEach((t: string) => {
             const trimmed = t.trim()
             if (trimmed) tagList.push({ id: 0, type: 'tag', name: trimmed })
           })
         }
-        // Add artist tags
         if (newPrimaryArtist) {
           tagList.push({ id: 0, type: 'artist', name: newPrimaryArtist })
         }
 
-        await spawnMetadataWorker({
-          type: 'apply',
-          pdfPath: item.filePath,
-          metadata: {
-            title: newTitle || `Gallery #${item.galleryId || item.id}`,
-            creators: newPrimaryArtist ? [newPrimaryArtist] : [item.primaryArtist || 'Unknown'],
-            tags: tagList.map((t: { name: string }) => t.name),
-            nhentaiId: item.galleryId ?? undefined,
-            seriesName: newSeriesName ?? item.seriesName ?? undefined,
-            seriesIndex: newSeriesIndex ?? item.seriesIndex ?? undefined,
-            language: newLanguage || item.language || undefined,
-            publisher: newPublisher || item.publisher || undefined,
-            description: newDescription || item.description || undefined,
-            date: newDate || undefined
-          }
+        const format = item.format || 'pdf'
+        await applyMetadata(item.filePath, format, {
+          title: newTitle || `Gallery #${item.galleryId || item.id}`,
+          creators: newPrimaryArtist ? [newPrimaryArtist] : [item.primaryArtist || 'Unknown'],
+          tags: tagList.map((t: { name: string }) => t.name),
+          nhentaiId: item.galleryId ?? undefined,
+          seriesName: newSeriesName ?? item.seriesName ?? undefined,
+          seriesIndex: newSeriesIndex ?? item.seriesIndex ?? undefined,
+          language: newLanguage || item.language || undefined,
+          publisher: newPublisher || item.publisher || undefined,
+          description: newDescription || item.description || undefined,
+          date: newDate || undefined
         })
       } catch (embedErr) {
         // Non-fatal: metadata embedding failure shouldn't block the update
@@ -809,6 +804,9 @@ export function registerLibraryIpc(): void {
             item: {
               id: currentItem.id,
               filePath: currentItem.filePath,
+              // Without this the worker assumed PDF and handed every CBZ to
+              // pikepdf, failing on each one.
+              format: currentItem.format || 'pdf',
               metadata: buildMetadata(currentItem)
             }
           })
@@ -884,7 +882,7 @@ export function registerLibraryIpc(): void {
 
   const syncingItems = new Set<number>()
 
-  function spawnSyncWorker(itemId: number, nhentaiId: number, filePath: string): Promise<{ success: boolean; message?: string }> {
+  function spawnSyncWorker(itemId: number, nhentaiId: number, filePath: string, format?: string): Promise<{ success: boolean; message?: string }> {
     return new Promise((resolve) => {
       const workerPath = pathJoin(__dirname, 'services/sync.worker.js')
       const worker = new Worker(workerPath)
@@ -922,7 +920,7 @@ export function registerLibraryIpc(): void {
         resolve({ success: false, message: 'Worker error' })
       })
 
-      worker.postMessage({ type: 'sync', itemId, nhentaiId, filePath, apiKey })
+      worker.postMessage({ type: 'sync', itemId, nhentaiId, filePath, apiKey, format })
     })
   }
 
@@ -933,7 +931,7 @@ export function registerLibraryIpc(): void {
     if (!item || !item.galleryId) return { success: false, error: 'No nhentai ID' }
 
     syncingItems.add(itemId)
-    const result = await spawnSyncWorker(itemId, item.galleryId, item.filePath)
+    const result = await spawnSyncWorker(itemId, item.galleryId, item.filePath, item.format || 'pdf')
 
     if (result.success) {
       return { success: true, data: { synced: true } }
@@ -960,7 +958,7 @@ export function registerLibraryIpc(): void {
       }
 
       syncingItems.add(ids[i])
-      const result = await spawnSyncWorker(ids[i], item.galleryId, item.filePath)
+      const result = await spawnSyncWorker(ids[i], item.galleryId, item.filePath, item.format || 'pdf')
 
       if (result.success) succeeded++
       else failed++
@@ -1013,6 +1011,110 @@ export function registerLibraryIpc(): void {
     try {
       const buffer = readFileSync(filePath)
       return { success: true, data: buffer.toString('base64') }
+    } catch (error) {
+      return { success: false, error: String(error) }
+    }
+  })
+
+  // ─── CBZ: Read a single page image ─────────────────────────────────────
+
+  ipcMain.handle('cbz:readPage', async (_event, filePath: string, pageIndex: number) => {
+    try {
+      const { open } = await import('yauzl')
+      const buffer = await new Promise<Buffer | null>((resolve, reject) => {
+        open(filePath, { lazyEntries: true }, (err, zipfile) => {
+          if (err) return reject(err)
+          if (!zipfile) return reject(new Error('Failed to open zip'))
+
+          const entries: Array<{ name: string; offset: number; compSize: number; compression: number }> = []
+          zipfile.readEntry()
+
+          zipfile.on('entry', (entry) => {
+            entries.push({
+              name: entry.fileName,
+              offset: (entry as any).relativeOffsetOfLocalHeader,
+              compSize: entry.compressedSize,
+              compression: entry.compressionMethod
+            })
+            zipfile.readEntry()
+          })
+
+          zipfile.on('end', () => {
+            // Sort by filename and filter images
+            const images = entries
+              .filter((e) => !e.name.endsWith('/') && !e.name.endsWith('ComicInfo.xml') && /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(e.name))
+              .sort((a, b) => a.name.localeCompare(b.name))
+
+            if (pageIndex < 0 || pageIndex >= images.length) {
+              resolve(null)
+              return
+            }
+
+            const target = images[pageIndex]
+            // Re-open to get the entry data
+            open(filePath, { lazyEntries: true }, (err2, zipfile2) => {
+              if (err2) return reject(err2)
+              if (!zipfile2) return reject(new Error('Failed to open zip'))
+
+              zipfile2.readEntry()
+              zipfile2.on('entry', (entry2) => {
+                if (entry2.fileName === target.name) {
+                  const chunks: Buffer[] = []
+                  zipfile2.openReadStream(entry2, (openErr, readStream) => {
+                    if (openErr) return reject(openErr)
+                    if (!readStream) return reject(new Error('No read stream'))
+                    readStream.on('data', (chunk: Buffer) => chunks.push(chunk))
+                    readStream.on('end', () => resolve(Buffer.concat(chunks)))
+                    readStream.on('error', reject)
+                  })
+                } else {
+                  zipfile2.readEntry()
+                }
+              })
+              zipfile2.on('end', () => resolve(null))
+              zipfile2.on('error', reject)
+            })
+          })
+
+          zipfile.on('error', reject)
+        })
+      })
+
+      if (!buffer) {
+        return { success: false, error: 'Page not found' }
+      }
+
+      return { success: true, data: buffer.toString('base64') }
+    } catch (error) {
+      return { success: false, error: String(error) }
+    }
+  })
+
+  ipcMain.handle('cbz:getPageCount', async (_event, filePath: string) => {
+    try {
+      const { open } = await import('yauzl')
+
+      const count = await new Promise<number>((resolve, reject) => {
+        open(filePath, { lazyEntries: true }, (err, zipfile) => {
+          if (err) return reject(err)
+          if (!zipfile) return reject(new Error('Failed to open zip'))
+
+          let imageCount = 0
+          zipfile.readEntry()
+
+          zipfile.on('entry', (entry) => {
+            if (!entry.fileName.endsWith('/') && !entry.fileName.endsWith('ComicInfo.xml') && /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(entry.fileName)) {
+              imageCount++
+            }
+            zipfile.readEntry()
+          })
+
+          zipfile.on('end', () => resolve(imageCount))
+          zipfile.on('error', reject)
+        })
+      })
+
+      return { success: true, data: count }
     } catch (error) {
       return { success: false, error: String(error) }
     }
