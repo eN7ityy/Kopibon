@@ -10,14 +10,18 @@ let username: string | undefined
 
 // ─── Key Encryption (safeStorage → OS keychain) ────────────────────────────
 
-function encryptKey(key: string): string {
+export function encryptKey(key: string): string {
   if (safeStorage.isEncryptionAvailable()) {
     return safeStorage.encryptString(key).toString('base64')
   }
   return key
 }
 
-function decryptKey(stored: string): string {
+/**
+ * Decrypt a stored API key. Exported so worker-spawning code (e.g. the
+ * library sync) can authenticate its own requests.
+ */
+export function decryptKey(stored: string): string {
   if (safeStorage.isEncryptionAvailable()) {
     try {
       return safeStorage.decryptString(Buffer.from(stored, 'base64'))
@@ -29,37 +33,42 @@ function decryptKey(stored: string): string {
 }
 
 /**
+ * Get the currently stored (decrypted) API key, if any.
+ */
+export function getStoredApiKey(): string | undefined {
+  const encrypted = settingsRepo.get('nhentai_api_key')
+  if (!encrypted) return undefined
+  try {
+    return decryptKey(encrypted)
+  } catch {
+    return undefined
+  }
+}
+
+/**
  * Load saved API key from settings DB and apply it to the client.
  * Called at startup to restore previous session.
  */
 export async function restoreAuthFromDb(): Promise<void> {
-  const encrypted = settingsRepo.get('nhentai_api_key')
-  if (encrypted) {
-    const savedKey = decryptKey(encrypted)
-    const client = getApiClient()
-    client.setApiKey(savedKey)
+  const savedKey = getStoredApiKey()
+  if (!savedKey) return
 
-    // Try to validate the saved key
-    try {
-      const user = await client.getUser()
-      loggedIn = true
-      username = user.username
+  const client = getApiClient()
+  // setApiKey() also switches the rate limiter to the authenticated
+  // per-endpoint limits.
+  client.setApiKey(savedKey)
 
-      // Fetch and apply rate limit from config
-      try {
-        const config = await client.getConfig()
-        client['rateLimiter'].setRateLimit(config.max_requests_per_minute)
-      } catch {
-        // Default to 60 if config endpoint fails
-        client['rateLimiter'].setRateLimit(60)
-      }
-    } catch {
-      // Saved key is invalid — clear it
-      client.setApiKey(null)
-      settingsRepo.delete('nhentai_api_key')
-      loggedIn = false
-      username = undefined
-    }
+  // Try to validate the saved key
+  try {
+    const user = await client.getUser()
+    loggedIn = true
+    username = user.username
+  } catch {
+    // Saved key is invalid — clear it and fall back to anonymous limits
+    client.setApiKey(null)
+    settingsRepo.delete('nhentai_api_key')
+    loggedIn = false
+    username = undefined
   }
 }
 
@@ -72,7 +81,7 @@ export function registerAuthIpc(): void {
    */
   ipcMain.handle('auth:validateKey', async (_event, key: string) => {
     try {
-      // Temporarily set the key to test it
+      // Temporarily set the key to test it — this also raises the rate limits
       client.setApiKey(key)
       const user = await client.getUser()
 
@@ -81,18 +90,9 @@ export function registerAuthIpc(): void {
       loggedIn = true
       username = user.username
 
-      // Try to get the authenticated rate limit from config
-      try {
-        const config = await client.getConfig()
-        client['rateLimiter'].setRateLimit(config.max_requests_per_minute)
-      } catch {
-        // Default to 60 req/min if config endpoint unavailable
-        client['rateLimiter'].setRateLimit(60)
-      }
-
       return { success: true, data: { username: user.username } }
-    } catch (error) {
-      // Key is invalid — remove it from client
+    } catch {
+      // Key is invalid — remove it from client (drops back to anon limits)
       client.setApiKey(null)
       return { success: false, error: 'Invalid API key' }
     }
@@ -119,12 +119,22 @@ export function registerAuthIpc(): void {
    * the rate limiter to the anonymous default (30 req/min).
    */
   ipcMain.handle('auth:clearKey', async () => {
+    // setApiKey(null) reverts the limiter to the anonymous per-endpoint limits
     client.setApiKey(null)
     settingsRepo.delete('nhentai_api_key')
-    client['rateLimiter'].setRateLimit(30)
     loggedIn = false
     username = undefined
     return { success: true }
+  })
+
+  /**
+   * Diagnostics: current rate limiter state per endpoint group.
+   */
+  ipcMain.handle('auth:getRateLimits', async () => {
+    return {
+      success: true,
+      data: { authenticated: loggedIn, buckets: client.getRateLimitSnapshot() }
+    }
   })
 
   /**

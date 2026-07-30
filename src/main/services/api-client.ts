@@ -1,4 +1,4 @@
-import { RateLimiter } from './rate-limiter'
+import { ApiRateLimiter, type EndpointKey } from './rate-limiter'
 
 // ─── Types (matching openapi_documentation.json) ─────────────────────────────
 
@@ -82,8 +82,24 @@ export interface CdnConfig {
   thumb_servers: string[]
 }
 
+export interface AnnouncementLink {
+  text: string
+  url: string
+}
+
+export interface Announcement {
+  message: string
+  links?: AnnouncementLink[]
+}
+
+/**
+ * GET /config response. Note: the API does *not* return a rate limit here —
+ * limits are per-endpoint and documented in the spec, see rate-limiter.ts.
+ */
 export interface ApiConfig {
-  max_requests_per_minute: number
+  image_servers: string[]
+  thumb_servers: string[]
+  announcement?: Announcement | null
 }
 
 export interface UserProfile {
@@ -108,17 +124,32 @@ export interface FavoriteResponse {
 const BASE_URL = 'https://nhentai.net/api/v2'
 
 export class ApiClient {
-  private rateLimiter: RateLimiter
+  private rateLimiter: ApiRateLimiter
   private apiKey: string | null = null
   private cdnConfig: CdnConfig | null = null
   private cdnConfigFetchedAt = 0
 
-  constructor(rateLimiter?: RateLimiter) {
-    this.rateLimiter = rateLimiter ?? new RateLimiter(30)
+  constructor(rateLimiter?: ApiRateLimiter) {
+    this.rateLimiter = rateLimiter ?? new ApiRateLimiter(false)
   }
 
   setApiKey(key: string | null): void {
     this.apiKey = key
+    // Authenticated calls get higher per-endpoint allowances.
+    this.rateLimiter.setAuthenticated(key !== null)
+  }
+
+  /**
+   * Explicitly switch the limiter between anonymous and authenticated limit
+   * sets. setApiKey() already does this; this exists for the case where a key
+   * is present but turned out to be invalid.
+   */
+  setAuthenticated(authenticated: boolean): void {
+    this.rateLimiter.setAuthenticated(authenticated)
+  }
+
+  getRateLimitSnapshot(): Record<string, { available: number; limit: number }> {
+    return this.rateLimiter.snapshot()
   }
 
   private getHeaders(): Record<string, string> {
@@ -133,10 +164,11 @@ export class ApiClient {
   }
 
   private async request<T>(
+    endpoint: EndpointKey,
     path: string,
     options?: { method?: string; body?: unknown }
   ): Promise<T> {
-    await this.rateLimiter.acquire()
+    await this.rateLimiter.acquire(endpoint)
 
     const url = `${BASE_URL}${path}`
     const fetchOptions: RequestInit = {
@@ -153,20 +185,16 @@ export class ApiClient {
 
     let response = await doFetch()
 
+    if (response.status === 429) {
+      // Honour Retry-After when the server sends it, otherwise back off 5s.
+      const retryAfter = Number(response.headers.get('Retry-After'))
+      const waitMs = Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : 5000
+      await new Promise((r) => setTimeout(r, Math.min(waitMs, 60_000)))
+      await this.rateLimiter.acquire(endpoint)
+      response = await doFetch()
+    }
+
     if (!response.ok) {
-      if (response.status === 429) {
-        await new Promise((r) => setTimeout(r, 5000))
-        await this.rateLimiter.acquire()
-        response = await doFetch()
-        if (!response.ok) {
-          throw new Error(`API error: ${response.status} ${response.statusText}`)
-        }
-        // For 204 No Content or empty responses, return undefined as T
-        if (response.status === 204) {
-          return undefined as T
-        }
-        return response.json() as Promise<T>
-      }
       throw new Error(`API error: ${response.status} ${response.statusText}`)
     }
 
@@ -186,22 +214,22 @@ export class ApiClient {
     if (options.page) params.set('page', String(options.page))
     if (options.sort && options.sort !== 'date') params.set('sort', options.sort)
 
-    return this.request<SearchResponse>(`/search?${params.toString()}`)
+    return this.request<SearchResponse>('search', `/search?${params.toString()}`)
   }
 
   async getLatestGalleries(page = 1): Promise<SearchResponse> {
     const params = new URLSearchParams()
     params.set('page', String(page))
-    return this.request<SearchResponse>(`/galleries?${params.toString()}`)
+    return this.request<SearchResponse>('galleries', `/galleries?${params.toString()}`)
   }
 
   async getPopularGalleries(): Promise<{ result: GalleryListItem[] }> {
-    const galleries = await this.request<GalleryListItem[]>('/galleries/popular')
+    const galleries = await this.request<GalleryListItem[]>('popular', '/galleries/popular')
     return { result: galleries }
   }
 
   async getGallery(id: number): Promise<GalleryDetail> {
-    return this.request<GalleryDetail>(`/galleries/${id}`)
+    return this.request<GalleryDetail>('gallery', `/galleries/${id}`)
   }
 
   async getCdnConfig(): Promise<CdnConfig> {
@@ -210,33 +238,35 @@ export class ApiClient {
       return this.cdnConfig
     }
 
-    this.cdnConfig = await this.request<CdnConfig>('/cdn')
+    this.cdnConfig = await this.request<CdnConfig>('meta', '/cdn')
     this.cdnConfigFetchedAt = now
     return this.cdnConfig
   }
 
   async getConfig(): Promise<ApiConfig> {
-    return this.request<ApiConfig>('/config')
+    return this.request<ApiConfig>('meta', '/config')
   }
 
   async getUser(): Promise<UserProfile> {
-    return this.request<UserProfile>('/user')
+    return this.request<UserProfile>('user', '/user')
   }
 
   async getFavorites(page = 1, query?: string): Promise<FavoritesResponse> {
     const params = new URLSearchParams()
     params.set('page', String(page))
-    if (query) params.set('query', query)
-    return this.request<FavoritesResponse>(`/favorites?${params.toString()}`)
+    // The endpoint takes `q`, not `query`.
+    if (query) params.set('q', query)
+    return this.request<FavoritesResponse>('favorites', `/favorites?${params.toString()}`)
   }
 
   async getRelatedGalleries(id: number): Promise<SearchResponse> {
-    return this.request<SearchResponse>(`/galleries/${id}/related`)
+    return this.request<SearchResponse>('related', `/galleries/${id}/related`)
   }
 
   async checkFavorite(galleryId: number): Promise<boolean> {
     try {
       const result = await this.request<FavoriteResponse>(
+        'favorite',
         `/galleries/${galleryId}/favorite`
       )
       return result.favorited
@@ -246,11 +276,11 @@ export class ApiClient {
   }
 
   async addFavorite(galleryId: number): Promise<void> {
-    await this.request(`/galleries/${galleryId}/favorite`, { method: 'POST' })
+    await this.request('favorite', `/galleries/${galleryId}/favorite`, { method: 'POST' })
   }
 
   async removeFavorite(galleryId: number): Promise<void> {
-    await this.request(`/galleries/${galleryId}/favorite`, { method: 'DELETE' })
+    await this.request('favorite', `/galleries/${galleryId}/favorite`, { method: 'DELETE' })
   }
 
   /**
