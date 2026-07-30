@@ -53,6 +53,14 @@ export function registerDownloadIpc(): void {
     'download:addToQueue',
     async (_event, galleryId: number, outputFormat?: string, outputDirectory?: string) => {
       try {
+        // Collapse duplicate requests (double-click, or queueing the same
+        // gallery from two views). Two rows for one gallery would race on the
+        // same scratch directory and the same output path.
+        const existing = downloadRepo.findActiveByGalleryId(galleryId)
+        if (existing) {
+          return { success: true, data: { id: existing.id, duplicate: true } }
+        }
+
         const id = downloadRepo.insert({
           galleryId,
           status: 'queued',

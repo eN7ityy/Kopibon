@@ -1,4 +1,4 @@
-import { eq, asc, sql } from 'drizzle-orm'
+import { eq, and, asc, sql } from 'drizzle-orm'
 import { getDatabase } from '../connection'
 import { downloadQueue, downloadPage } from '../schema'
 import type { InferSelectModel, InferInsertModel } from 'drizzle-orm'
@@ -32,6 +32,26 @@ export const downloadRepo = {
       .select()
       .from(downloadQueue)
       .where(eq(downloadQueue.galleryId, galleryId))
+      .get()
+  },
+
+  /**
+   * Find an in-flight or pending queue entry for a gallery.
+   *
+   * Deliberately excludes 'completed' and 'failed' so a re-download or retry
+   * is never blocked by history — only genuinely active work counts.
+   */
+  findActiveByGalleryId(galleryId: number): DownloadQueueItem | undefined {
+    const db = getDatabase()
+    return db
+      .select()
+      .from(downloadQueue)
+      .where(
+        and(
+          eq(downloadQueue.galleryId, galleryId),
+          sql`${downloadQueue.status} IN ('queued', 'paused', 'downloading', 'converting')`
+        )
+      )
       .get()
   },
 

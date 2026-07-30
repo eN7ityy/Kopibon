@@ -1,7 +1,17 @@
-import { eq, like, desc, sql, and, ne } from 'drizzle-orm'
+import { eq, like, desc, sql, and, or, ne, inArray, isNull } from 'drizzle-orm'
 import { getDatabase } from '../connection'
 import { libraryItem, libraryItemArtist, libraryScanLog } from '../schema'
-import type { InferSelectModel, InferInsertModel } from 'drizzle-orm'
+import type { InferSelectModel, InferInsertModel, SQL } from 'drizzle-orm'
+
+/**
+ * Escape LIKE metacharacters so user input matches literally.
+ *
+ * Used with `ESCAPE '\'`. Without this, a title search for "50%" or "foo_bar"
+ * silently behaves as a wildcard pattern.
+ */
+function escapeLikePattern(value: string): string {
+  return value.replace(/[\\%_]/g, (char) => `\\${char}`)
+}
 
 export type LibraryItem = InferSelectModel<typeof libraryItem>
 export type LibraryItemArtist = InferSelectModel<typeof libraryItemArtist>
@@ -83,9 +93,27 @@ export const libraryRepo = {
       .run()
   },
 
+  /**
+   * Delete a library item and its artist rows.
+   *
+   * `PRAGMA foreign_keys = ON` is set but no table actually declares a foreign
+   * key, so nothing cascades. Deleting the artist rows here means callers
+   * can't forget and leak orphans into the artist filter list.
+   */
   delete(id: number): void {
     const db = getDatabase()
+    db.delete(libraryItemArtist).where(eq(libraryItemArtist.libraryItemId, id)).run()
     db.delete(libraryItem).where(eq(libraryItem.id, id)).run()
+  },
+
+  /** Remove artist rows whose library item no longer exists. */
+  deleteOrphanedArtists(): number {
+    const db = getDatabase()
+    const result = db.run(
+      sql`DELETE FROM library_item_artist
+          WHERE library_item_id NOT IN (SELECT id FROM library_item)`
+    )
+    return Number(result.changes ?? 0)
   },
 
   findPaginated(params: {
@@ -99,87 +127,85 @@ export const libraryRepo = {
     showUnmatchedOnly?: boolean
   }): { items: LibraryItem[]; total: number } {
     const db = getDatabase()
-    const conditions: string[] = []
 
-    if (params.searchQuery) {
-      const q = params.searchQuery.replace(/'/g, "''")
+    // Every value below is bound as a parameter. This used to be built by
+    // string concatenation, which meant a search term containing % or _ acted
+    // as a LIKE wildcard and any quoting slip changed the query shape.
+    const conditions: SQL[] = []
+
+    if (params.searchQuery && params.searchQuery.trim()) {
+      const pattern = `%${escapeLikePattern(params.searchQuery.trim())}%`
+      const columns = [
+        libraryItem.customTitle,
+        libraryItem.primaryArtist,
+        libraryItem.seriesName,
+        libraryItem.customTags,
+        libraryItem.publisher,
+        libraryItem.language,
+        libraryItem.description
+      ]
+      const anyColumnMatches = columns.map(
+        (column) => sql`${column} LIKE ${pattern} ESCAPE '\\' COLLATE NOCASE`
+      )
+      conditions.push(sql`(${sql.join(anyColumnMatches, sql` OR `)})`)
+    }
+
+    if (params.artistFilters && params.artistFilters.length > 0) {
+      conditions.push(inArray(libraryItem.primaryArtist, params.artistFilters))
+    }
+
+    if (params.seriesFilters && params.seriesFilters.length > 0) {
+      conditions.push(inArray(libraryItem.seriesName, params.seriesFilters))
+    }
+
+    if (params.tagFilters && params.tagFilters.length > 0) {
+      const anyTagMatches = params.tagFilters.map(
+        (tag) =>
+          sql`${libraryItem.customTags} LIKE ${`%${escapeLikePattern(tag)}%`} ESCAPE '\\' COLLATE NOCASE`
+      )
+      conditions.push(sql`(${sql.join(anyTagMatches, sql` OR `)})`)
+    }
+
+    if (params.showUnmatchedOnly) {
       conditions.push(
-        `(custom_title LIKE '%${q}%' COLLATE NOCASE OR primary_artist LIKE '%${q}%' COLLATE NOCASE OR series_name LIKE '%${q}%' COLLATE NOCASE OR custom_tags LIKE '%${q}%' COLLATE NOCASE OR publisher LIKE '%${q}%' COLLATE NOCASE OR language LIKE '%${q}%' COLLATE NOCASE OR description LIKE '%${q}%' COLLATE NOCASE)`
+        or(isNull(libraryItem.galleryId), eq(libraryItem.galleryId, 0)) as SQL
       )
     }
-    if (params.artistFilters && params.artistFilters.length > 0) {
-      const escaped = params.artistFilters.map((a) => `'${a.replace(/'/g, "''")}'`).join(',')
-      conditions.push(`primary_artist IN (${escaped})`)
-    }
-    if (params.seriesFilters && params.seriesFilters.length > 0) {
-      const escaped = params.seriesFilters.map((s) => `'${s.replace(/'/g, "''")}'`).join(',')
-      conditions.push(`series_name IN (${escaped})`)
-    }
-    if (params.tagFilters && params.tagFilters.length > 0) {
-      const tagConditions = params.tagFilters.map((t) => {
-        const escaped = t.replace(/'/g, "''")
-        return `custom_tags LIKE '%${escaped}%'`
-      })
-      conditions.push(`(${tagConditions.join(' OR ')})`)
-    }
-    if (params.showUnmatchedOnly) {
-      conditions.push(`(gallery_id IS NULL OR gallery_id = 0)`)
-    }
 
-    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
+    const where = conditions.length > 0 ? and(...conditions) : undefined
 
-    let orderClause: string
+    let orderBy: SQL
     switch (params.sortField) {
       case 'title':
-        orderClause = 'ORDER BY custom_title COLLATE NOCASE ASC'
+        orderBy = sql`${libraryItem.customTitle} COLLATE NOCASE ASC`
         break
       case 'artist':
-        orderClause = 'ORDER BY primary_artist COLLATE NOCASE ASC'
+        orderBy = sql`${libraryItem.primaryArtist} COLLATE NOCASE ASC`
         break
       case 'added':
       default:
-        orderClause = 'ORDER BY added_at DESC'
+        orderBy = sql`${libraryItem.addedAt} DESC`
         break
     }
 
     const totalRow = db
-      .get<{ count: number }>(
-        sql`SELECT COUNT(*) as count FROM library_item ${sql.raw(whereClause)}`
-      )
-    const total = totalRow?.count ?? 0
+      .select({ count: sql<number>`count(*)` })
+      .from(libraryItem)
+      .where(where)
+      .get()
 
-    const rawRows = db
-      .all<Record<string, unknown>>(
-        sql`SELECT * FROM library_item ${sql.raw(whereClause)} ${sql.raw(orderClause)} LIMIT ${params.limit} OFFSET ${params.offset}`
-      )
+    // Selecting through drizzle returns camelCase rows straight away, so the
+    // hand-written snake_case mapping this used to need is gone.
+    const items = db
+      .select()
+      .from(libraryItem)
+      .where(where)
+      .orderBy(orderBy)
+      .limit(params.limit)
+      .offset(params.offset)
+      .all()
 
-    // Map raw snake_case rows to drizzle's camelCase LibraryItem type
-    const items: LibraryItem[] = rawRows.map((row) => ({
-      id: row.id as number,
-      galleryId: row.gallery_id as number | null,
-      isCustom: row.is_custom as number,
-      customTitle: row.custom_title as string | null,
-      customTags: row.custom_tags as string | null,
-      customLanguage: row.custom_language as string | null,
-      customDate: row.custom_date as string | null,
-      customCoverPath: row.custom_cover_path as string | null,
-      filePath: row.file_path as string,
-      fileSize: row.file_size as number | null,
-      format: row.format as string,
-      primaryArtist: row.primary_artist as string,
-      seriesName: row.series_name as string | null,
-      seriesIndex: row.series_index as number | null,
-      language: row.language as string | null,
-      publisher: row.publisher as string | null,
-      description: row.description as string | null,
-      readProgress: row.read_progress as number,
-      fileMtime: row.file_mtime as number | null,
-      thumbnailPath: row.thumbnail_path as string | null,
-      addedAt: row.added_at as number,
-      updatedAt: row.updated_at as number
-    }))
-
-    return { items, total }
+    return { items, total: totalRow?.count ?? 0 }
   },
 
   count(): number {
