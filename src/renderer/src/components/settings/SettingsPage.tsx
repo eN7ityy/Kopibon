@@ -26,7 +26,17 @@ export default function SettingsPage(): React.JSX.Element {
   const [resetError, setResetError] = useState<string | null>(null)
   const [resetSuccess, setResetSuccess] = useState(false)
 
-  console.log('[SettingsPage] Rendering. auth:', auth.loggedIn, 'username:', auth.username)
+  // Save feedback
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle')
+
+  const handleSaveSettings = async (): Promise<void> => {
+    setSaveState('saving')
+    await settings.saveToDb()
+    // Re-read from the DB so the form reflects what was actually persisted
+    await settings.loadFromDb()
+    setSaveState('saved')
+    setTimeout(() => setSaveState('idle'), 2000)
+  }
 
   // Check auth status on mount
   useEffect(() => {
@@ -365,12 +375,18 @@ export default function SettingsPage(): React.JSX.Element {
         </section>
 
         {/* Save */}
-        <button
-          onClick={() => settings.saveToDb()}
-          className="px-6 py-2.5 rounded-lg bg-purple-600 text-white font-medium hover:bg-purple-700 transition-colors"
-        >
-          Save Settings
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleSaveSettings}
+            disabled={saveState === 'saving'}
+            className="px-6 py-2.5 rounded-lg bg-purple-600 text-white font-medium hover:bg-purple-700 disabled:opacity-50 transition-colors"
+          >
+            {saveState === 'saving' ? 'Saving...' : 'Save Settings'}
+          </button>
+          {saveState === 'saved' && (
+            <span className="text-sm text-green-600 dark:text-green-400">✓ Settings saved</span>
+          )}
+        </div>
       </div>
     </div>
   )

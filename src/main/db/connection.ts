@@ -67,7 +67,6 @@ function seedDefaults(sqlite: Database.Database): void {
   const defaults: Record<string, string> = {
     libraryPath: '/mnt/bragi/Kavita/Doujins/',
     downloadConcurrency: '3',
-    theme: 'system',
     outputFormat: 'pdf',
     compressPdf: 'true',
     compressionQuality: '80',

@@ -12,6 +12,7 @@ import EmptyState from '../shared/EmptyState'
 import ErrorState from '../shared/ErrorState'
 import LoadingSkeleton from '../shared/LoadingSkeleton'
 import { useConversionStore } from '../../stores/conversion.store'
+import { useSettingsStore } from '../../stores/settings.store'
 import SyncProgressBar from './SyncProgressBar'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -260,6 +261,9 @@ function InlineEditCell({
 export default function LibraryPage(): React.JSX.Element {
   const navigate = useNavigate()
   const conversionStore = useConversionStore()
+  // Single source of truth for where the library lives — this page used to
+  // hardcode a path, so changing the setting had no effect on scanning.
+  const libraryRoot = useSettingsStore((s) => s.libraryPath)
 
   // Paginated data
   const [items, setItems] = useState<LibraryItemData[]>([])
@@ -502,10 +506,18 @@ export default function LibraryPage(): React.JSX.Element {
   // ─── Rescan ────────────────────────────────────────────────────────────────
 
   const handleRescan = async () => {
+    if (!libraryRoot.trim()) {
+      setError('No library path configured. Set one in Settings first.')
+      return
+    }
     setScanning(true)
     setScanProgress({ current: 0, total: 0, status: 'Starting scan...' })
     try {
-      await window.api.library.scan('/mnt/bragi/Kavita/Doujins/')
+      const result = await window.api.library.scan(libraryRoot)
+      if (!result?.success) {
+        setScanning(false)
+        setError(result?.error || 'Failed to start scan')
+      }
     } catch (err) {
       setScanning(false)
       setError(String(err))
@@ -1097,7 +1109,7 @@ export default function LibraryPage(): React.JSX.Element {
       {/* Custom Entry Form Modal */}
       <CustomEntryForm
         isOpen={showCustomForm}
-        libraryRoot="/mnt/bragi/Kavita/Doujins/"
+        libraryRoot={libraryRoot}
         onClose={() => setShowCustomForm(false)}
         onCreated={() => {
           setShowCustomForm(false)
@@ -1108,7 +1120,7 @@ export default function LibraryPage(): React.JSX.Element {
       {/* Library Detail Panel */}
       <LibraryDetail
         item={detailItem}
-        libraryRoot="/mnt/bragi/Kavita/Doujins/"
+        libraryRoot={libraryRoot}
         onClose={() => setDetailItem(null)}
         onDeleted={() => {
           setDetailItem(null)
