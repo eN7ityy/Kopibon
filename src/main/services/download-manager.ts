@@ -1,8 +1,7 @@
 import { join } from 'path'
-import { mkdirSync, existsSync, statSync } from 'fs'
-import { tmpdir } from 'os'
+import { mkdirSync, existsSync, statSync, rmSync } from 'fs'
 import { Worker } from 'worker_threads'
-import { Notification } from 'electron'
+import { app, Notification } from 'electron'
 import { downloadRepo } from '../db/repositories/download.repo'
 import { galleryRepo } from '../db/repositories/gallery.repo'
 import { settingsRepo } from '../db/repositories/settings.repo'
@@ -36,9 +35,32 @@ interface ActiveDownload {
   paused: boolean
 }
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+// ─── Paths ────────────────────────────────────────────────────────────────────
 
-const IMAGE_DOWNLOAD_DIR = join(process.env.HOME || '/tmp', '.config', 'doujin-downloader', 'tmp')
+/**
+ * Scratch space for downloaded page images, resolved lazily so we use
+ * Electron's per-platform userData location rather than $HOME (which is unset
+ * on Windows, previously sending everything to C:\tmp).
+ */
+function imageDownloadRoot(): string {
+  const base = app?.getPath ? app.getPath('userData') : join(process.cwd(), '.doujin-downloader')
+  return join(base, 'download-tmp')
+}
+
+/** Persistent thumbnail cache — must outlive reboots, so not in os.tmpdir(). */
+function thumbnailRoot(): string {
+  const base = app?.getPath ? app.getPath('userData') : join(process.cwd(), '.doujin-downloader')
+  return join(base, 'thumbnails')
+}
+
+/** Best-effort recursive delete of a gallery's scratch directory. */
+function purgeScratchDir(dir: string): void {
+  try {
+    rmSync(dir, { recursive: true, force: true })
+  } catch {
+    /* leftover temp files are not fatal */
+  }
+}
 
 // ─── Download Manager ─────────────────────────────────────────────────────────
 
@@ -52,8 +74,35 @@ export class DownloadManager {
     this.maxConcurrent = maxConcurrent
   }
 
+  /**
+   * Set the number of simultaneous downloads. Clamped to the range the
+   * Settings slider exposes (1-8). Raising it starts more work immediately.
+   */
   setMaxConcurrent(n: number): void {
-    this.maxConcurrent = n
+    const next = Number.isFinite(n) ? Math.max(1, Math.min(8, Math.floor(n))) : this.maxConcurrent
+    if (next === this.maxConcurrent) return
+    const raised = next > this.maxConcurrent
+    this.maxConcurrent = next
+    console.log(`[downloads] concurrency set to ${next}`)
+    // Fill the newly available slots rather than waiting for the next event.
+    if (raised) this.processQueue()
+  }
+
+  getMaxConcurrent(): number {
+    return this.maxConcurrent
+  }
+
+  /**
+   * Apply the persisted `downloadConcurrency` setting. Called at startup and
+   * whenever settings are saved — previously the setting was written to the DB
+   * and never read, so the slider had no effect.
+   */
+  applyConcurrencyFromSettings(): void {
+    const raw = settingsRepo.get('downloadConcurrency')
+    if (raw === undefined) return
+    const parsed = Number(raw)
+    if (!Number.isFinite(parsed)) return
+    this.setMaxConcurrent(parsed)
   }
 
   onProgress(cb: ProgressCallback): void {
@@ -135,11 +184,77 @@ export class DownloadManager {
   }
 
   /**
+   * Reset downloads that were interrupted by a crash or a hard quit.
+   *
+   * Rows left as 'downloading'/'converting' have no live worker behind them,
+   * so without this they stay "active" forever and inflate the status bar
+   * counts. Called once at startup, before processQueue().
+   */
+  reconcileInterrupted(): number {
+    let requeued = 0
+    for (const status of ['downloading', 'converting']) {
+      for (const item of downloadRepo.findByStatus(status)) {
+        downloadRepo.update(item.id, {
+          status: 'queued',
+          startedAt: null,
+          errorMessage: null
+        } as Parameters<typeof downloadRepo.update>[1])
+        // Page rows are re-created from scratch on the next attempt
+        downloadRepo.deletePages(item.id)
+        purgeScratchDir(join(imageDownloadRoot(), String(item.galleryId)))
+        requeued++
+      }
+    }
+    if (requeued > 0) {
+      console.log(`[downloads] re-queued ${requeued} interrupted download(s)`)
+    }
+    return requeued
+  }
+
+  /**
+   * Remove the "pending download" library placeholder created in step 1.5.
+   *
+   * Placeholders are marked isCustom=2 with an empty filePath; every status
+   * resolver reads that as "downloading", so leaving one behind after a
+   * failure made the gallery look like it was downloading forever.
+   */
+  private removePlaceholder(galleryId: number): void {
+    try {
+      const item = libraryRepo.findByGalleryId(galleryId)
+      if (item && item.isCustom === 2 && !item.filePath) {
+        // libraryRepo.delete() removes artist rows too
+        libraryRepo.delete(item.id)
+      }
+    } catch {
+      /* best effort */
+    }
+  }
+
+  /**
+   * Mark a queue item failed and undo the side effects of a partial attempt.
+   */
+  private failDownload(
+    queueId: number,
+    galleryId: number,
+    title: string,
+    errorMessage: string
+  ): void {
+    downloadRepo.update(queueId, {
+      status: 'failed',
+      errorMessage
+    } as Parameters<typeof downloadRepo.update>[1])
+    this.removePlaceholder(galleryId)
+    purgeScratchDir(join(imageDownloadRoot(), String(galleryId)))
+    this.emitProgress(queueId, galleryId, title, 0, 0, 0, 0, 'failed')
+  }
+
+  /**
    * Main download pipeline for a single gallery.
    */
   private async downloadItem(active: ActiveDownload): Promise<void> {
     const { queueId, galleryId } = active
     const client = getApiClient()
+    const scratchDir = join(imageDownloadRoot(), String(galleryId))
 
     try {
       // Step 1: Fetch gallery metadata
@@ -230,8 +345,10 @@ export class DownloadManager {
         } as Parameters<typeof downloadRepo.insertPage>[0])
       }
 
-      // Step 4: Ensure temp directory
-      const downloadDir = join(IMAGE_DOWNLOAD_DIR, String(galleryId))
+      // Step 4: Ensure temp directory (fresh — drop anything left by a
+      // previous attempt so a partial run can't contribute stale pages)
+      const downloadDir = scratchDir
+      purgeScratchDir(downloadDir)
       if (!existsSync(downloadDir)) {
         mkdirSync(downloadDir, { recursive: true })
       }
@@ -247,10 +364,7 @@ export class DownloadManager {
       const CONCURRENT_PAGES = 3
       for (let batchStart = 0; batchStart < pageItems.length; batchStart += CONCURRENT_PAGES) {
         if (active.cancelRequested) {
-          downloadRepo.update(queueId, {
-            status: 'failed',
-            errorMessage: 'Cancelled by user'
-          } as Parameters<typeof downloadRepo.update>[1])
+          this.failDownload(queueId, galleryId, title, 'Cancelled by user')
           return
         }
 
@@ -284,7 +398,12 @@ export class DownloadManager {
           if (result.status === 'fulfilled' && result.value) {
             downloadedPaths[page.pageNumber - 1] = result.value
             completedPages++
-            totalBytes += result.value ? 0 : 0 // We'll track bytes later
+            // Track real bytes so the speed readout isn't permanently 0 KB/s
+            try {
+              totalBytes += statSync(result.value).size
+            } catch {
+              /* size is only used for the speed estimate */
+            }
           } else {
             // Page failed
             downloadRepo.updatePage(page.id, {
@@ -314,20 +433,19 @@ export class DownloadManager {
       }
 
       if (active.cancelRequested) {
-        downloadRepo.update(queueId, {
-          status: 'failed',
-          errorMessage: 'Cancelled by user'
-        } as Parameters<typeof downloadRepo.update>[1])
+        this.failDownload(queueId, galleryId, title, 'Cancelled by user')
         return
       }
 
       // Check if all pages downloaded
       const failedCount = totalPages - completedPages
       if (failedCount > 0) {
-        downloadRepo.update(queueId, {
-          status: 'failed',
-          errorMessage: `${failedCount} pages failed to download`
-        } as Parameters<typeof downloadRepo.update>[1])
+        this.failDownload(
+          queueId,
+          galleryId,
+          title,
+          `${failedCount} of ${totalPages} pages failed to download`
+        )
         return
       }
 
@@ -367,7 +485,7 @@ export class DownloadManager {
       const validPaths = downloadedPaths.filter(Boolean) as string[]
 
       // Offload PDF generation + metadata embedding + thumbnail to a worker thread
-      const thumbDir = join(tmpdir(), 'doujin-downloader-thumbs')
+      const thumbDir = thumbnailRoot()
       const metadataPayload: GalleryMetadata = {
         id: gallery.id,
         title: gallery.title,
@@ -460,6 +578,10 @@ export class DownloadManager {
         }
       }
 
+      // Step 10: Page bookkeeping is only useful while a download is in
+      // flight — drop it so the table doesn't grow without bound.
+      downloadRepo.deletePages(queueId)
+
       this.emitProgress(queueId, galleryId, title, totalPages, totalPages, 0, 0, 'completed')
 
       // F4: Show system notification on completion
@@ -468,12 +590,12 @@ export class DownloadManager {
       }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err)
-      downloadRepo.update(queueId, {
-        status: 'failed',
-        errorMessage: errorMsg
-      } as Parameters<typeof downloadRepo.update>[1])
-
-      this.emitProgress(queueId, galleryId, 'Error', 0, 0, 0, 0, 'failed')
+      this.failDownload(queueId, galleryId, 'Error', errorMsg)
+    } finally {
+      // Page images are large and only needed to build the PDF. Nothing
+      // cleaned these up before, so every download leaked a full second copy
+      // of the gallery into userData.
+      purgeScratchDir(scratchDir)
     }
   }
 

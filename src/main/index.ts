@@ -20,6 +20,8 @@ import { registerLibraryIpc } from './ipc/library.ipc'
 import { registerSettingsIpc } from './ipc/settings.ipc'
 import { registerAuthIpc, restoreAuthFromDb } from './ipc/auth.ipc'
 import { getDownloadManager } from './services/download-manager'
+import { checkPikepdfAvailable } from './services/xmp-inject'
+import { runStartupMaintenance } from './services/startup-maintenance'
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -75,12 +77,37 @@ app.whenReady().then(async () => {
   // Restore any previously-validated API key from the DB
   restoreAuthFromDb()
 
-  // Resume any pending downloads from previous session
+  // Sweep transient bookkeeping tables (page rows, scan queue, completed
+  // history). Must run before reconcileInterrupted(), which rebuilds the
+  // page rows it needs for the downloads it re-queues.
+  runStartupMaintenance()
+
+  // Re-queue downloads that were interrupted by a crash/quit, then resume
   const dm = getDownloadManager()
+  dm.applyConcurrencyFromSettings()
+  dm.reconcileInterrupted()
   dm.processQueue()
 
-  // F5: Auto-update — check for updates on startup
-  autoUpdater.checkForUpdatesAndNotify()
+  // Warn early if the metadata toolchain is missing — otherwise downloads
+  // "succeed" with no metadata written and nothing surfaces it.
+  checkPikepdfAvailable()
+    .then((result) => {
+      if (result.ok) {
+        console.log(`[startup] metadata toolchain OK: ${result.detail}`)
+      } else {
+        console.error(`[startup] METADATA DISABLED: ${result.detail}`)
+      }
+    })
+    .catch(() => {
+      /* probe failure is non-fatal */
+    })
+
+  // F5: Auto-update — check for updates on startup.
+  // Rejects when no matching release exists; swallow it rather than emitting
+  // an unhandled rejection on every launch.
+  autoUpdater.checkForUpdatesAndNotify().catch(() => {
+    /* no update feed available */
+  })
 
   // Manual update check from renderer
   ipcMain.handle('app:checkForUpdates', async () => {
