@@ -15,6 +15,7 @@ import { readFileSync, statSync, existsSync, mkdirSync, writeFileSync, appendFil
 import { readdir } from 'fs/promises'
 import { join, relative, basename } from 'path'
 import { execFile } from 'child_process'
+import { createHash } from 'crypto'
 import { tmpdir, homedir } from 'os'
 import Database from 'better-sqlite3'
 import { PDFDocument } from 'pdf-lib'
@@ -22,7 +23,7 @@ import { PDFDocument } from 'pdf-lib'
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 type WorkerCommand =
-  | { type: 'start'; libraryRoot: string }
+  | { type: 'start'; libraryRoot: string; thumbnailDir?: string }
   | { type: 'pause' }
   | { type: 'resume' }
   | { type: 'cancel' }
@@ -62,6 +63,9 @@ let state: 'idle' | 'scanning' | 'paused' | 'cancelled' = 'idle'
 let db: Database.Database | null = null
 let currentLibraryRoot = ''
 let resolvePause: (() => void) | null = null
+// Supplied by the main process (userData/thumbnails). Falls back to tmpdir
+// only if the message somehow arrives without it.
+let currentThumbnailDir = join(tmpdir(), 'doujin-downloader-thumbs')
 
 // ─── Logging ─────────────────────────────────────────────────────────────────
 
@@ -93,18 +97,51 @@ function send(event: WorkerEvent): void {
 
 // ─── XMP Extraction ──────────────────────────────────────────────────────────
 
+// calibre:series comes in two shapes: the canonical pikepdf/Kavita form with
+// rdf:parseType="Resource" wrapping an <rdf:value>, and a legacy flat form.
+// Try the nested form first — the flat pattern cannot match it at all.
+const XMP_SERIES_NESTED_REGEX =
+  /<calibre:series[^>]*>[\s\S]*?<rdf:value[^>]*>([^<]+)<\/rdf:value>/i
 const XMP_SERIES_REGEX = /<calibre:series[^>]*>([^<]+)<\/calibre:series>/i
 const XMP_SERIES_INDEX_REGEX = /<ns0:series_index[^>]*>([^<]+)<\/ns0:series_index>/i
 const XMP_SERIES_INDEX_ALT_REGEX = /<calibreSI:series_index[^>]*>([^<]+)<\/calibreSI:series_index>/i
-const XMP_LANGUAGE_REGEX = /<dc:language[^>]*>([^<]+)<\/dc:language>/i
+// dc:language is an rdf:Bag (calibre/Kavita form); take the first rdf:li.
+// The flat form is kept as a fallback for files written by other tools.
+const XMP_LANGUAGE_BAG_REGEX =
+  /<dc:language[^>]*>[\s\S]*?<rdf:li[^>]*>([^<]+)<\/rdf:li>/i
+const XMP_LANGUAGE_REGEX = /<dc:language[^>]*>([^<\s][^<]*)<\/dc:language>/i
 const XMP_PUBLISHER_REGEX = /<dc:publisher[^>]*>[\s\S]*?<rdf:li[^>]*>([^<]*)<\/rdf:li>/i
-const XMP_DESCRIPTION_REGEX = /<dc:description[^>]*>([\s\S]*?)<\/dc:description>/i
+// dc:description is written as <rdf:Alt><rdf:li xml:lang="x-default">text.
+// Matching the outer element captured the whole rdf wrapper as the "text",
+// which then got re-embedded on the next metadata edit and nested further
+// every time. Prefer the inner rdf:li, fall back to a plain text child.
+const XMP_DESCRIPTION_ALT_REGEX =
+  /<dc:description[^>]*>[\s\S]*?<rdf:li[^>]*>([\s\S]*?)<\/rdf:li>/i
+const XMP_DESCRIPTION_REGEX = /<dc:description[^>]*>([^<]*)<\/dc:description>/i
 
 // XMP fields needed for pikepdf-processed files (no docinfo)
 const XMP_TITLE_REGEX = /<dc:title[^>]*>[\s\S]*?<rdf:li[^>]*>([^<]+)<\/rdf:li>/i
 const XMP_CREATOR_REGEX = /<dc:creator[^>]*>[\s\S]*?<rdf:li[^>]*>([^<]+)<\/rdf:li>/gi
 const XMP_DATE_REGEX = /<dc:date[^>]*>([^<]+)<\/dc:date>/i
 const XMP_ISBN_REGEX = /<pdfx:isbn[^>]*>(\d+)<\/pdfx:isbn>/i
+/**
+ * Decode XML character entities.
+ *
+ * The XMP packet is read with regexes rather than a real parser, so entities
+ * arrive verbatim — a correctly-escaped title like "A &amp; B" would otherwise
+ * be stored in the DB with the entity still in it.
+ */
+function decodeXmlEntities(s: string): string {
+  return s
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(parseInt(dec, 10)))
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, '&') // must come last
+}
+
 /**
  * Extract XMP metadata from raw PDF buffer by searching for the XMP packet.
  * XMP metadata streams in PDF are typically stored uncompressed for compatibility.
@@ -117,9 +154,17 @@ function extractXmpFromBuffer(buffer: Buffer): Record<string, string> {
     if (!xmpMatch) return result
     const xmp = xmpMatch[1]
 
-    // calibre:series (F3)
-    const seriesM = xmp.match(XMP_SERIES_REGEX)
-    if (seriesM) result.seriesName = seriesM[1].trim()
+    // Every value below comes out of XML, so entities must be decoded.
+    const text = (raw: string): string => decodeXmlEntities(raw.trim())
+
+    // calibre:series (F3) — nested <rdf:value> form first, then legacy flat
+    const seriesNested = xmp.match(XMP_SERIES_NESTED_REGEX)
+    if (seriesNested) {
+      result.seriesName = text(seriesNested[1])
+    } else {
+      const seriesM = xmp.match(XMP_SERIES_REGEX)
+      if (seriesM) result.seriesName = text(seriesM[1])
+    }
 
     // series_index in calibre namespace (F2)
     const siM = xmp.match(XMP_SERIES_INDEX_REGEX)
@@ -129,27 +174,37 @@ function extractXmpFromBuffer(buffer: Buffer): Record<string, string> {
       if (siAlt) result.seriesIndex = siAlt[1].trim()
     }
 
-    // dc:language (F4)
-    const langM = xmp.match(XMP_LANGUAGE_REGEX)
-    if (langM) result.language = langM[1].trim()
+    // dc:language (F4) — rdf:Bag form first, then flat text child
+    const langBag = xmp.match(XMP_LANGUAGE_BAG_REGEX)
+    if (langBag) {
+      result.language = text(langBag[1])
+    } else {
+      const langM = xmp.match(XMP_LANGUAGE_REGEX)
+      if (langM) result.language = text(langM[1])
+    }
 
     // dc:publisher (F5)
     const pubM = xmp.match(XMP_PUBLISHER_REGEX)
-    if (pubM) result.publisher = pubM[1].trim()
+    if (pubM) result.publisher = text(pubM[1])
 
-    // dc:description (F6)
-    const descM = xmp.match(XMP_DESCRIPTION_REGEX)
-    if (descM) result.description = descM[1].trim()
+    // dc:description (F6) — rdf:Alt form first, then plain text child
+    const descAlt = xmp.match(XMP_DESCRIPTION_ALT_REGEX)
+    if (descAlt) {
+      result.description = text(descAlt[1])
+    } else {
+      const descM = xmp.match(XMP_DESCRIPTION_REGEX)
+      if (descM) result.description = text(descM[1])
+    }
 
     // dc:title — fallback for pikepdf-processed files (no docinfo)
     const titleM = xmp.match(XMP_TITLE_REGEX)
-    if (titleM) result.xmpTitle = titleM[1].trim()
+    if (titleM) result.xmpTitle = text(titleM[1])
 
     // dc:creator — fallback for pikepdf-processed files
     const creators: string[] = []
     let creatorM: RegExpExecArray | null
     while ((creatorM = XMP_CREATOR_REGEX.exec(xmp)) !== null) {
-      creators.push(creatorM[1].trim())
+      creators.push(text(creatorM[1]))
     }
     if (creators.length > 0) result.xmpCreators = creators.join(', ')
 
@@ -251,11 +306,13 @@ function extractIdFromFilename(filePath: string): number | null {
 // ─── Thumbnail Generation ────────────────────────────────────────────────────
 
 async function generateThumbnail(pdfPath: string): Promise<string | null> {
-  const thumbDir = join(tmpdir(), 'doujin-downloader-thumbs')
+  const thumbDir = currentThumbnailDir
   if (!existsSync(thumbDir)) {
     try { mkdirSync(thumbDir, { recursive: true }) } catch { return null }
   }
-  const hash = pdfPath.split('').reduce((acc, c) => ((acc << 5) - acc + c.charCodeAt(0)) | 0, 0).toString(16)
+  // Content-addressed by full path. A 32-bit hash collides often enough at
+  // library scale to show the wrong cover, so use a real digest.
+  const hash = createHash('sha1').update(pdfPath).digest('hex').slice(0, 16)
   const thumbPath = join(thumbDir, `${hash}.jpg`)
   if (existsSync(thumbPath)) return thumbPath
 
@@ -608,11 +665,22 @@ async function runScan(): Promise<void> {
   let removedItems = 0
   const allDbPaths = db.prepare('SELECT id, file_path FROM library_item').all() as Array<{ id: number; file_path: string }>
   const pdfSet = new Set(pdfFiles)
-  for (const dbItem of allDbPaths) {
-    if (!pdfSet.has(dbItem.file_path)) {
-      db.prepare('DELETE FROM library_item WHERE id = ?').run(dbItem.id)
-      removedItems++
-    }
+  const gone = allDbPaths.filter((dbItem) => !pdfSet.has(dbItem.file_path))
+
+  if (gone.length > 0) {
+    // Nothing declares a foreign key, so artist rows must be removed by hand
+    // or they linger as orphans and pollute the artist filter list.
+    const delArtists = db.prepare('DELETE FROM library_item_artist WHERE library_item_id = ?')
+    const delItem = db.prepare('DELETE FROM library_item WHERE id = ?')
+    const removeAll = db.transaction((rows: Array<{ id: number }>) => {
+      for (const row of rows) {
+        delArtists.run(row.id)
+        delItem.run(row.id)
+      }
+    })
+    removeAll(gone)
+    removedItems = gone.length
+    log(`REMOVED ${removedItems} item(s) no longer on disk`)
   }
 
   // Phase 6: Log scan
@@ -636,6 +704,7 @@ parentPort?.on('message', async (cmd: WorkerCommand) => {
       if (state === 'scanning') return
       state = 'scanning'
       currentLibraryRoot = cmd.libraryRoot
+      if (cmd.thumbnailDir) currentThumbnailDir = cmd.thumbnailDir
 
       // Open DB connection
       const { openWorkerConnection } = await import('../db/connection')

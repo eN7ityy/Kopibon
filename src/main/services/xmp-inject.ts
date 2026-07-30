@@ -27,11 +27,73 @@ export interface XmpMetadata {
   date?: string | null
 }
 
-// ─── XMP Builder ─────────────────────────────────────────────────────────────
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
+/** Characters that are illegal in XML 1.0 even when escaped. */
+// eslint-disable-next-line no-control-regex
+const ILLEGAL_XML_CHARS = /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g
+
+/**
+ * Escape text for inclusion in XML character data.
+ *
+ * This previously replaced each character with itself (`&` → `&`), which meant
+ * any title containing an ampersand produced structurally invalid XMP. pikepdf
+ * writes the packet as raw bytes without validating, so the damage only showed
+ * up downstream in Kavita/Calibre/exiftool.
+ */
 function escXml(s: string): string {
-  return s.replace(/&/g, '&').replace(/</g, '<').replace(/>/g, '>')
+  return s
+    .replace(ILLEGAL_XML_CHARS, '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;')
 }
+
+/** Map human-readable language names to ISO 639-1 codes for dc:language. */
+const LANGUAGE_TO_ISO: Record<string, string> = {
+  english: 'en',
+  japanese: 'ja',
+  chinese: 'zh',
+  korean: 'ko',
+  french: 'fr',
+  spanish: 'es',
+  german: 'de',
+  italian: 'it',
+  portuguese: 'pt',
+  russian: 'ru',
+  other: 'ot'
+}
+
+function toIsoLanguage(lang: string | null | undefined): string | null {
+  if (!lang) return null
+  const lower = lang.toLowerCase().trim()
+  if (!lower) return null
+  if (/^[a-z]{2}$/.test(lower)) return lower
+  return LANGUAGE_TO_ISO[lower] || lower
+}
+
+/**
+ * Build the docinfo /Keywords token list.
+ *
+ * Kavita reads XMP, but our own library scanner also parses these tokens as a
+ * fallback (and prefers them for language/series), so everything that matters
+ * for a rescan-from-disk round trip is written here too.
+ */
+export function buildKeywordTokens(metadata: XmpMetadata): string[] {
+  const tokens = [...metadata.tags]
+  if (metadata.nhentaiId != null) tokens.push(`nhentai:${metadata.nhentaiId}`)
+  if (metadata.seriesName) tokens.push(`calibre_series:${metadata.seriesName}`)
+  if (metadata.seriesIndex != null) tokens.push(`series_index:${metadata.seriesIndex}`)
+  // Human-readable here on purpose: the scanner reads this back into the UI,
+  // while dc:language carries the ISO code that Kavita expects.
+  if (metadata.language) tokens.push(`language:${metadata.language}`)
+  if (metadata.publisher) tokens.push(`publisher:${metadata.publisher}`)
+  return tokens
+}
+
+// ─── XMP Builder ─────────────────────────────────────────────────────────────
 
 export function buildXmpXml(metadata: XmpMetadata): string {
   const creatorItems = metadata.creators
@@ -47,16 +109,36 @@ export function buildXmpXml(metadata: XmpMetadata): string {
   const date = metadata.date || new Date().toISOString()
   const now = new Date().toISOString().replace(/\.\d{3}Z$/, '.000000+00:00')
 
+  // dc:language must be an rdf:Bag of ISO 639-1 codes — this is the shape
+  // calibre's `ebook-meta --language` produces and the only one Kavita reads
+  // ("Kavita will only take the first" refers to the first rdf:li). A
+  // plain-text <dc:language>en</dc:language> child is silently ignored.
+  const isoLanguage = toIsoLanguage(metadata.language)
+  const languageBlock = isoLanguage
+    ? `
+      <dc:language>
+        <rdf:Bag>
+          <rdf:li>${escXml(isoLanguage)}</rdf:li>
+        </rdf:Bag>
+      </dc:language>`
+    : ''
+
+  // Emit the calibre series block whenever there is a series name. The volume
+  // number is optional — gating the whole block on it meant a series without
+  // volumes was written nowhere in the file, so Kavita couldn't group it.
   let seriesBlock = ''
-  if (metadata.seriesName && metadata.seriesIndex != null) {
+  if (metadata.seriesName) {
     const authorSort = metadata.creators[0]?.split(' ').reverse().join(' ') || 'unknown'
+    const seriesIndexLine =
+      metadata.seriesIndex != null
+        ? `\n        <calibreSI:series_index>${metadata.seriesIndex.toFixed(2)}</calibreSI:series_index>`
+        : ''
     seriesBlock = `
     <rdf:Description xmlns:calibreSI="http://calibre-ebook.com/xmp-namespace-series-index" xmlns:calibre="http://calibre-ebook.com/xmp-namespace" rdf:about="">
       <calibre:series rdf:parseType="Resource">
-        <rdf:value>${escXml(metadata.seriesName)}</rdf:value>
-        <calibreSI:series_index>${metadata.seriesIndex.toFixed(2)}</calibreSI:series_index>
+        <rdf:value>${escXml(metadata.seriesName)}</rdf:value>${seriesIndexLine}
       </calibre:series>
-      <calibre:timestamp>${date}</calibre:timestamp>
+      <calibre:timestamp>${escXml(date)}</calibre:timestamp>
       <calibre:title_sort>${escXml(metadata.title)}</calibre:title_sort>
       <calibre:author_sort>${escXml(authorSort)}</calibre:author_sort>
     </rdf:Description>`
@@ -88,7 +170,7 @@ ${tagItems}
       </dc:subject>
       <dc:publisher>
         <rdf:Bag>${publisher ? `<rdf:li>${escXml(publisher)}</rdf:li>` : ''}</rdf:Bag>
-      </dc:publisher>
+      </dc:publisher>${languageBlock}
       <dc:date>
         <rdf:Seq>
           <rdf:li>${escXml(date)}</rdf:li>
@@ -119,7 +201,8 @@ pdf = Pdf.open(pdf_path)
 # Write docinfo fields alongside XMP (Kavita reads both)
 pdf.docinfo['/Title'] = data.get('title', '')
 pdf.docinfo['/Author'] = data.get('author', '')
-pdf.docinfo['/Keywords'] = data.get('keywords', '') + (', publisher:' + data.get('publisher', '') if data.get('publisher', '') else '')
+pdf.docinfo['/Keywords'] = data.get('keywords', '')
+pdf.docinfo['/Producer'] = 'pikepdf 10.8.0'
 pdf.docinfo['/Trapped'] = '/False'
 
 # Nuke existing catalog Metadata reference
@@ -141,62 +224,105 @@ print(json.dumps({'status': 'ok'}))
 `.trim()
 
 /**
+ * Resolve the Python interpreter to use. `python3` does not exist on a stock
+ * Windows install, so fall back through the usual names.
+ */
+function pythonCandidates(): string[] {
+  const fromEnv = process.env.DOUJIN_PYTHON
+  const base = process.platform === 'win32' ? ['python', 'py', 'python3'] : ['python3', 'python']
+  return fromEnv ? [fromEnv, ...base] : base
+}
+
+interface PikepdfPayload {
+  pdfPath: string
+  outputPath?: string
+  xmp: string
+  title: string
+  author: string
+  keywords: string
+}
+
+function runPikepdf(payload: PikepdfPayload): Promise<{ success: boolean; error?: string }> {
+  const candidates = pythonCandidates()
+
+  const attempt = (index: number): Promise<{ success: boolean; error?: string }> =>
+    new Promise((resolve) => {
+      const exe = candidates[index]
+      const proc = spawn(exe, ['-c', PYTHON_SCRIPT], { stdio: ['pipe', 'pipe', 'pipe'] })
+
+      let stdout = ''
+      let stderr = ''
+      let spawnFailed = false
+
+      proc.stdout.on('data', (d: Buffer) => {
+        stdout += d.toString()
+      })
+      proc.stderr.on('data', (d: Buffer) => {
+        stderr += d.toString()
+      })
+
+      proc.on('error', (err) => {
+        spawnFailed = true
+        // Interpreter not found — try the next candidate name.
+        if (index + 1 < candidates.length) {
+          resolve(attempt(index + 1))
+        } else {
+          resolve({
+            success: false,
+            error: `Could not run Python (tried: ${candidates.join(', ')}). ${err.message}`
+          })
+        }
+      })
+
+      proc.on('close', (code) => {
+        if (spawnFailed) return
+        if (code === 0) {
+          try {
+            const result = JSON.parse(stdout)
+            if (result.status === 'ok') {
+              resolve({ success: true })
+            } else {
+              resolve({ success: false, error: result.message || 'Unknown pikepdf error' })
+            }
+          } catch {
+            resolve({ success: true }) // Assume success if stdout is not JSON
+          }
+        } else {
+          resolve({ success: false, error: stderr.trim() || `pikepdf exited with code ${code}` })
+        }
+      })
+
+      try {
+        proc.stdin.write(JSON.stringify(payload) + '\n')
+        proc.stdin.end()
+      } catch {
+        /* handled by the error event */
+      }
+    })
+
+  return attempt(0)
+}
+
+function buildPayload(metadata: XmpMetadata, pdfPath: string, outputPath?: string): PikepdfPayload {
+  return {
+    pdfPath,
+    ...(outputPath ? { outputPath } : {}),
+    xmp: buildXmpXml(metadata),
+    title: metadata.title,
+    author: metadata.creators.join(', '),
+    keywords: buildKeywordTokens(metadata).join(', ')
+  }
+}
+
+/**
  * Apply XMP metadata to a PDF file using pikepdf.
  * The PDF is modified in-place (docinfo nuked, XMP injected).
- *
- * @param pdfPath - Path to the PDF file
- * @param metadata - Metadata to embed
- * @returns Promise resolving to success status
  */
 export function applyXmpWithPikepdf(
   pdfPath: string,
   metadata: XmpMetadata
 ): Promise<{ success: boolean; error?: string }> {
-  return new Promise((resolve) => {
-    const xmp = buildXmpXml(metadata)
-
-    const proc = spawn('python3', ['-c', PYTHON_SCRIPT], {
-      stdio: ['pipe', 'pipe', 'pipe']
-    })
-
-    let stdout = ''
-    let stderr = ''
-
-    proc.stdout.on('data', (d: Buffer) => { stdout += d.toString() })
-    proc.stderr.on('data', (d: Buffer) => { stderr += d.toString() })
-
-    proc.on('error', (err) => {
-      resolve({ success: false, error: `Failed to spawn python3: ${err.message}` })
-    })
-
-    proc.on('close', (code) => {
-      if (code === 0) {
-        try {
-          const result = JSON.parse(stdout)
-          if (result.status === 'ok') {
-            resolve({ success: true })
-          } else {
-            resolve({ success: false, error: result.message || 'Unknown pikepdf error' })
-          }
-        } catch {
-          resolve({ success: true }) // Assume success if stdout not JSON
-        }
-      } else {
-        resolve({ success: false, error: stderr || `pikepdf exited with code ${code}` })
-      }
-    })
-
-    // Send metadata via stdin
-    proc.stdin.write(JSON.stringify({
-      pdfPath,
-      xmp,
-      title: metadata.title,
-      author: metadata.creators.join(', '),
-      keywords: metadata.tags.join(', '),
-      publisher: metadata.publisher || ''
-    }) + '\n')
-    proc.stdin.end()
-  })
+  return runPikepdf(buildPayload(metadata, pdfPath))
 }
 
 /**
@@ -207,49 +333,55 @@ export function applyXmpToNewFile(
   outputPath: string,
   metadata: XmpMetadata
 ): Promise<{ success: boolean; error?: string }> {
-  return new Promise((resolve) => {
-    const xmp = buildXmpXml(metadata)
+  return runPikepdf(buildPayload(metadata, pdfPath, outputPath))
+}
 
-    const proc = spawn('python3', ['-c', PYTHON_SCRIPT], {
-      stdio: ['pipe', 'pipe', 'pipe']
+/**
+ * Check once whether Python + pikepdf are actually available, so the app can
+ * warn instead of silently producing PDFs with no metadata.
+ */
+let pikepdfAvailable: { ok: boolean; detail: string } | null = null
+
+export async function checkPikepdfAvailable(
+  force = false
+): Promise<{ ok: boolean; detail: string }> {
+  if (pikepdfAvailable && !force) return pikepdfAvailable
+
+  const candidates = pythonCandidates()
+
+  const probe = (exe: string): Promise<{ ok: boolean; detail: string }> =>
+    new Promise((resolve) => {
+      const proc = spawn(exe, ['-c', 'import pikepdf; print(pikepdf.__version__)'], {
+        stdio: ['ignore', 'pipe', 'pipe']
+      })
+      let out = ''
+      let err = ''
+      proc.stdout.on('data', (d: Buffer) => {
+        out += d.toString()
+      })
+      proc.stderr.on('data', (d: Buffer) => {
+        err += d.toString()
+      })
+      proc.on('error', (e) => resolve({ ok: false, detail: e.message }))
+      proc.on('close', (code) => {
+        if (code === 0) resolve({ ok: true, detail: `${exe} / pikepdf ${out.trim()}` })
+        else resolve({ ok: false, detail: err.trim() || `exit code ${code}` })
+      })
     })
 
-    let stdout = ''
-    let stderr = ''
+  let lastDetail = 'no interpreter found'
+  for (const exe of candidates) {
+    const result = await probe(exe)
+    if (result.ok) {
+      pikepdfAvailable = result
+      return result
+    }
+    lastDetail = `${exe}: ${result.detail}`
+  }
 
-    proc.stdout.on('data', (d: Buffer) => { stdout += d.toString() })
-    proc.stderr.on('data', (d: Buffer) => { stderr += d.toString() })
-
-    proc.on('error', (err) => {
-      resolve({ success: false, error: `Failed to spawn python3: ${err.message}` })
-    })
-
-    proc.on('close', (code) => {
-      if (code === 0) {
-        try {
-          const result = JSON.parse(stdout)
-          if (result.status === 'ok') {
-            resolve({ success: true })
-          } else {
-            resolve({ success: false, error: result.message || 'Unknown pikepdf error' })
-          }
-        } catch {
-          resolve({ success: true })
-        }
-      } else {
-        resolve({ success: false, error: stderr || `pikepdf exited with code ${code}` })
-      }
-    })
-
-    proc.stdin.write(JSON.stringify({
-      pdfPath,
-      outputPath,
-      xmp,
-      title: metadata.title,
-      author: metadata.creators.join(', '),
-      keywords: metadata.tags.join(', '),
-      publisher: metadata.publisher || ''
-    }) + '\n')
-    proc.stdin.end()
-  })
+  pikepdfAvailable = {
+    ok: false,
+    detail: `Python/pikepdf not available (tried: ${candidates.join(', ')}). Last error — ${lastDetail}`
+  }
+  return pikepdfAvailable
 }
