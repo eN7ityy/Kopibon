@@ -29,6 +29,10 @@ interface SearchStore {
     downloadStatuses: Map<number, DownloadStatus>,
     currentPage: number
   ) => void
+  /** Update a single gallery's download status (triggers a re-render). */
+  setDownloadStatus: (galleryId: number, status: DownloadStatus) => void
+  /** Merge many statuses at once. */
+  mergeDownloadStatuses: (statuses: Map<number, DownloadStatus>) => void
   setLoading: (loading: boolean) => void
   setLoadingMore: (loadingMore: boolean) => void
   setError: (error: string | null) => void
@@ -80,6 +84,31 @@ export const useSearchStore = create<SearchStore>()((set) => ({
       loadingMore: false,
       error: null
     })),
+
+  // Callers previously assigned into store.downloadStatuses directly, which
+  // zustand cannot observe — badges never refreshed until an unrelated
+  // re-render happened to occur.
+  setDownloadStatus: (galleryId, status) =>
+    set((state) =>
+      state.downloadStatuses[galleryId] === status
+        ? state
+        : { downloadStatuses: { ...state.downloadStatuses, [galleryId]: status } }
+    ),
+
+  mergeDownloadStatuses: (statuses) =>
+    set((state) => {
+      let changed = false
+      for (const [id, status] of statuses) {
+        if (state.downloadStatuses[id] !== status) {
+          changed = true
+          break
+        }
+      }
+      if (!changed) return state
+      return {
+        downloadStatuses: { ...state.downloadStatuses, ...Object.fromEntries(statuses) }
+      }
+    }),
 
   setLoading: (loading) => set({ loading, error: null, rateLimited: false }),
   setLoadingMore: (loadingMore) => set({ loadingMore }),

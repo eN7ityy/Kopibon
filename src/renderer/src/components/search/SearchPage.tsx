@@ -82,9 +82,7 @@ export default function SearchPage(): React.JSX.Element {
       if (store.results.length === 0) return
       const ids = store.results.map((r) => r.id)
       const statuses = await resolveDownloadStatuses(ids)
-      for (const [id, status] of statuses) {
-        store.downloadStatuses[id] = status
-      }
+      useSearchStore.getState().mergeDownloadStatuses(statuses)
     }
     refreshStatuses()
     const interval = setInterval(refreshStatuses, 2000)
@@ -256,7 +254,7 @@ export default function SearchPage(): React.JSX.Element {
         const statuses = await resolveDownloadStatuses([galleryId])
         const status = statuses.get(galleryId)
         if (status) {
-          store.downloadStatuses[galleryId] = status
+          useSearchStore.getState().setDownloadStatus(galleryId, status)
         }
       } catch {
         // Silently ignore
@@ -280,20 +278,24 @@ export default function SearchPage(): React.JSX.Element {
   // C4: Listen for download progress events from main process to refresh statuses
   useEffect(() => {
     const cleanup = window.api.onDownloadProgress(async (progress) => {
+      if (!progress.galleryId) return
+      const setStatus = useSearchStore.getState().setDownloadStatus
+
       // On download completion, re-check library for accurate status
-      if (progress.status === 'completed' && progress.galleryId) {
+      if (progress.status === 'completed') {
         const libResult = await window.api.library.getByGalleryId(progress.galleryId)
         if (libResult.success && libResult.data) {
-          store.downloadStatuses[progress.galleryId] = 'in_library'
+          setStatus(progress.galleryId, 'in_library')
         }
-      } else if (progress.galleryId) {
-        const st = progress.status
-        let dlStatus: DownloadStatus = 'not_downloaded'
-        if (st === 'downloading' || st === 'converting') dlStatus = 'downloading'
-        else if (st === 'queued') dlStatus = 'queued'
-        else if (st === 'failed') dlStatus = 'failed'
-        store.downloadStatuses[progress.galleryId] = dlStatus
+        return
       }
+
+      const st = progress.status
+      let dlStatus: DownloadStatus = 'not_downloaded'
+      if (st === 'downloading' || st === 'converting') dlStatus = 'downloading'
+      else if (st === 'queued') dlStatus = 'queued'
+      else if (st === 'failed') dlStatus = 'failed'
+      setStatus(progress.galleryId, dlStatus)
     })
     return () => { cleanup() }
   }, [])  // eslint-disable-line react-hooks/exhaustive-deps

@@ -1,16 +1,22 @@
 import { useState, useEffect, useRef } from 'react'
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.min.mjs'
 
-// Set worker using legacy build (avoids private-fields compatibility issue);
-// fall back to CDN if the bundled path doesn't resolve in the renderer.
+// Worker comes from the legacy build (avoids a private-fields compatibility
+// issue). There is deliberately no CDN fallback: the CSP allows only
+// script-src 'self', so a remote worker could never load anyway, and the old
+// fallback pointed at a 4.x path while this project ships pdfjs-dist 6.x.
+// If the bundled worker can't be resolved we surface a real error instead.
+let workerSetupError: string | null = null
 try {
   pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
     'pdfjs-dist/legacy/build/pdf.worker.min.mjs',
     import.meta.url
   ).toString()
-} catch {
-  pdfjsLib.GlobalWorkerOptions.workerSrc =
-    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.x/pdf.worker.min.mjs'
+} catch (err) {
+  workerSetupError =
+    'The bundled PDF renderer could not be loaded. ' +
+    `Try reinstalling the application. (${err instanceof Error ? err.message : String(err)})`
+  console.error('[PdfViewer] failed to resolve bundled pdf.js worker:', err)
 }
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -112,6 +118,13 @@ export default function PdfViewer({
     cancelledRef.current = false
 
     const loadPdf = async () => {
+      // No renderer available — say so rather than hanging on a spinner.
+      if (workerSetupError) {
+        setError(workerSetupError)
+        setLoading(false)
+        return
+      }
+
       setLoading(true)
       setError(null)
 

@@ -4,6 +4,24 @@ export default function StatusBar(): React.JSX.Element {
   const [activeCount, setActiveCount] = useState(0)
   const [queuedCount, setQueuedCount] = useState(0)
   const [libraryCount, setLibraryCount] = useState(0)
+  const [version, setVersion] = useState<string | null>(null)
+
+  // Read the real app version instead of a hardcoded string that silently
+  // goes stale on every release.
+  useEffect(() => {
+    let cancelled = false
+    window.api.app
+      .getVersion()
+      .then((r) => {
+        if (!cancelled && r.success && r.data) setVersion(r.data as string)
+      })
+      .catch(() => {
+        /* the version label is cosmetic */
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     const poll = async () => {
@@ -50,7 +68,7 @@ export default function StatusBar(): React.JSX.Element {
         >
           nhentai.net ↗
         </button>
-        <span>v1.0.0</span>
+        {version && <span>v{version}</span>}
       </span>
     </footer>
   )
