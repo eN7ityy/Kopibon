@@ -27,8 +27,7 @@ export default function GalleryCard({
     <button
       onClick={() => onClick(gallery.id)}
       onDragStart={(e) => e.preventDefault()}
-      className="group relative rounded-lg overflow-hidden bg-white dark:bg-gray-850 border border-gray-200 dark:border-gray-700 hover:border-purple-400 dark:hover:border-purple-500 hover:shadow-lg transition-all duration-200 text-left w-full"
-      style={{ backgroundColor: 'var(--card-bg, rgb(30 41 59))' }}
+      className="group relative rounded-lg overflow-hidden bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-purple-400 dark:hover:border-purple-500 hover:shadow-lg transition-all duration-200 text-left w-full"
     >
       {/* Cover image */}
       <div className="aspect-[3/4] bg-gray-200 dark:bg-gray-700 relative overflow-hidden">

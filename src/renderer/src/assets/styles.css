@@ -2,12 +2,140 @@
 
 @variant dark (&:where(.dark, .dark *));
 
-@theme {
-  --color-sidebar-bg: #1e1e2e;
-  --color-sidebar-hover: #313244;
-  --color-sidebar-active: #45475a;
-  --color-accent: #cba6f7;
-  --color-accent-hover: #b4befe;
+/*
+ * ─── Palette ────────────────────────────────────────────────────────────────
+ *
+ * Derived from nhentai's own identity: a near-black ground, one hot crimson,
+ * neutral greys, white. The greys are biased a few degrees toward blue-violet
+ * rather than being pure neutral — against that slightly cool ground the
+ * crimson reads hotter, which is the point of spending the only saturated hue
+ * on it.
+ *
+ * Two things to know before editing:
+ *
+ * 1. These are the ONLY colour values in the project. Components reference them
+ *    through the generated utilities (`bg-surface`, `text-accent`) and never
+ *    name a Tailwind palette colour directly. The previous approach defined a
+ *    Catppuccin palette here that no component ever referenced, while the
+ *    components used 192 raw `purple-*` classes — a theme file and a separate
+ *    de-facto palette that disagreed with each other.
+ *
+ * 2. There are deliberately TWO reds. White on the bright accent (#ED2553) is
+ *    only 4.2:1, under the 4.5 that small text needs, so a naive switch to it
+ *    would have been *less* legible than the purple it replaced (5.4:1).
+ *    `--c-accent-fill` is the deeper red used behind white button labels
+ *    (5.6:1); `--c-accent` is the bright one, for things that are not small
+ *    text — active nav, focus rings, hover borders, progress fills.
+ *
+ * Hue means state, never importance. Importance is carried by fill vs outline.
+ */
+
+/* Light — the default; dark values follow and are the designed-first theme. */
+:root {
+  --c-chrome: #f1f1f4;
+  --c-bg: #fafafb;
+  --c-surface: #ffffff;
+  --c-raised: #f3f3f5;
+  --c-line: #e3e3e8;
+  --c-line-soft: #eeeef1;
+
+  --c-text: #16161a;
+  --c-text-muted: #5c5c66;
+  --c-text-faint: #8a8a94;
+  --c-on-accent: #ffffff;
+
+  --c-accent: #c81e45;
+  --c-accent-fill: #c81e45;
+  --c-accent-hover: #a81739;
+  --c-accent-wash: rgba(200, 30, 69, 0.07);
+
+  --c-success: #1f7a4d;
+  --c-success-wash: rgba(31, 122, 77, 0.09);
+  --c-warning: #8a6100;
+  --c-warning-wash: rgba(138, 97, 0, 0.09);
+  --c-info: #2a5f80;
+  --c-info-wash: rgba(42, 95, 128, 0.09);
+}
+
+.dark {
+  --c-chrome: #0c0c0f;
+  --c-bg: #131318;
+  --c-surface: #1b1b22;
+  --c-raised: #262630;
+  --c-line: #32323d;
+  --c-line-soft: #232329;
+
+  --c-text: #f2f2f4;
+  --c-text-muted: #9a9aa8;
+  --c-text-faint: #6b6b78;
+  --c-on-accent: #ffffff;
+
+  --c-accent: #ed2553;
+  --c-accent-fill: #c81e45;
+  --c-accent-hover: #d82048;
+  --c-accent-wash: rgba(237, 37, 83, 0.12);
+
+  --c-success: #3fb47a;
+  --c-success-wash: rgba(63, 180, 122, 0.14);
+  --c-warning: #d9a33c;
+  --c-warning-wash: rgba(217, 163, 60, 0.14);
+  --c-info: #5697c4;
+  --c-info-wash: rgba(86, 151, 196, 0.14);
+}
+
+/*
+ * `@theme inline` so the generated utilities emit `var(--c-*)` rather than
+ * baking the light value in at build time. Without `inline` the utilities would
+ * resolve once and the `.dark` overrides above would never apply.
+ */
+@theme inline {
+  --color-chrome: var(--c-chrome);
+  --color-app: var(--c-bg);
+  --color-surface: var(--c-surface);
+  --color-raised: var(--c-raised);
+  --color-line: var(--c-line);
+  --color-line-soft: var(--c-line-soft);
+
+  --color-fg: var(--c-text);
+  --color-fg-muted: var(--c-text-muted);
+  --color-fg-faint: var(--c-text-faint);
+  --color-on-accent: var(--c-on-accent);
+
+  --color-accent: var(--c-accent);
+  --color-accent-fill: var(--c-accent-fill);
+  --color-accent-hover: var(--c-accent-hover);
+  --color-accent-wash: var(--c-accent-wash);
+
+  --color-success: var(--c-success);
+  --color-success-wash: var(--c-success-wash);
+  --color-warning: var(--c-warning);
+  --color-warning-wash: var(--c-warning-wash);
+  --color-info: var(--c-info);
+  --color-info-wash: var(--c-info-wash);
+
+  /*
+   * Type. The native UI face per platform, declared rather than inherited —
+   * there was no font declaration anywhere in the project before this. The CJK
+   * entries matter: gallery titles are frequently Japanese, and without them the
+   * fallback is whatever the browser picks last.
+   */
+  --font-sans:
+    system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    'Noto Sans', 'Noto Sans CJK JP', 'Noto Sans JP', 'Yu Gothic UI', Meiryo,
+    'Hiragino Kaku Gothic ProN', sans-serif;
+  --font-mono:
+    ui-monospace, SFMono-Regular, 'SF Mono', 'JetBrains Mono', Menlo, Consolas,
+    'Liberation Mono', monospace;
+
+  /*
+   * Two steps Tailwind does not provide, completing the five-step scale:
+   * 24 title / 15 section / 14 body / 12 meta / 11 label. The 11px uppercase
+   * label is what lets dense metadata be scannable without another colour.
+   */
+  --text-section: 0.9375rem;
+  --text-section--line-height: 1.4;
+  --text-label: 0.6875rem;
+  --text-label--line-height: 1.35;
 
   --animate-progress-indeterminate: progress-indeterminate 1.4s ease-in-out infinite;
 }
@@ -36,7 +164,32 @@ body,
   overflow: hidden;
 }
 
-/* Custom scrollbar */
+body {
+  font-family: var(--font-sans);
+  background: var(--c-bg);
+  color: var(--c-text);
+  -webkit-font-smoothing: antialiased;
+}
+
+/*
+ * A shared label treatment, since it is the one step of the scale that needs
+ * more than a size to work.
+ */
+.label {
+  font-size: var(--text-label);
+  line-height: 1.35;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--c-text-faint);
+}
+
+/* Digits that line up in columns should not shift width as they update. */
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Custom scrollbar — tracks the theme rather than being hardcoded dark. */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -47,16 +200,36 @@ body,
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #45475a;
+  background: var(--c-line);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #585b70;
+  background: var(--c-text-faint);
 }
 
 /* Button click feedback — global press effect */
 button:active {
   transform: scale(0.97);
   transition: transform 75ms;
+}
+
+/* Keyboard focus must always be visible, and on the accent so it reads as ours. */
+:focus-visible {
+  outline: 2px solid var(--c-accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  button:active {
+    transform: none;
+  }
 }

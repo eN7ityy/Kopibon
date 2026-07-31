@@ -83,7 +83,11 @@ export default function Sidebar(): React.JSX.Element {
               key={item.to}
               to={item.to}
               className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                // `relative` so the collapsed-mode badge below anchors to this
+                // row. Without it the absolutely positioned badge climbed to the
+                // nearest positioned ancestor — of which there was none in the
+                // sidebar — and landed in the wrong place entirely.
+                `relative flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                   isActive
                     ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
                     : 'text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-800'
