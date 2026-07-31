@@ -20,7 +20,7 @@ import { useGlobalJobs, type ProgressJob } from '../../stores/job-progress'
 import { ProgressStack } from '../shared/ProgressBar'
 import Button from '../shared/Button'
 import Notice, { NoticeRegion } from '../shared/Notice'
-import { Check, CheckSquare, FileArchive, Grid3x3, Layers, LayoutGrid, Library, List, Pause, Play, Plus, RefreshCw, SlidersHorizontal, Trash2, X } from 'lucide-react'
+import { Check, FileArchive, Grid3x3, Layers, LayoutGrid, Library, List, Pause, Play, Plus, RefreshCw, SlidersHorizontal, Trash2, X } from 'lucide-react'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -857,16 +857,6 @@ export default function LibraryPage(): React.JSX.Element {
           Add Custom
         </Button>
 
-        {items.length > 0 && (
-          <Button
-            role={selectMode ? 'primary' : 'secondary'}
-            icon={<CheckSquare size={16} />}
-            onClick={() => { setSelectMode(!selectMode); if (selectMode) { setSelectedIds(new Set()); setSelectionTick((t) => t + 1) } }}
-          >
-            {selectMode ? 'Done' : 'Select'}
-          </Button>
-        )}
-
         <div className="flex-1" />
 
         {/* Search input */}
@@ -943,11 +933,19 @@ export default function LibraryPage(): React.JSX.Element {
         outlined rather than filled, since a filled red would read as the
         primary action of the view.
       */}
-      {selectMode && selectedIds.size > 0 && (
+      {selectMode && (
         <div className="shrink-0 mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-accent/40 bg-accent-wash px-3 py-2">
-          <span className="text-sm text-fg">
-            <span className="tnum font-semibold">{selectedIds.size}</span> selected
-          </span>
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-fg">
+            <input
+              type="checkbox"
+              checked={selectedIds.size === items.length && items.length > 0}
+              onChange={toggleSelectAll}
+              className="h-4 w-4 rounded border-line text-accent focus:ring-accent"
+            />
+            <span>
+              <span className="tnum font-semibold">{selectedIds.size}</span> selected
+            </span>
+          </label>
 
           <span className="mx-1 h-5 w-px bg-line" />
 
@@ -997,6 +995,27 @@ export default function LibraryPage(): React.JSX.Element {
           </Button>
           <Button size="sm" role="danger" icon={<Trash2 size={14} />} onClick={handleBatchDelete}>
             Delete Files
+          </Button>
+
+          {/*
+            Done, far right. Selection mode is entered by ticking a card's
+            checkbox, so there is no longer a Select button in the toolbar — that
+            button could not work anyway: it set selectMode with nothing selected,
+            and the effect that exits selection mode when the set is empty
+            immediately turned it back off.
+          */}
+          <Button
+            size="sm"
+            role="ghost"
+            icon={<Check size={14} />}
+            onClick={() => {
+              setSelectedIds(new Set())
+              setSelectMode(false)
+              setSelectionTick((tick) => tick + 1)
+            }}
+            extraClass="ml-auto"
+          >
+            Done
           </Button>
         </div>
       )}
@@ -1053,16 +1072,6 @@ export default function LibraryPage(): React.JSX.Element {
         </div>
       )}
 
-      {/* Select all bar */}
-      {selectMode && items.length > 0 && (
-        <div className="mb-3 flex items-center gap-3">
-          <label className="flex items-center gap-2 text-sm text-fg-muted cursor-pointer">
-            <input type="checkbox" checked={selectedIds.size === items.length && items.length > 0} onChange={toggleSelectAll} className="w-4 h-4 rounded border-line text-accent focus:ring-accent" />
-            Select all ({items.length})
-          </label>
-        </div>
-      )}
-
       {/* Content area */}
       {items.length === 0 ? (
         <EmptyState icon={Library} title="Library is empty" description="Download your first doujin or add a custom entry to get started" actionLabel="Rescan Library" onAction={handleRescan} />
@@ -1073,12 +1082,20 @@ export default function LibraryPage(): React.JSX.Element {
             <div className="w-3.5 shrink-0" />
             <div className="flex-1 min-w-0">Title</div>
             <div className="w-32 shrink-0">Artist</div>
-            <div className="w-28 shrink-0">Series</div>
-            <div className="w-12 shrink-0 text-right">Vol</div>
+            {/*
+              Series gets the width freed from Size and Date. Volume is no longer
+              right-aligned: a short "V1" pushed to the right edge of its cell
+              left an obvious gap after a truncated series name, which read as
+              the series being cut off early for no reason. Left-aligned, the two
+              sit together as the pair they are.
+            */}
+            <div className="w-36 shrink-0">Series</div>
+            <div className="w-10 shrink-0">Vol</div>
             <div className="w-16 shrink-0">Lang</div>
             <div className="w-14 shrink-0">Fmt</div>
-            <div className="w-20 shrink-0 text-right">Size</div>
-            <div className="w-24 shrink-0 text-right">Date</div>
+            {/* Size never exceeds '999.9 KB'; the date is at most 'dd.mm.yyyy'. */}
+            <div className="w-16 shrink-0 text-right">Size</div>
+            <div className="w-20 shrink-0 text-right">Date</div>
           </div>
           <Virtuoso
             totalCount={items.length}
@@ -1147,7 +1164,7 @@ export default function LibraryPage(): React.JSX.Element {
                     />
                   </div>
                   {/* Series */}
-                  <div className="w-28 shrink-0">
+                  <div className="w-36 shrink-0">
                     <InlineEditCell
                       value={item.seriesName || ''}
                       displayValue={item.seriesName || '—'}
@@ -1158,7 +1175,7 @@ export default function LibraryPage(): React.JSX.Element {
                     />
                   </div>
                   {/* Volume */}
-                  <div className="w-12 shrink-0 text-right">
+                  <div className="w-10 shrink-0">
                     <InlineEditCell
                       value={item.seriesIndex != null ? String(item.seriesIndex) : ''}
                       displayValue={item.seriesIndex != null ? `V${item.seriesIndex}` : '—'}
@@ -1176,12 +1193,12 @@ export default function LibraryPage(): React.JSX.Element {
                     <span className="text-xs px-1.5 py-0.5 rounded bg-accent-wash text-accent">{item.format?.toUpperCase() || 'PDF'}</span>
                   </div>
                   {/* Size */}
-                  <div className="w-20 shrink-0 text-right">
-                    <p className="text-xs text-fg-muted">{formatSize(item.fileSize)}</p>
+                  <div className="w-16 shrink-0 text-right">
+                    <p className="tnum text-xs text-fg-muted">{formatSize(item.fileSize)}</p>
                   </div>
                   {/* Date */}
-                  <div className="w-24 shrink-0 text-right">
-                    <p className="text-xs text-fg-faint">{addedDate}</p>
+                  <div className="w-20 shrink-0 text-right">
+                    <p className="tnum text-xs text-fg-faint">{addedDate}</p>
                   </div>
                 </div>
               )
