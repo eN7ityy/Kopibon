@@ -19,23 +19,36 @@ nsis:
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
-mac:
-  entitlementsInherit: build/entitlements.mac.plist
-  extendInfo:
-    - NSCameraUsageDescription: Application requests access to the device's camera.
-    - NSMicrophoneUsageDescription: Application requests access to the device's microphone.
-    - NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
-    - NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
-  notarize: false
-dmg:
-  artifactName: ${name}-${version}.${ext}
+# No macOS target. A distributable mac build needs a paid Apple Developer
+# account: without signing and notarisation, Gatekeeper reports the app as
+# damaged, and electron-updater refuses unsigned updates outright. Deliberately
+# out of scope rather than half-configured.
 linux:
   target:
     - AppImage
+    - rpm
   maintainer: eN7ity
   category: Utility
+  # Runtime tools the app shells out to. They are NOT bundled: pikepdf writes
+  # PDF XMP metadata, and poppler's pdfinfo/pdfimages/pdftoppm drive PDF
+  # thumbnails and the whole PDF -> CBZ conversion. Declaring them here is the
+  # main reason to ship an rpm at all — dnf installs them for the user, whereas
+  # an AppImage user has to know to do it by hand.
+  #
+  # AppImage cannot express dependencies, so it relies on the in-app dependency
+  # check instead. Note the reverse trade-off: AppImage is the only Linux format
+  # electron-updater can auto-update, so the rpm is a convenience channel that
+  # updates through dnf.
+  desktop:
+    entry:
+      Categories: Utility;Graphics;Viewer;
 appImage:
   artifactName: ${name}-${version}.${ext}
+rpm:
+  artifactName: ${name}-${version}.${ext}
+  depends:
+    - poppler-utils
+    - python3-pikepdf
 npmRebuild: false
 publish:
   provider: github

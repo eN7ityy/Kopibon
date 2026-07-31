@@ -1,0 +1,10 @@
+# Lets electron-updater resolve a feed while running unpackaged, so the update
+# path can be exercised in development instead of only after cutting a real
+# release. Without this file the updater throws on every dev launch, which is why
+# the startup check swallowed its errors.
+#
+# Mirrors the `publish` block in electron-builder.yml.
+provider: github
+owner: eN7ityy
+repo: Doujinshi-Downloader
+updaterCacheDirName: doujin-downloader-updater
