@@ -7,6 +7,7 @@ import { galleryRepo } from '../db/repositories/gallery.repo'
 import { settingsRepo } from '../db/repositories/settings.repo'
 import { libraryRepo } from '../db/repositories/library.repo'
 import { getApiClient } from './api-client'
+import { resolveLanguageName } from './xml-utils'
 import type { GalleryMetadata } from './metadata-writer'
 import type { GalleryDetail } from './api-client'
 
@@ -307,7 +308,12 @@ export class DownloadManager {
 
       // Step 1.5: Create placeholder library entry so search shows "Downloading"
       const tagNames = gallery.tags.map((t) => t.name).join(', ')
-      const languageTag = gallery.tags.find((t) => t.type === 'language')
+      // First language-type tag is commonly 'translated', which is not a
+      // language. Stores the canonical display name ('English'), which is what
+      // the library UI shows and what emitters convert to ISO on write.
+      const languageIso = resolveLanguageName(
+        gallery.tags.filter((t) => t.type === 'language').map((t) => t.name)
+      )
       const existingLib = libraryRepo.findByGalleryId(gallery.id)
       if (!existingLib) {
         libraryRepo.insert({
@@ -315,7 +321,7 @@ export class DownloadManager {
           isCustom: 2, // 2 = pending download
           customTitle: gallery.title.pretty,
           customTags: tagNames,
-          customLanguage: languageTag?.name || null,
+          customLanguage: languageIso,
           customDate: null,
           customCoverPath: null,
           filePath: '', // placeholder, will be set on completion
@@ -519,6 +525,11 @@ export class DownloadManager {
           thumbnailDir: thumbDir,
           galleryId
         }
+        if (isCbz) {
+          // Reading direction was hardcoded in the worker, so cbzMangaDirection
+          // only ever affected conversions, never downloads.
+          workerMsg.mangaDirection = settingsRepo.get('cbzMangaDirection') || 'YesAndRightToLeft'
+        }
         // Only PDF worker needs options; CBZ worker doesn't use them
         if (!isCbz) {
           const compressPdf = settingsRepo.get('compressPdf') !== 'false'
@@ -555,7 +566,7 @@ export class DownloadManager {
           isCustom: 0,
           customTitle: gallery.title.pretty,
           customTags: tagNames,
-          customLanguage: languageTag?.name || null,
+          customLanguage: languageIso,
           customDate: dateStr,
           filePath: outputPath,
           fileSize,

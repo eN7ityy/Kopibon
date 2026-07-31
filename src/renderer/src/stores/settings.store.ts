@@ -21,6 +21,12 @@ interface SettingsState {
   pageSize: PageSizeOption
   blackBackground: boolean
 
+  /**
+   * Whether a PDF→CBZ conversion archives the source PDF under `_originals/`
+   * rather than deleting it. Only the default — each conversion can override it.
+   */
+  cbzKeepOriginal: boolean
+
   // Notification
   showNotifications: boolean
 
@@ -34,6 +40,7 @@ interface SettingsState {
   setCompressionQuality: (quality: number) => void
   setPageSize: (size: PageSizeOption) => void
   setBlackBackground: (black: boolean) => void
+  setCbzKeepOriginal: (keep: boolean) => void
   setShowNotifications: (show: boolean) => void
 
   loadFromDb: () => Promise<void>
@@ -50,6 +57,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   compressionQuality: 80,
   pageSize: 'Dynamic',
   blackBackground: true,
+  cbzKeepOriginal: true,
   showNotifications: true,
   loaded: false,
 
@@ -60,6 +68,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   setCompressionQuality: (quality) => set({ compressionQuality: Math.max(1, Math.min(95, quality)) }),
   setPageSize: (size) => set({ pageSize: size }),
   setBlackBackground: (black) => set({ blackBackground: black }),
+  setCbzKeepOriginal: (keep) => set({ cbzKeepOriginal: keep }),
   setShowNotifications: (show) => set({ showNotifications: show }),
 
   loadFromDb: async () => {
@@ -91,6 +100,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
         compressionQuality: asNumber(settings.compressionQuality, 80),
         pageSize: (settings.pageSize as PageSizeOption) ?? 'Dynamic',
         blackBackground: asBool(settings.blackBackground, true),
+        cbzKeepOriginal: asBool(settings.cbzKeepOriginal, true),
         showNotifications: asBool(settings.showNotifications, true),
         loaded: true
       })
@@ -110,6 +120,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
         compressionQuality: String(state.compressionQuality),
         pageSize: state.pageSize,
         blackBackground: String(state.blackBackground),
+        cbzKeepOriginal: String(state.cbzKeepOriginal),
         showNotifications: String(state.showNotifications)
       })
     } catch {

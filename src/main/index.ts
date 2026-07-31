@@ -20,7 +20,7 @@ import { registerLibraryIpc } from './ipc/library.ipc'
 import { registerSettingsIpc } from './ipc/settings.ipc'
 import { registerAuthIpc, restoreAuthFromDb } from './ipc/auth.ipc'
 import { getDownloadManager } from './services/download-manager'
-import { checkPikepdfAvailable } from './services/xmp-inject'
+import { checkToolchain } from './services/toolchain'
 import { runStartupMaintenance } from './services/startup-maintenance'
 
 function createWindow(): void {
@@ -88,35 +88,85 @@ app.whenReady().then(async () => {
   dm.reconcileInterrupted()
   dm.processQueue()
 
-  // Warn early if the metadata toolchain is missing — otherwise downloads
-  // "succeed" with no metadata written and nothing surfaces it.
-  checkPikepdfAvailable()
-    .then((result) => {
-      if (result.ok) {
-        console.log(`[startup] metadata toolchain OK: ${result.detail}`)
+  // Probe the external toolchain (Python/pikepdf, poppler). Neither is bundled,
+  // and without them PDFs get no metadata and conversion cannot run — so the
+  // result is also exposed over IPC and shown in Settings, because a console
+  // message is invisible in a packaged build.
+  checkToolchain()
+    .then((report) => {
+      if (report.ok) {
+        console.log('[startup] external toolchain OK')
       } else {
-        console.error(`[startup] METADATA DISABLED: ${result.detail}`)
+        const missing = report.tools.filter((t) => !t.ok).map((t) => t.name)
+        console.error(`[startup] MISSING TOOLS: ${missing.join(', ')} — ${report.installHint}`)
       }
     })
     .catch(() => {
       /* probe failure is non-fatal */
     })
 
-  // F5: Auto-update — check for updates on startup.
-  // Rejects when no matching release exists; swallow it rather than emitting
-  // an unhandled rejection on every launch.
-  autoUpdater.checkForUpdatesAndNotify().catch(() => {
-    /* no update feed available */
-  })
-
-  // Manual update check from renderer
-  ipcMain.handle('app:checkForUpdates', async () => {
+  ipcMain.handle('app:checkToolchain', async (_event, force = false) => {
     try {
-      const result = await autoUpdater.checkForUpdatesAndNotify()
-      return { success: true, data: result }
+      return { success: true, data: await checkToolchain(force) }
     } catch (error) {
       return { success: false, error: String(error) }
     }
+  })
+
+  // ─── Auto-update ───────────────────────────────────────────────────────────
+
+  /** Broadcast updater state so the renderer can show it instead of guessing. */
+  const sendUpdateStatus = (payload: Record<string, unknown>): void => {
+    for (const win of BrowserWindow.getAllWindows()) {
+      win.webContents.send('app:updateStatus', payload)
+    }
+  }
+
+  // Errors were previously swallowed at both call sites, so a permanently broken
+  // update feed was invisible to everyone including the developer.
+  autoUpdater.on('error', (err) => {
+    console.error('[updater] error:', err?.message || err)
+    sendUpdateStatus({ state: 'error', message: String(err?.message || err) })
+  })
+  autoUpdater.on('update-available', (info) => {
+    sendUpdateStatus({ state: 'available', version: info?.version })
+  })
+  autoUpdater.on('update-not-available', () => {
+    sendUpdateStatus({ state: 'current' })
+  })
+  autoUpdater.on('download-progress', (p) => {
+    sendUpdateStatus({ state: 'downloading', percent: Math.round(p?.percent ?? 0) })
+  })
+  // The update is staged but NOT applied until the app restarts. Without this
+  // event reaching the UI the user had no idea a restart would change anything.
+  autoUpdater.on('update-downloaded', (info) => {
+    sendUpdateStatus({ state: 'ready', version: info?.version })
+  })
+
+  ipcMain.handle('app:checkForUpdates', async () => {
+    try {
+      const result = await autoUpdater.checkForUpdates()
+      return { success: true, data: result ? { version: result.updateInfo?.version } : null }
+    } catch (error) {
+      return { success: false, error: String(error) }
+    }
+  })
+
+  /** Apply a staged update now. No-op unless 'update-downloaded' has fired. */
+  ipcMain.handle('app:installUpdate', async () => {
+    try {
+      // isSilent=false, isForceRunAfter=true — reopen the app after updating.
+      autoUpdater.quitAndInstall(false, true)
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: String(error) }
+    }
+  })
+
+  // Startup check. Rejections are handled by the 'error' listener above; this
+  // catch only stops an unhandled rejection when no feed exists yet.
+  autoUpdater.checkForUpdates().catch(() => {
+    /* reported via the error event */
   })
 
   // App version for Settings display

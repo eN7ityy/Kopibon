@@ -5,6 +5,10 @@ import { useUiStore } from '../../stores/ui.store'
 import { useAuthStore } from '../../stores/auth.store'
 import type { ThemeMode } from '../../stores/ui.store'
 import type { OutputFormat, PageSizeOption } from '../../stores/settings.store'
+import OriginalsCleanup from './OriginalsCleanup'
+import ProgressBar from '../shared/ProgressBar'
+import ToolchainStatus from './ToolchainStatus'
+import UpdateStatus from './UpdateStatus'
 
 type ValidationState =
   | { status: 'idle' }
@@ -219,6 +223,36 @@ export default function SettingsPage(): React.JSX.Element {
                 <option value="pdf">PDF</option>
                 <option value="cbz">CBZ</option>
               </select>
+              <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                Default for new downloads. Each download can override it.
+              </p>
+            </div>
+
+            <div className="border-t border-gray-200 dark:border-gray-700 pt-3">
+              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+                PDF → CBZ Conversion
+              </h3>
+
+              <div className="flex items-start gap-3 mb-3">
+                <input
+                  type="checkbox"
+                  checked={settings.cbzKeepOriginal}
+                  onChange={(e) => settings.setCbzKeepOriginal(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 rounded border-gray-400 dark:border-gray-500 text-purple-600 focus:ring-purple-500 bg-white dark:bg-gray-700"
+                />
+                <div>
+                  <label className="text-sm text-gray-700 dark:text-gray-300">
+                    Keep original PDFs after converting
+                  </label>
+                  <p className="mt-0.5 text-xs text-gray-400 dark:text-gray-500">
+                    Archives them under <code className="text-[11px]">_originals/</code> instead of
+                    deleting. Roughly doubles disk use. This is only the default — each conversion
+                    asks.
+                  </p>
+                </div>
+              </div>
+
+              <OriginalsCleanup />
             </div>
 
             <div className="flex items-center gap-3 mb-3">
@@ -355,20 +389,20 @@ export default function SettingsPage(): React.JSX.Element {
           </div>
         </section>
 
+        {/* Required tools — not bundled, and the app degrades quietly without
+            them, so this is deliberately its own section rather than a footnote */}
+        <section>
+          <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-3">
+            Required Tools
+          </h2>
+          <ToolchainStatus />
+        </section>
+
         {/* Advanced */}
         <section>
           <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-3">Advanced</h2>
           <div className="space-y-3">
-            <button
-              onClick={async () => {
-                try {
-                  await window.api.app.checkForUpdates()
-                } catch { /* silently ignore */ }
-              }}
-              className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-            >
-              Check for Updates
-            </button>
+            <UpdateStatus />
             <MetadataConverter />
             <AppVersion />
           </div>
@@ -438,22 +472,32 @@ function MetadataConverter(): React.JSX.Element {
     setShowConfirm(false)
     store.reset()
     store.setRunning(true)
+    let summary = 'Metadata conversion finished'
     try {
       const r = await window.api.library.convertAllMetadata(runners)
       if (r.success && r.data) {
         const d = r.data as any
         if (d.cancelled) {
           store.addLogLine(`CANCELLED: ${d.converted} converted, ${d.total} total`)
+          summary = `Metadata conversion cancelled: ${d.converted} of ${d.total} converted`
         } else {
           store.addLogLine(`COMPLETE: ${d.converted} converted, ${d.failed} failed, ${d.total} total`)
+          summary =
+            `Metadata conversion complete: ${d.converted} converted` +
+            (d.failed > 0 ? `, ${d.failed} failed` : '')
         }
       } else {
         store.addLogLine(`ERROR: ${r.error || 'Unknown'}`)
+        summary = `Metadata conversion failed: ${r.error || 'unknown error'}`
       }
     } catch (e) {
       store.addLogLine(`ERROR: ${String(e)}`)
+      summary = `Metadata conversion failed: ${String(e)}`
     }
-    store.setRunning(false)
+    // finish() replaces setRunning(false): it also carries the outcome, so the
+    // job reports its result the same way sync and CBZ conversion do instead of
+    // ending silently outside the log pane.
+    store.finish(summary)
   }
 
   const handleCancel = async () => {
@@ -461,12 +505,6 @@ function MetadataConverter(): React.JSX.Element {
     store.addLogLine('Cancelling after current items finish...')
   }
 
-  const pct = store.total > 0 ? Math.round((store.current / store.total) * 100) : 0
-  const etaMin = Math.floor(store.etaSeconds / 60)
-  const etaSec = store.etaSeconds % 60
-  const etaStr = store.etaSeconds > 0
-    ? `${etaMin}m ${etaSec}s remaining`
-    : ''
 
   return (
     <div className="space-y-2">
@@ -505,17 +543,23 @@ function MetadataConverter(): React.JSX.Element {
         </div>
       )}
 
-      {/* Progress bar */}
-      {store.running && (
-        <div className="space-y-1">
-          <div className="flex justify-between text-xs text-gray-500">
-            <span>{store.current}/{store.total} ({store.converted} ok, {store.failed} fail)</span>
-            <span>{etaStr}</span>
-          </div>
-          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-            <div className="bg-orange-500 h-2 rounded-full transition-all duration-300" style={{ width: `${pct}%` }} />
-          </div>
-        </div>
+      {/* Progress — the same component and rules as every other job */}
+      {(store.running || store.lastMessage) && (
+        <ProgressBar
+          id="metadata"
+          label={store.running ? 'Rewriting file metadata' : store.lastMessage!}
+          current={store.current}
+          total={store.total}
+          detail={
+            [store.converted > 0 ? `${store.converted} ok` : null, store.failed > 0 ? `${store.failed} failed` : null]
+              .filter(Boolean)
+              .join(' · ') || undefined
+          }
+          etaSeconds={store.etaSeconds}
+          tone="write"
+          done={!store.running}
+          onCancel={store.running ? handleCancel : undefined}
+        />
       )}
 
       {/* Scrollable log */}
@@ -527,12 +571,7 @@ function MetadataConverter(): React.JSX.Element {
         </div>
       )}
 
-      {/* Cancel button */}
-      {store.running && (
-        <button onClick={handleCancel} className="px-3 py-1 rounded text-xs border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20">
-          Cancel Conversion
-        </button>
-      )}
+      {/* Cancel now lives on the progress bar itself, like every other job */}
     </div>
   )
 }
