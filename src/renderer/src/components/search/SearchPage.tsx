@@ -1,5 +1,5 @@
 import { useEffect, useCallback, useRef, useState } from 'react'
-import type { DownloadStatus } from '../../types/api.types'
+import type { DownloadStatus, GalleryListItem } from '../../types/api.types'
 import { SORT_OPTIONS } from '../../types/api.types'
 import { useSearchStore } from '../../stores/search.store'
 import GalleryGrid from './GalleryGrid'
@@ -20,7 +20,12 @@ import { Search } from 'lucide-react'
  */
 type GalleryMarkMap = Record<
   number,
-  { matches: Array<{ type: string; value: string }>; blacklisted: boolean }
+  {
+    matches: Array<{ type: string; value: string }>
+    blacklisted: boolean
+    /** Matches a `exclude` entry. Only meaningful on the browse views. */
+    excluded: boolean
+  }
 >
 
 interface EntityBanner {
@@ -97,6 +102,44 @@ export default function SearchPage(): React.JSX.Element {
   )
 
   /**
+   * Evaluate a browse page and drop anything a `exclude` entry matches.
+   *
+   * Only the /search endpoint takes a query, so the negations that hide galleries
+   * cannot be applied to latest or popular — those accept no query at all. On
+   * those views the exclusion has to be applied to the results instead.
+   *
+   * Unlike the search path this is awaited before the results are shown: letting
+   * a hidden gallery appear and then vanish is worse than a slightly slower load.
+   */
+  const filterBrowseResults = useCallback(
+    async (galleries: GalleryListItem[]): Promise<GalleryListItem[]> => {
+      if (galleries.length === 0) {
+        setMarks({})
+        return galleries
+      }
+      try {
+        const r = await window.api.searchSettings.evaluateResults(
+          galleries.map((g) => ({
+            id: g.id,
+            title: g.english_title || g.japanese_title || '',
+            tag_ids: g.tag_ids,
+            blacklisted: g.blacklisted
+          }))
+        )
+        if (!r.success || !r.data) return galleries
+        const evaluated = r.data as GalleryMarkMap
+        setMarks(evaluated)
+        return galleries.filter((g) => !evaluated[g.id]?.excluded)
+      } catch {
+        // Showing everything is the safe failure: it never hides something the
+        // user wanted to see.
+        return galleries
+      }
+    },
+    []
+  )
+
+  /**
    * Read the stored search defaults before the first load.
    *
    * The default sort goes into the store so the sort control shows it, and the
@@ -144,9 +187,9 @@ export default function SearchPage(): React.JSX.Element {
       try {
         const result = await window.api.getLatest(1)
         if (result.success && result.data) {
-          const facts = await resolveLibraryFacts(result.data.result.map((r) => r.id))
-          store.setResults(result.data.result, facts, 1, result.data.num_pages)
-          void evaluateMarks(result.data.result)
+          const visible = await filterBrowseResults(result.data.result)
+          const facts = await resolveLibraryFacts(visible.map((r) => r.id))
+          store.setResults(visible, facts, 1, result.data.num_pages)
         }
       } catch {
         // silently ignore
@@ -265,15 +308,15 @@ export default function SearchPage(): React.JSX.Element {
           : await window.api.getLatest(page)
         if (result.success && result.data) {
           const data = result.data
-          const facts = await resolveLibraryFacts(data.result.map((r) => r.id))
-          store.setResults(data.result, facts, isPopular ? 1 : page, data.num_pages)
-          void evaluateMarks(data.result)
+          const visible = await filterBrowseResults(data.result)
+          const facts = await resolveLibraryFacts(visible.map((r) => r.id))
+          store.setResults(visible, facts, isPopular ? 1 : page, data.num_pages)
         }
       } catch {
         store.setError('Failed to load')
       }
     },
-    [store.query, store.sort, performSearch, evaluateMarks]
+    [store.query, store.sort, performSearch, filterBrowseResults]
   )
 
   /**

@@ -7,6 +7,7 @@ import { useAuthStore } from '../../stores/auth.store'
 import { useSettingsStore, type OutputFormat } from '../../stores/settings.store'
 import GalleryViewer from './GalleryViewer'
 import { sortDescriptiveTags, tagClass } from '../shared/tags'
+import { useBlocked, blockedChipClass, blockedChipTitle } from '../shared/use-blocked'
 import { TileCover, TileFormatBadge, TileMeta } from '../shared/GalleryTile'
 import { resolveLibraryFacts, type LibraryFacts } from '../shared/library-facts'
 import { AlertCircle, BookOpen, Check, FolderOpen, Heart, ListX, Loader2, Trash2 } from 'lucide-react'
@@ -42,6 +43,7 @@ export default function GalleryDetailPanel({
   onTagClick,
   onGalleryChange
 }: GalleryDetailProps): React.JSX.Element {
+  const { matcher: blockedMatch } = useBlocked()
   const auth = useAuthStore()
   const settingsOutputFormat = useSettingsStore((s) => s.outputFormat)
   const [downloadFormat, setDownloadFormat] = useState<OutputFormat>(settingsOutputFormat)
@@ -316,40 +318,52 @@ export default function GalleryDetailPanel({
             <div className="flex flex-wrap gap-2 mb-3">
               {detail.tags
                 .filter((t) => t.type === 'artist')
-                .map((tag) => (
-                  <button
-                    key={tag.id}
-                    onClick={() => handleTagClick('artist', tag.name)}
-                    className={`px-2.5 py-1 rounded-full text-xs font-medium cursor-pointer hover:opacity-80 transition-opacity ${tagClass('artist')}`}
-                  >
-                    {tag.name}
-                  </button>
-                ))}
+                .map((tag) => {
+                  const blocked = blockedMatch('artist', tag.name)
+                  return (
+                    <button
+                      key={tag.id}
+                      onClick={() => handleTagClick('artist', tag.name)}
+                      title={blockedChipTitle(blocked)}
+                      className={`px-2.5 py-1 rounded-full text-xs font-medium cursor-pointer hover:opacity-80 transition-opacity ${tagClass('artist')} ${blockedChipClass(blocked)}`}
+                    >
+                      {tag.name}
+                    </button>
+                  )
+                })}
               {detail.tags
                 .filter((t) => t.type === 'group')
-                .map((tag) => (
-                  <button
-                    key={tag.id}
-                    onClick={() => handleTagClick('group', tag.name)}
-                    className={`px-2.5 py-1 rounded-full text-xs font-medium cursor-pointer hover:opacity-80 transition-opacity ${tagClass('group')}`}
-                  >
-                    {tag.name}
-                  </button>
-                ))}
+                .map((tag) => {
+                  const blocked = blockedMatch('group', tag.name)
+                  return (
+                    <button
+                      key={tag.id}
+                      onClick={() => handleTagClick('group', tag.name)}
+                      title={blockedChipTitle(blocked)}
+                      className={`px-2.5 py-1 rounded-full text-xs font-medium cursor-pointer hover:opacity-80 transition-opacity ${tagClass('group')} ${blockedChipClass(blocked)}`}
+                    >
+                      {tag.name}
+                    </button>
+                  )
+                })}
             </div>
 
             {/* All tags */}
             <div className="flex flex-wrap gap-1.5 mb-4">
               {/* Grouped by type: Genre, Languages, Parodies, Characters, then tags. */}
-              {sortDescriptiveTags(detail.tags).map((tag) => (
+              {sortDescriptiveTags(detail.tags).map((tag) => {
+                const blocked = blockedMatch(tag.type, tag.name)
+                return (
                   <button
                     key={tag.id}
                     onClick={() => handleTagClick(tag.type, tag.name)}
-                    className={`px-2 py-0.5 rounded-full text-xs font-medium cursor-pointer hover:opacity-80 transition-opacity ${tagClass(tag.type)}`}
+                    title={blockedChipTitle(blocked)}
+                    className={`px-2 py-0.5 rounded-full text-xs font-medium cursor-pointer hover:opacity-80 transition-opacity ${tagClass(tag.type)} ${blockedChipClass(blocked)}`}
                   >
                     {tag.name}
                   </button>
-                ))}
+                )
+              })}
             </div>
 
             {/*

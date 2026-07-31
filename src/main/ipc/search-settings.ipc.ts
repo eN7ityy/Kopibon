@@ -178,30 +178,51 @@ export function registerSearchSettingsIpc(): void {
       }
 
       const settings = readSearchSettings()
-      const dimEntries = blockedRepo.entries().filter((entry) => entry.mode === 'dim')
+      const all = blockedRepo.entries()
+      const dimEntries = all.filter((entry) => entry.mode === 'dim')
 
-      // Only pay for tag resolution when something actually needs tag names.
-      const tagsByGallery = dimEntries.some((entry) => entry.type !== 'text')
+      /*
+       * `exclude` entries are evaluated here too, which looks redundant given the
+       * query already negates them — but only the /search endpoint takes a query.
+       * The browse views (/galleries for latest, /galleries/popular) accept no
+       * query at all, so on those an exclusion can only be applied to the results
+       * after the fact. That gap is why "Hide the gallery" appeared to do nothing
+       * while "Show it, but marked" worked: the default view never goes through
+       * search.
+       *
+       * `matchDimEntries` only considers entries whose mode is 'dim', so the
+       * exclude entries are recast before being passed in.
+       */
+      const excludeAsDim = all
+        .filter((entry) => entry.mode === 'exclude')
+        .map((entry) => ({ ...entry, mode: 'dim' as const }))
+
+      const needsTags = [...dimEntries, ...excludeAsDim].some((entry) => entry.type !== 'text')
+      const tagsByGallery = needsTags
         ? await resolveGalleryTags(galleries)
         : new Map<number, Array<{ type: string; name: string }>>()
 
       const out: Record<
         number,
-        { matches: Array<{ type: string; value: string }>; blacklisted: boolean }
+        {
+          matches: Array<{ type: string; value: string }>
+          blacklisted: boolean
+          excluded: boolean
+        }
       > = {}
 
       for (const gallery of galleries) {
-        const matches = matchDimEntries(
-          {
-            title: gallery.title ?? null,
-            tags: tagsByGallery.get(gallery.id) ?? [],
-            blacklisted: gallery.blacklisted
-          },
-          dimEntries
-        )
+        const facts = {
+          title: gallery.title ?? null,
+          tags: tagsByGallery.get(gallery.id) ?? [],
+          blacklisted: gallery.blacklisted
+        }
+        const matches = matchDimEntries(facts, dimEntries)
+        const excluded = matchDimEntries(facts, excludeAsDim).length > 0
         const blacklisted = settings.respectBlacklist && gallery.blacklisted === true
-        if (matches.length > 0 || blacklisted) {
-          out[gallery.id] = { matches, blacklisted }
+
+        if (matches.length > 0 || blacklisted || excluded) {
+          out[gallery.id] = { matches, blacklisted, excluded }
         }
       }
 

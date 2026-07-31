@@ -7,6 +7,7 @@ import { useCbzConversionStore, useIsConverting } from '../../stores/cbz-convers
 import ConvertToCbzDialog from './ConvertToCbzDialog'
 import { AlertTriangle, BookOpen, FileArchive, FolderOpen, ListX, Loader2, Pencil, Trash2, X } from 'lucide-react'
 import { sortTags, tagClass, type TagLike } from '../shared/tags'
+import { useBlocked, blockedChipClass, blockedChipTitle } from '../shared/use-blocked'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -85,6 +86,7 @@ export default function LibraryDetail({
   // Re-fetch fresh data from DB whenever the selected item changes.
   // This ensures series, tags, thumbnail etc. are up-to-date after a scan
   // completes, rather than showing the stale snapshot from the grid.
+  const { matcher: blockedMatch } = useBlocked()
   const [freshItem, setFreshItem] = useState<LibraryItemData | null>(null)
 
   /**
@@ -448,11 +450,18 @@ export default function LibraryDetail({
               <div>
                 <span className="text-xs font-medium text-fg-muted">Genre</span>
                 <div className="flex flex-wrap gap-1 mt-1">
-                  {genreTags.map((name) => (
-                    <span key={name} className={`px-2 py-0.5 rounded-full text-xs font-medium ${tagClass('category')}`}>
-                      {name}
-                    </span>
-                  ))}
+                  {genreTags.map((name) => {
+                    const blocked = blockedMatch('category', name)
+                    return (
+                      <span
+                        key={name}
+                        title={blockedChipTitle(blocked)}
+                        className={`px-2 py-0.5 rounded-full text-xs font-medium ${tagClass('category')} ${blockedChipClass(blocked)}`}
+                      >
+                        {name}
+                      </span>
+                    )
+                  })}
                 </div>
               </div>
             )}
@@ -461,11 +470,18 @@ export default function LibraryDetail({
               <div>
                 <span className="text-xs font-medium text-fg-muted">Parody</span>
                 <div className="flex flex-wrap gap-1 mt-1">
-                  {parodyTags.map((name) => (
-                    <span key={name} className={`px-2 py-0.5 rounded-full text-xs font-medium ${tagClass('parody')}`}>
-                      {name}
-                    </span>
-                  ))}
+                  {parodyTags.map((name) => {
+                    const blocked = blockedMatch('parody', name)
+                    return (
+                      <span
+                        key={name}
+                        title={blockedChipTitle(blocked)}
+                        className={`px-2 py-0.5 rounded-full text-xs font-medium ${tagClass('parody')} ${blockedChipClass(blocked)}`}
+                      >
+                        {name}
+                      </span>
+                    )
+                  })}
                 </div>
               </div>
             )}
@@ -502,15 +518,36 @@ export default function LibraryDetail({
             ) : detail.customTags ? (
               <div><span className="text-xs font-medium text-fg-muted">Tags</span>
                 <div className="flex flex-wrap gap-1 mt-1">
-                  {detail.customTags.split(',').map(tag => {
+                  {detail.customTags.split(',').map((tag) => {
                     const trimmed = tag.trim()
                     if (!trimmed) return null
+                    /*
+                      `custom_tags` is flat, with the types discarded, so a name
+                      here could be any type. Both 'tag' and 'artist' are checked
+                      so an artist blocked by name still shows struck through.
+                    */
+                    const blocked = blockedMatch('tag', trimmed) ?? blockedMatch('artist', trimmed)
+                    const struck = blockedChipClass(blocked)
                     return onFilterTag ? (
-                      <button key={trimmed} onClick={() => { onClose(); onFilterTag(trimmed) }} className="px-2 py-0.5 rounded-full bg-accent-wash text-accent text-xs hover:bg-accent-wash cursor-pointer">
+                      <button
+                        key={trimmed}
+                        onClick={() => {
+                          onClose()
+                          onFilterTag(trimmed)
+                        }}
+                        title={blockedChipTitle(blocked)}
+                        className={`px-2 py-0.5 rounded-full bg-accent-wash text-accent text-xs hover:bg-accent-wash cursor-pointer ${struck}`}
+                      >
                         {trimmed}
                       </button>
                     ) : (
-                      <span key={trimmed} className="px-2 py-0.5 rounded-full bg-raised text-xs text-fg-muted">{trimmed}</span>
+                      <span
+                        key={trimmed}
+                        title={blockedChipTitle(blocked)}
+                        className={`px-2 py-0.5 rounded-full bg-raised text-xs text-fg-muted ${struck}`}
+                      >
+                        {trimmed}
+                      </span>
                     )
                   })}
                 </div>

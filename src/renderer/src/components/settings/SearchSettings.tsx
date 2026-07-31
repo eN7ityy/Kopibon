@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Plus, Trash2, EyeOff, Eye, Loader2 } from 'lucide-react'
+import { Plus, Trash2, EyeOff, Eye, Loader2, X } from 'lucide-react'
 import Button from '../shared/Button'
 import Notice from '../shared/Notice'
 import { tagClass } from '../shared/tags'
@@ -450,24 +450,33 @@ function AddBlockedValue({
 }): React.JSX.Element {
   const [type, setType] = useState<BlockedType>('tag')
   const [mode, setMode] = useState<BlockedMode>('exclude')
-  const [raw, setRaw] = useState('')
+  /** Committed values, shown as chips. */
+  const [values, setValues] = useState<string[]>([])
+  const [draft, setDraft] = useState('')
   const [suggestions, setSuggestions] = useState<TagSuggestion[]>([])
   const [busy, setBusy] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   /**
-   * Values are split on commas and newlines, so several can be pasted at once.
-   * Duplicates within the input collapse; the database also rejects duplicates
-   * case-insensitively.
+   * Commit the typed value as a chip.
+   *
+   * Enter-to-commit rather than comma separation, matching the tag editor in the
+   * Library. Duplicates are dropped case-insensitively here as well as by the
+   * database, so the chip list cannot show two entries that will become one.
    */
-  const values = [
-    ...new Set(
-      raw
-        .split(/[,\n]/)
-        .map((v) => v.trim())
-        .filter(Boolean)
+  const commitDraft = (raw?: string): void => {
+    const candidate = (raw ?? draft).trim()
+    if (!candidate) return
+    setValues((prev) =>
+      prev.some((v) => v.toLowerCase() === candidate.toLowerCase()) ? prev : [...prev, candidate]
     )
-  ]
+    setDraft('')
+    setSuggestions([])
+  }
+
+  const removeValue = (value: string): void => {
+    setValues((prev) => prev.filter((v) => v !== value))
+  }
 
   // Autocomplete against real tags, so a typo cannot become a filter that
   // silently matches nothing. Free text has nothing to autocomplete against.
@@ -476,12 +485,11 @@ function AddBlockedValue({
     // a synchronous setState inside the effect. Stale entries cannot show
     // anyway, because rendering is gated on `showSuggestions` below.
     if (type === 'text') return
-    const term = raw.split(/[,\n]/).pop()?.trim() ?? ''
-    if (term.length < 2) return
+    if (draft.trim().length < 2) return
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
       window.api.tags
-        .autocomplete(term, type)
+        .autocomplete(draft.trim(), type)
         .then((r) => {
           if (r.success && Array.isArray(r.data)) setSuggestions(r.data as TagSuggestion[])
         })
@@ -490,18 +498,27 @@ function AddBlockedValue({
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
-  }, [raw, type])
+  }, [draft, type])
 
-  const currentTerm = raw.split(/[,\n]/).pop()?.trim() ?? ''
-  const showSuggestions = type !== 'text' && currentTerm.length >= 2 && suggestions.length > 0
+  const showSuggestions = type !== 'text' && draft.trim().length >= 2 && suggestions.length > 0
 
   const submit = async (): Promise<void> => {
-    if (values.length === 0) return
+    // Include an uncommitted draft, so pressing Add without pressing Enter first
+    // does not silently discard what is in the box.
+    const pending = draft.trim()
+    const all = pending
+      ? values.some((v) => v.toLowerCase() === pending.toLowerCase())
+        ? values
+        : [...values, pending]
+      : values
+    if (all.length === 0) return
+
     setBusy(true)
     try {
-      const r = await window.api.blocked.add(values.map((value) => ({ type, value, mode })))
+      const r = await window.api.blocked.add(all.map((value) => ({ type, value, mode })))
       if (r.success) {
-        setRaw('')
+        setValues([])
+        setDraft('')
         setSuggestions([])
         await onAdded()
       } else {
@@ -539,37 +556,63 @@ function AddBlockedValue({
 
         <div>
           <label htmlFor="block-values" className="block text-label mb-1 text-fg-muted">
-            Value{values.length > 1 ? `s (${values.length})` : 's'}
+            Value{values.length > 0 ? `s (${values.length})` : ''}
           </label>
-          <input
-            id="block-values"
-            type="text"
-            value={raw}
-            onChange={(e) => setRaw(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && values.length > 0) {
-                e.preventDefault()
-                void submit()
+
+          {/*
+            A chip editor: type a value, press Enter to commit it. Matches the tag
+            editor in the Library, and it makes a value containing a comma
+            expressible, which comma separation could not.
+          */}
+          <div className="flex min-h-[42px] flex-wrap items-center gap-1 rounded-lg border border-line bg-surface p-2 focus-within:ring-2 focus-within:ring-accent">
+            {values.map((value) => (
+              <span
+                key={value}
+                className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${tagClass(type)}`}
+              >
+                {value}
+                <button
+                  onClick={() => removeValue(value)}
+                  aria-label={`Remove ${value}`}
+                  className="opacity-70 transition-opacity hover:opacity-100"
+                >
+                  <X size={10} aria-hidden="true" />
+                </button>
+              </span>
+            ))}
+
+            <input
+              id="block-values"
+              type="text"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  commitDraft()
+                } else if (e.key === 'Backspace' && !draft && values.length > 0) {
+                  // Backspace on an empty box removes the last chip, as the
+                  // Library's tag editor does.
+                  removeValue(values[values.length - 1])
+                }
+              }}
+              placeholder={
+                values.length === 0
+                  ? type === 'text'
+                    ? 'A phrase from the title, then Enter…'
+                    : 'Type a value, then Enter…'
+                  : ''
               }
-            }}
-            placeholder={
-              type === 'text' ? 'A phrase from the title…' : 'Separate several with commas'
-            }
-            className="w-full px-3 py-2 rounded-lg border border-line bg-surface text-sm text-fg placeholder-fg-faint focus:ring-2 focus:ring-accent"
-          />
+              className="min-w-[8rem] flex-1 bg-transparent text-sm text-fg placeholder-fg-faint focus:outline-none"
+            />
+          </div>
 
           {showSuggestions && (
             <ul className="mt-1 max-h-40 overflow-y-auto rounded-lg border border-line bg-surface">
               {suggestions.map((s) => (
                 <li key={`${s.type}-${s.id}`}>
                   <button
-                    onClick={() => {
-                      // Replace the term being typed, keeping any earlier ones.
-                      const parts = raw.split(/[,\n]/)
-                      parts[parts.length - 1] = ` ${s.name}`
-                      setRaw(parts.join(',').replace(/^\s*,\s*/, '') + ', ')
-                      setSuggestions([])
-                    }}
+                    onClick={() => commitDraft(s.name)}
                     className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-sm text-fg hover:bg-raised"
                   >
                     <span className="truncate">{s.name}</span>
