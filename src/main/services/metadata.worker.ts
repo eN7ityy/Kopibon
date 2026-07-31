@@ -15,12 +15,15 @@
 
 import { parentPort } from 'worker_threads'
 import { applyXmpWithPikepdf, type XmpMetadata } from './xmp-inject'
+import { createWorkerLogger } from './worker-logger'
 
 interface ApplyCommand {
   type: 'apply'
   pdfPath: string
   metadata: XmpMetadata
 }
+
+const log = createWorkerLogger('worker:metadata')
 
 parentPort?.on('message', async (cmd: ApplyCommand) => {
   if (cmd.type !== 'apply') {
@@ -31,14 +34,17 @@ parentPort?.on('message', async (cmd: ApplyCommand) => {
   try {
     const result = await applyXmpWithPikepdf(cmd.pdfPath, cmd.metadata)
     if (result.success) {
+      log.debug(`Metadata written to ${cmd.pdfPath}`)
       parentPort?.postMessage({ type: 'complete' })
     } else {
+      log.error(`Metadata write failed: ${result.error || 'unknown error'}`, {
+        filePath: cmd.pdfPath
+      })
       parentPort?.postMessage({ type: 'error', message: result.error || 'pikepdf failed' })
     }
   } catch (err) {
-    parentPort?.postMessage({
-      type: 'error',
-      message: err instanceof Error ? err.message : String(err)
-    })
+    const e = err instanceof Error ? err : new Error(String(err))
+    log.error(`Metadata write threw: ${e.message}`, { err: e, filePath: cmd.pdfPath })
+    parentPort?.postMessage({ type: 'error', message: e.message })
   }
 })

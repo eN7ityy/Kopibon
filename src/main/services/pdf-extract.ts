@@ -101,15 +101,34 @@ async function probePdfImages(): Promise<void> {
 // ─── Extraction ──────────────────────────────────────────────────────────────
 
 /**
+ * Minimal log sink, satisfied structurally by both the main-process `Logger` and
+ * a `WorkerLogger`.
+ *
+ * This module is imported from both sides — `library.ipc.ts` runs in main,
+ * `convert-cbz.worker.ts` in a worker — so it cannot import either logger
+ * directly: the main one pulls in Electron's `app`, which is unavailable in a
+ * worker, and a worker logger posts to a `parentPort` that is null in main.
+ * Taking the sink as a parameter lets each caller supply the one that works
+ * there.
+ */
+export interface ExtractLogger {
+  warn(msg: string, fields?: Record<string, unknown>): void
+}
+
+/**
  * Extract page images from a PDF for CBZ conversion.
  *
  * @param pdfPath  Path to the source PDF
  * @param scratchDir  Directory for extracted images (created if missing, cleaned
  *                    on failure)
+ * @param log  Optional sink for the fallback warnings. Worth passing: a silent
+ *             fallback to pdftoppm is how an item ends up lossy, and that is
+ *             the difference between keeping and deleting the source PDF.
  */
 export async function extractPdfImages(
   pdfPath: string,
-  scratchDir: string
+  scratchDir: string,
+  log?: ExtractLogger
 ): Promise<ExtractResult> {
   // Probe both early so we fail with a clear message before disk work.
   await probePdfImages()
@@ -138,18 +157,18 @@ export async function extractPdfImages(
     }
 
     // Count mismatch — fall through to pdftoppm
-    console.warn(
-      `[pdf-extract] Count mismatch for ${basename(pdfPath)}: ` +
-        `pdfimages produced ${extracted.length} images but pdfinfo says ${expectedPages} pages. ` +
-        `Falling back to pdftoppm (lossy) — this item will not be a lossless copy.`
+    log?.warn(
+      `Count mismatch for ${basename(pdfPath)}: pdfimages produced ${extracted.length} image(s) ` +
+        `but pdfinfo reports ${expectedPages} page(s). Falling back to pdftoppm (lossy), ` +
+        `so this item will not be a lossless copy.`,
+      { extracted: extracted.length, expectedPages }
     )
 
     // Clean extraction debris before fallback
     rmSync(scratchDir, { recursive: true, force: true })
   } catch (err) {
-    console.warn(
-      `[pdf-extract] pdfimages failed for ${basename(pdfPath)}: ${String(err)}. ` +
-        `Falling back to pdftoppm.`
+    log?.warn(
+      `pdfimages failed for ${basename(pdfPath)}, falling back to pdftoppm (lossy): ${String(err)}`
     )
     // Clean any partial output
     rmSync(scratchDir, { recursive: true, force: true })

@@ -24,6 +24,7 @@ import { createHash } from 'crypto'
 import { dirname, join, basename } from 'path'
 import { handle } from './handle'
 import { getLogger } from '../services/logger'
+import { attachWorkerLogForwarding } from '../services/worker-logger'
 
 const log = getLogger('library')
 
@@ -37,6 +38,7 @@ function spawnMetadataWorker(command: {
   return new Promise((resolve, reject) => {
     const workerPath = pathJoin(__dirname, 'services/metadata.worker.js')
     const worker = new Worker(workerPath)
+    attachWorkerLogForwarding(worker, log)
     worker.on('message', (msg: { type: string; message?: string }) => {
       if (msg.type === 'complete') resolve()
       else if (msg.type === 'error')
@@ -252,6 +254,7 @@ export function registerLibraryIpc(): void {
       'services/library-scanner.worker.js'
     )
     scanWorker = new Worker(workerPath)
+    attachWorkerLogForwarding(scanWorker, log)
 
     scanWorker.on(
       'message',
@@ -271,12 +274,8 @@ export function registerLibraryIpc(): void {
           removalSkippedReason?: string | null
         }
         message?: string
-        record?: import('../services/logger').LogRecord
       }) => {
         switch (msg.type) {
-          case 'log':
-            if (msg.record) log.writeRecord(msg.record)
-            break
           case 'newItems':
             if (msg.items) {
               win.webContents.send('library:newItems', msg.items)
@@ -617,7 +616,7 @@ export function registerLibraryIpc(): void {
             )
             mkdirSync(scratch, { recursive: true })
             imageFiles = (
-              await extractPdfImages(metadata.sourcePath, scratch)
+              await extractPdfImages(metadata.sourcePath, scratch, log)
             ).imagePaths
           }
 
@@ -1217,6 +1216,7 @@ export function registerLibraryIpc(): void {
             'services/convert.worker.js'
           )
           const worker = new Worker(workerPath)
+          attachWorkerLogForwarding(worker, log)
           let currentItem: ReturnType<
             typeof libraryRepo.findById
           > | null = null
@@ -1381,6 +1381,7 @@ export function registerLibraryIpc(): void {
         'services/sync.worker.js'
       )
       const worker = new Worker(workerPath)
+      attachWorkerLogForwarding(worker, log)
 
       const apiKey = getStoredApiKey()
 
@@ -1980,6 +1981,7 @@ export function registerLibraryIpc(): void {
             'services/convert-cbz.worker.js'
           )
           const worker = new Worker(workerPath)
+          attachWorkerLogForwarding(worker, log)
           let currentId: number | null = null
           let currentRowId: number | null = null
           let currentCover: string | null = null

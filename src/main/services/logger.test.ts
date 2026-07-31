@@ -826,3 +826,131 @@ describe('secret redaction of embedded values', () => {
     rmSync(dir, { recursive: true, force: true })
   })
 })
+
+// ─── Forwarded worker records ────────────────────────────────────────────────
+
+/**
+ * `writeRecord()` is the entry point for records built in a worker thread and
+ * posted to the main process, so it is a trust boundary rather than a plain
+ * setter. It used to push the record straight to the ring buffer and the file,
+ * which meant a forwarded record skipped the level threshold, skipped secret
+ * redaction, and was written with whatever `level` the sender happened to put
+ * in it. The workers hold the API key, so those were the records most likely to
+ * carry a credential.
+ */
+describe('writeRecord — forwarded worker records', () => {
+  const KEY = 'nhk_T9GIjTH19HsXassZ6dFQ3LC3W5zIC4noESmrbii9GhqUVHoR'
+
+  function record(over: Record<string, unknown> = {}): Record<string, unknown> {
+    return {
+      ts: '2026-07-31T12:00:00.000Z',
+      level: 'info',
+      scope: 'worker:convert',
+      msg: 'converted 32 pages',
+      ...over
+    }
+  }
+
+  it('writes a well-formed record, preserving scope and jobId', () => {
+    const { logger, dir } = createTestLogger({ level: 'info' })
+    logger.writeRecord(record({ jobId: 'job-42' }) as never)
+
+    const [r] = parseLogLines(dir)
+    expect(r.scope).toBe('worker:convert')
+    expect(r.jobId).toBe('job-42')
+    expect(r.msg).toBe('converted 32 pages')
+
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  it('applies the configured level to forwarded records', () => {
+    // A worker has no way to know the user's level setting, so the filter has
+    // to be applied on arrival or debug output bypasses the setting entirely.
+    const { logger, dir } = createTestLogger({ level: 'warn' })
+    logger.writeRecord(record({ level: 'debug', msg: 'chatty' }) as never)
+    logger.writeRecord(record({ level: 'error', msg: 'broke' }) as never)
+
+    const msgs = parseLogLines(dir).map((r) => r.msg)
+    expect(msgs).not.toContain('chatty')
+    expect(msgs).toContain('broke')
+
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  it('scrubs a secret from a forwarded message', () => {
+    const { logger, dir } = createTestLogger({ level: 'info' })
+    logger.registerSecret(KEY)
+    logger.writeRecord(record({ msg: `fetching with key=${KEY}` }) as never)
+
+    const contents = readFileSync(join(dir, 'app.log'), 'utf8')
+    expect(contents).not.toContain(KEY)
+    expect(contents).toContain('[REDACTED]')
+
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  it('scrubs a secret nested in a forwarded err.stack', () => {
+    const { logger, dir } = createTestLogger({ level: 'info' })
+    logger.registerSecret(KEY)
+    logger.writeRecord(
+      record({
+        level: 'error',
+        msg: 'request failed',
+        err: { name: 'Error', message: 'boom', stack: `at fetch (${KEY})` }
+      }) as never
+    )
+
+    const contents = readFileSync(join(dir, 'app.log'), 'utf8')
+    expect(contents).not.toContain(KEY)
+    expect(contents).toContain('[REDACTED]')
+
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  it('assigns an errorId to a forwarded error', () => {
+    // So a user can quote an ID from the log viewer whichever thread failed.
+    const { logger, dir } = createTestLogger({ level: 'info' })
+    logger.writeRecord(record({ level: 'error', msg: 'verify failed' }) as never)
+
+    const [r] = parseLogLines(dir)
+    expect(r.errorId).toMatch(/^E-[0-9A-Z]{8}$/)
+
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  it('coerces a malformed level instead of dropping the record', () => {
+    // A record hand-built by a caller, or sent by a stale worker bundle, must
+    // not reach the file with a level the viewer cannot colour or filter.
+    const { logger, dir } = createTestLogger({ level: 'debug' })
+    logger.writeRecord(record({ level: 'NONSENSE', msg: 'odd level' }) as never)
+
+    const [r] = parseLogLines(dir)
+    expect(r.level).toBe('info')
+    expect(r.msg).toBe('odd level')
+
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  it('substitutes a timestamp and scope when they are missing', () => {
+    const { logger, dir } = createTestLogger({ level: 'debug' })
+    logger.writeRecord({ level: 'info', msg: 'bare' } as never)
+
+    const [r] = parseLogLines(dir)
+    expect(typeof r.ts).toBe('string')
+    expect(r.ts).not.toBe('')
+    expect(r.scope).toBe('worker')
+
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  it('does not let a forwarded field overwrite a structural key', () => {
+    const { logger, dir } = createTestLogger({ level: 'info' })
+    logger.writeRecord(record({ extra: 'kept' }) as never)
+
+    const [r] = parseLogLines(dir)
+    expect(r.extra).toBe('kept')
+    expect(r.scope).toBe('worker:convert')
+
+    rmSync(dir, { recursive: true, force: true })
+  })
+})

@@ -17,6 +17,7 @@ import { generateCbz } from './cbz-generator'
 import { parseComicInfoXml, type ComicInfoMetadata } from './comicinfo'
 import { resolveLanguageName } from './xml-utils'
 import { open } from 'yauzl'
+import { createWorkerLogger } from './worker-logger'
 
 interface ConvertCommand {
   type: 'convert'
@@ -261,6 +262,10 @@ parentPort?.on('message', async (cmd: ConvertCommand) => {
   const { id, filePath, metadata: itemMeta, options } = cmd.item
   const logHead = basename(filePath)
 
+  // As in convert.worker: the `log:` field feeds the run's own panel, this
+  // reaches the application log.
+  const log = createWorkerLogger('worker:convert-cbz', String(id))
+
   try {
     // Step 1: Verify the source PDF exists and format is pdf
     if (!existsSync(filePath)) {
@@ -273,7 +278,7 @@ parentPort?.on('message', async (cmd: ConvertCommand) => {
 
     let extractResult
     try {
-      extractResult = await extractPdfImages(filePath, scratchDir)
+      extractResult = await extractPdfImages(filePath, scratchDir, log)
     } catch (extractErr) {
       // Clean scratch on extraction failure
       try { const { rmSync } = await import('fs'); rmSync(scratchDir, { recursive: true, force: true }) } catch { /* */ }
@@ -305,9 +310,19 @@ parentPort?.on('message', async (cmd: ConvertCommand) => {
       { quality: null, maxDimension: null }
     )
 
+    log.info(
+      `Extracted ${extractResult.pageCount} page(s) from ${logHead}` +
+        ` via ${extractResult.method} (${extractResult.lossless ? 'lossless' : 'lossy'})`
+    )
+
     // Step 5: VERIFY the output
     const verified = await verifyCbz(finalOutput, extractResult.pageCount)
     if (!verified) {
+      // This is the check that rejected every valid archive once, so it is
+      // logged with the page count it expected rather than just "failed".
+      log.error(
+        `Verification failed for ${basename(finalOutput)}, expected ${extractResult.pageCount} page(s); output discarded, PDF left in place`
+      )
       // Remove the invalid output
       try { unlinkSync(finalOutput) } catch { /* */ }
       // Clean scratch
@@ -346,6 +361,11 @@ parentPort?.on('message', async (cmd: ConvertCommand) => {
       }
       renameSync(filePath, dest)
       originalPath = dest
+      if (forcedKeep) {
+        // The setting said delete, and the code overrode it. That disagreement
+        // between what was asked and what happened needs to be on the record.
+        log.warn(`Original kept despite the setting: conversion was lossy. Archived to ${dest}`)
+      }
     } else {
       unlinkSync(filePath)
     }
@@ -379,6 +399,9 @@ parentPort?.on('message', async (cmd: ConvertCommand) => {
     // Clean scratch if it exists
     const scratchDir = join(options.userDataDir, 'convert-cbz', String(id))
     try { const { rmSync } = await import('fs'); rmSync(scratchDir, { recursive: true, force: true }) } catch { /* */ }
+
+    const e = err instanceof Error ? err : new Error(String(err))
+    log.error(`Conversion failed for ${logHead}: ${e.message}`, { err: e, filePath })
 
     parentPort?.postMessage({
       type: 'done',

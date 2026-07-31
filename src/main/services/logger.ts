@@ -270,9 +270,55 @@ class LoggerImpl implements Logger {
     this.state.jobId = jobId
   }
 
+  /**
+   * Write a record built somewhere else — in practice, forwarded from a worker
+   * thread.
+   *
+   * This is a trust boundary, so it does the work `emit()` does rather than
+   * taking the record at face value. Workers hold the API key (sync passes it
+   * to the client, the download workers fetch with it), so a forwarded message
+   * is exactly the kind that can carry a credential, and a worker cannot scrub
+   * it — the secret set lives in this process. Level filtering belongs here for
+   * the same reason: a worker doesn't know the user's configured level, so
+   * without this check its debug output would bypass the setting.
+   *
+   * Structural fields are validated because a malformed `level` or a
+   * non-string `ts` would otherwise reach the file and the log viewer.
+   */
   writeRecord(record: LogRecord): void {
-    this.pushToRing(record)
-    this.writeToFile(record)
+    const level: LogLevel =
+      typeof record.level === 'string' && record.level in LEVEL_PRIORITY
+        ? (record.level as LogLevel)
+        : 'info'
+
+    if (LEVEL_PRIORITY[level] < LEVEL_PRIORITY[this.state.config.level]) return
+
+    const secrets = this.state.secrets
+    const { ts, scope, msg, ...rest } = record
+
+    const safe: LogRecord = {
+      ts: typeof ts === 'string' && ts.length > 0 ? ts : new Date().toISOString(),
+      level,
+      scope: typeof scope === 'string' && scope.length > 0 ? scope : 'worker',
+      msg: scrubSecrets(typeof msg === 'string' ? msg : String(msg ?? ''), secrets)
+    }
+
+    // Remaining fields go through the same redaction pass as `emit()`, so a key
+    // sitting in `err.stack` or a nested field is scrubbed too.
+    const redacted = redactValue(rest, secrets) as Record<string, unknown>
+    for (const [k, v] of Object.entries(redacted)) {
+      if (k === 'ts' || k === 'level' || k === 'scope' || k === 'msg') continue
+      safe[k] = v
+    }
+
+    // Errors from a worker get an ID on the same terms as local ones, so a user
+    // can quote it from the log viewer whichever thread produced it.
+    if (level === 'error' && !safe.errorId) {
+      safe.errorId = newErrorId()
+    }
+
+    this.pushToRing(safe)
+    this.writeToFile(safe)
   }
 
   // ─── Internal ─────────────────────────────────────────────────────────────

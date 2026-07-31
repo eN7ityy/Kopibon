@@ -15,6 +15,15 @@ export interface PdfOptions {
 
 export type PdfProgressCallback = (current: number, total: number) => void
 
+/**
+ * Minimal log sink. Taken as a parameter for the same reason as in
+ * `pdf-extract`: this module runs inside a worker, which cannot import the
+ * Electron-dependent main logger.
+ */
+export interface PdfLogger {
+  warn(msg: string, fields?: Record<string, unknown>): void
+}
+
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 const DYNAMIC_WIDTH = 1800
@@ -29,13 +38,17 @@ const YIELD_INTERVAL = 5 // Yield to event loop every N images
  * @param outputPath - Full path where the PDF will be saved
  * @param options - Page size, quality, background settings
  * @param onProgress - Optional callback for progress (current, total)
+ * @param log - Optional sink for per-image warnings. Two of these are followed
+ *              by `continue`, meaning the page is dropped from the finished PDF;
+ *              without a sink the user gets a short document and no explanation.
  * @returns The output path
  */
 export async function generatePdf(
   imagePaths: string[],
   outputPath: string,
   options: PdfOptions,
-  onProgress?: PdfProgressCallback
+  onProgress?: PdfProgressCallback,
+  log?: PdfLogger
 ): Promise<string> {
   const pdfDoc = await PDFDocument.create()
   const total = imagePaths.length
@@ -61,7 +74,11 @@ export async function generatePdf(
           .jpeg({ quality: options.quality, mozjpeg: true })
           .toBuffer()
       } catch (err) {
-        console.warn(`Failed to compress image: ${basename(imagePath)} — ${String(err)}`)
+        // Not dropped: falls through to embedding the original bytes, so the
+        // page survives uncompressed.
+        log?.warn(
+          `Compression failed for ${basename(imagePath)}, embedding it uncompressed: ${String(err)}`
+        )
       }
     }
 
@@ -84,7 +101,10 @@ export async function generatePdf(
           const pngBuffer = await sharp(buffer).png().toBuffer()
           image = await pdfDoc.embedPng(pngBuffer)
         } catch (err) {
-          console.warn(`Failed to convert WebP to PNG: ${basename(imagePath)} — ${String(err)}`)
+          log?.warn(
+            `WebP conversion failed for ${basename(imagePath)}; this page is missing from the PDF: ${String(err)}`,
+            { pageIndex: i + 1, dropped: true }
+          )
           continue
         }
       } else {
@@ -98,7 +118,10 @@ export async function generatePdf(
               const pngBuffer = await sharp(buffer).png().toBuffer()
               image = await pdfDoc.embedPng(pngBuffer)
             } catch (err) {
-              console.warn(`Skipping unsupported image format: ${basename(imagePath)} — ${String(err)}`)
+              log?.warn(
+                `Unsupported image format for ${basename(imagePath)}; this page is missing from the PDF: ${String(err)}`,
+                { pageIndex: i + 1, dropped: true }
+              )
               continue
             }
           }

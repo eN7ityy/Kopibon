@@ -14,6 +14,7 @@ import { parentPort } from 'worker_threads'
 import { applyXmpWithPikepdf, type XmpMetadata } from './xmp-inject'
 import { applyMetadata, type MetadataPayload } from './apply-metadata'
 import { resolveLanguageName } from './xml-utils'
+import { createWorkerLogger, type WorkerLogger } from './worker-logger'
 
 interface SyncCommand {
   type: 'sync'
@@ -26,7 +27,7 @@ interface SyncCommand {
 
 const MAX_RETRIES = 3
 
-async function fetchGallery(id: number, apiKey?: string): Promise<any> {
+async function fetchGallery(id: number, apiKey: string | undefined, log: WorkerLogger): Promise<any> {
   let lastError: Error | null = null
   const headers: Record<string, string> = {
     'User-Agent': 'DoujinDownloader/1.0 (eN7ityy)'
@@ -39,6 +40,10 @@ async function fetchGallery(id: number, apiKey?: string): Promise<any> {
 
       if (resp.status === 429) {
         const retryAfter = parseInt(resp.headers.get('Retry-After') || '5', 10)
+        // Rate limiting is the most common reason a sync appears to hang, and it
+        // was previously invisible: `continue` doesn't count as an attempt, so
+        // this can loop indefinitely with nothing on screen.
+        log.warn(`Rate limited on gallery ${id}, waiting ${retryAfter}s`, { attempt })
         await new Promise((r) => setTimeout(r, retryAfter * 1000 + Math.random() * 1000))
         continue
       }
@@ -50,6 +55,10 @@ async function fetchGallery(id: number, apiKey?: string): Promise<any> {
       return await resp.json()
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err))
+      // Each failed attempt is recorded, not just the last one. A 401 on attempt
+      // 1 and a timeout on attempt 3 are very different problems, and the old
+      // code reported only whichever came last.
+      log.warn(`Fetch attempt ${attempt}/${MAX_RETRIES} failed for gallery ${id}: ${lastError.message}`)
       if (attempt < MAX_RETRIES) {
         await new Promise((r) => setTimeout(r, 2000 + attempt * 1000))
       }
@@ -62,8 +71,11 @@ async function fetchGallery(id: number, apiKey?: string): Promise<any> {
 parentPort?.on('message', async (cmd: SyncCommand) => {
   if (cmd.type !== 'sync') return
 
+  const log = createWorkerLogger('worker:sync', String(cmd.nhentaiId))
+
   try {
-    const gallery = await fetchGallery(cmd.nhentaiId, cmd.apiKey)
+    log.info(`Syncing metadata for gallery ${cmd.nhentaiId} (item ${cmd.itemId})`)
+    const gallery = await fetchGallery(cmd.nhentaiId, cmd.apiKey, log)
 
     const title = gallery.title?.pretty || gallery.title?.english || `Gallery #${cmd.nhentaiId}`
     const tags = gallery.tags || []
@@ -104,6 +116,9 @@ parentPort?.on('message', async (cmd: SyncCommand) => {
       const result = await applyMetadata(cmd.filePath, 'cbz', meta)
 
       if (!result.success) {
+        log.error(`ComicInfo rewrite failed: ${result.error || 'unknown error'}`, {
+          filePath: cmd.filePath
+        })
         parentPort?.postMessage({ type: 'error', itemId: cmd.itemId, message: result.error || 'ComicInfo rewrite failed' })
         return
       }
@@ -112,10 +127,19 @@ parentPort?.on('message', async (cmd: SyncCommand) => {
       const result = await applyXmpWithPikepdf(cmd.filePath, meta)
 
       if (!result.success) {
+        log.error(`XMP write failed: ${result.error || 'unknown error'}`, {
+          filePath: cmd.filePath
+        })
         parentPort?.postMessage({ type: 'error', itemId: cmd.itemId, message: result.error || 'pikepdf failed' })
         return
       }
     }
+
+    log.info(`Sync complete for gallery ${cmd.nhentaiId}`, {
+      format,
+      language: language || 'unresolved',
+      tagCount: allTags.length
+    })
 
     parentPort?.postMessage({
       type: 'complete',
@@ -130,10 +154,8 @@ parentPort?.on('message', async (cmd: SyncCommand) => {
       }
     })
   } catch (err) {
-    parentPort?.postMessage({
-      type: 'error',
-      itemId: cmd.itemId,
-      message: err instanceof Error ? err.message : String(err)
-    })
+    const e = err instanceof Error ? err : new Error(String(err))
+    log.error(`Sync failed for gallery ${cmd.nhentaiId}: ${e.message}`, { err: e })
+    parentPort?.postMessage({ type: 'error', itemId: cmd.itemId, message: e.message })
   }
 })

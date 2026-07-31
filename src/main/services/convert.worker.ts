@@ -18,6 +18,7 @@ import { parentPort } from 'worker_threads'
 import { type XmpMetadata } from './xmp-inject'
 import { applyMetadata } from './apply-metadata'
 import { renameSync, existsSync } from 'fs'
+import { createWorkerLogger } from './worker-logger'
 import { basename, dirname, join } from 'path'
 
 interface ConvertCommand {
@@ -38,12 +39,19 @@ parentPort?.on('message', async (cmd: ConvertCommand) => {
   const format = cmd.item.format || 'pdf'
   let newPath: string | undefined
 
+  // The `log:` field on the messages below is a separate channel: the UI
+  // collects those lines for the run's own log panel. This forwards the same
+  // failures into the application log, where they survive the run and carry an
+  // errorId the user can quote.
+  const log = createWorkerLogger('worker:convert', String(id))
+
   try {
     // Step 1: Apply metadata via the format-aware dispatcher
     const result = await applyMetadata(filePath, format, metadata)
 
     if (!result.success) {
       const why = result.error || 'metadata write failed'
+      log.error(`Metadata write failed for ${basename(filePath)}: ${why}`, { filePath, format })
       parentPort?.postMessage({
         type: 'done',
         itemId: id,
@@ -74,6 +82,13 @@ parentPort?.on('message', async (cmd: ConvertCommand) => {
           try {
             renameSync(filePath, newPath)
           } catch (renameErr) {
+            // Metadata landed, so this is reported as a success; the file just
+            // keeps its old name. Warn rather than error, but do not stay silent
+            // — the user asked for the rename and did not get it.
+            log.warn(`Metadata written but rename failed for ${basename(filePath)}: ${String(renameErr)}`, {
+              filePath,
+              intendedPath: newPath
+            })
             parentPort?.postMessage({
               type: 'done',
               itemId: id,
@@ -95,6 +110,8 @@ parentPort?.on('message', async (cmd: ConvertCommand) => {
       log: `OK ${basename(newPath || filePath)}`
     })
   } catch (err) {
+    const e = err instanceof Error ? err : new Error(String(err))
+    log.error(`Convert failed for ${basename(filePath)}: ${e.message}`, { err: e, filePath })
     parentPort?.postMessage({
       type: 'done',
       itemId: id,

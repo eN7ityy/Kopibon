@@ -17,6 +17,7 @@ import { generateCbz } from './cbz-generator'
 import type { ComicInfoMetadata } from './comicinfo'
 import type { GalleryMetadata } from './metadata-writer'
 import { resolveLanguageName } from './xml-utils'
+import { createWorkerLogger } from './worker-logger'
 
 interface GenerateCommand {
   type: 'generate'
@@ -94,8 +95,14 @@ function convertToComicInfoMeta(
 parentPort?.on('message', async (cmd: GenerateCommand) => {
   if (cmd.type !== 'generate') return
 
+  const log = createWorkerLogger(
+    'worker:download-cbz',
+    cmd.galleryId != null ? String(cmd.galleryId) : undefined
+  )
+
   try {
     const pageCount = cmd.imagePaths.length
+    log.info(`Building CBZ from ${pageCount} page(s) -> ${cmd.outputPath}`)
 
     // Step 1: Build ComicInfo metadata
     const mangaDirection = cmd.mangaDirection ?? 'YesAndRightToLeft'
@@ -103,6 +110,10 @@ parentPort?.on('message', async (cmd: GenerateCommand) => {
 
     if (cmd.metadata) {
       ciMeta = convertToComicInfoMeta(cmd.metadata, pageCount, mangaDirection)
+      // LanguageISO is the field Kavita silently ignores when it is wrong, so
+      // record what was resolved. Unresolved means the gallery's language tags
+      // were all non-languages (commonly just 'translated').
+      log.debug(`ComicInfo: language=${ciMeta.languageIso ?? 'unresolved'} manga=${mangaDirection}`)
     } else {
       // Minimal metadata when no gallery data is available
       ciMeta = {
@@ -149,15 +160,18 @@ parentPort?.on('message', async (cmd: GenerateCommand) => {
           .toFile(thumbPath)
         thumbnailPath = thumbPath
       } catch (thumbErr) {
-        console.error('[cbz-worker] Thumbnail generation failed:', thumbErr)
+        log.warn('Thumbnail generation failed, entry will have no cover', {
+          err: thumbErr instanceof Error ? thumbErr : new Error(String(thumbErr)),
+          source: cmd.firstImagePath
+        })
       }
     }
 
+    log.info(`CBZ complete: ${outputPath}`)
     parentPort?.postMessage({ type: 'complete', outputPath, thumbnailPath })
   } catch (err) {
-    parentPort?.postMessage({
-      type: 'error',
-      message: err instanceof Error ? err.message : String(err)
-    })
+    const e = err instanceof Error ? err : new Error(String(err))
+    log.error(`CBZ generation failed: ${e.message}`, { err: e })
+    parentPort?.postMessage({ type: 'error', message: e.message })
   }
 })

@@ -3,6 +3,7 @@ import { mkdirSync, existsSync, statSync, rmSync } from 'fs'
 import { Worker } from 'worker_threads'
 import { app, Notification } from 'electron'
 import { getLogger } from './logger'
+import { attachWorkerLogForwarding } from './worker-logger'
 import { downloadRepo } from '../db/repositories/download.repo'
 import { galleryRepo } from '../db/repositories/gallery.repo'
 import { settingsRepo } from '../db/repositories/settings.repo'
@@ -499,6 +500,7 @@ export class DownloadManager {
         const workerName = isCbz ? 'download-cbz.worker.js' : 'download-pdf.worker.js'
         const workerPath = join(__dirname, 'services', workerName)
         const worker = new Worker(workerPath)
+        attachWorkerLogForwarding(worker, getLogger('downloads'))
 
         worker.on('message', (msg: { type: string; current?: number; total?: number; outputPath?: string; thumbnailPath?: string; message?: string }) => {
           if (msg.type === 'progress') {
