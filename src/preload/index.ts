@@ -121,8 +121,14 @@ const api = {
     isPathAccessible: (dirPath: string) => ipcRenderer.invoke('library:isPathAccessible', dirPath),
     convertAllMetadata: (runners?: number) => ipcRenderer.invoke('library:convertAllMetadata', runners),
     cancelConversion: () => ipcRenderer.invoke('library:cancelConversion'),
-    convertToCbz: (ids: number[], dryRun?: boolean, options?: { keepOriginal?: boolean }) =>
-      ipcRenderer.invoke('library:convertToCbz', ids, dryRun, options),
+    convertToCbz: (
+      ids: number[],
+      dryRun?: boolean,
+      options?: { keepOriginal?: boolean; resume?: boolean }
+    ) => ipcRenderer.invoke('library:convertToCbz', ids, dryRun, options),
+    /** Outstanding conversion work left by an interrupted run. */
+    getConversionQueue: () => ipcRenderer.invoke('library:getConversionQueue'),
+    clearConversionQueue: () => ipcRenderer.invoke('library:clearConversionQueue'),
     getOriginalsInfo: () => ipcRenderer.invoke('library:getOriginalsInfo'),
     purgeOriginals: (includeLossy?: boolean) =>
       ipcRenderer.invoke('library:purgeOriginals', includeLossy),

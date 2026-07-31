@@ -52,6 +52,21 @@ export function getDatabase(): ReturnType<typeof drizzle> {
   return db
 }
 
+/**
+ * The raw better-sqlite3 handle behind the Drizzle instance.
+ *
+ * For the few statements Drizzle cannot express: the conversion queue needs
+ * `UPDATE ... RETURNING` so concurrent runners each claim a distinct row.
+ * Prefer `getDatabase()` everywhere else.
+ */
+export function getSqlite(): Database.Database {
+  if (!sqlite) {
+    initDatabase()
+  }
+  if (!sqlite) throw new Error('Database is not initialised')
+  return sqlite
+}
+
 export function closeDatabase(): void {
   if (sqlite) {
     sqlite.close()
@@ -235,6 +250,27 @@ function runMigrations(sqlite: Database.Database): void {
   if (!colNames.has('description')) {
     sqlite.exec('ALTER TABLE library_item ADD COLUMN description TEXT')
   }
+
+  // conversion_queue was created keyed only on file_path, which is not enough to
+  // resume: the path changes from .pdf to .cbz the moment an item succeeds, and
+  // the worker needs the library row, not a path. `keep_original` is stored per
+  // row because it is a per-run choice the user made in the dialog — a resumed
+  // batch must honour that decision rather than silently falling back to
+  // whatever the setting says now.
+  const conversionCols = sqlite
+    .prepare("PRAGMA table_info('conversion_queue')")
+    .all() as Array<{ name: string }>
+  const convNames = new Set(conversionCols.map((c) => c.name))
+
+  if (!convNames.has('library_item_id')) {
+    sqlite.exec('ALTER TABLE conversion_queue ADD COLUMN library_item_id INTEGER')
+  }
+  if (!convNames.has('keep_original')) {
+    sqlite.exec('ALTER TABLE conversion_queue ADD COLUMN keep_original INTEGER NOT NULL DEFAULT 1')
+  }
+  sqlite.exec(
+    'CREATE INDEX IF NOT EXISTS idx_conversion_queue_status ON conversion_queue(status)'
+  )
 }
 
 /**

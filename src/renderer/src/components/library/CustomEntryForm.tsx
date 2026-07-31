@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import AutocompleteInput from '../shared/AutocompleteInput'
+import FormatSelector from '../shared/FormatSelector'
+import { useSettingsStore, type OutputFormat } from '../../stores/settings.store'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -33,6 +35,11 @@ export default function CustomEntryForm({
   const [coverPath, setCoverPath] = useState<string | null>(null)
   const [sourcePath, setSourcePath] = useState<string | null>(null)
   const [sourceType, setSourceType] = useState<'pdf' | 'images'>('pdf')
+  // Output format for the entry being created. Defaults to the same setting
+  // downloads use so the library stays consistent, but is overridable here.
+  const [outputFormat, setOutputFormat] = useState<OutputFormat>(
+    useSettingsStore.getState().outputFormat
+  )
 
   // UI state
   const [submitting, setSubmitting] = useState(false)
@@ -157,7 +164,8 @@ export default function CustomEntryForm({
           description: description.trim() || undefined,
           coverPath,
           sourcePath,
-          sourceType
+          sourceType,
+          format: outputFormat
         },
         libraryRoot
       )
@@ -411,6 +419,23 @@ export default function CustomEntryForm({
             {fieldErrors.source && (
               <p className="mt-1 text-xs text-red-500">{fieldErrors.source}</p>
             )}
+          </div>
+
+          {/* Output format */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Save as
+            </label>
+            <div className="flex items-center gap-3">
+              <FormatSelector value={outputFormat} onChange={setOutputFormat} />
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                {outputFormat === 'cbz'
+                  ? sourceType === 'pdf'
+                    ? 'Pages are extracted from the PDF without re-compressing them.'
+                    : 'Images are stored as-is, with metadata in ComicInfo.xml.'
+                  : 'Metadata is embedded as XMP.'}
+              </span>
+            </div>
           </div>
 
           {/* Error */}

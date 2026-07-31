@@ -14,6 +14,7 @@ import LoadingSkeleton from '../shared/LoadingSkeleton'
 import { useConversionStore } from '../../stores/conversion.store'
 import { useSettingsStore } from '../../stores/settings.store'
 import ConvertToCbzDialog from './ConvertToCbzDialog'
+import ResumeConversionBanner from './ResumeConversionBanner'
 import { useCbzConversionStore } from '../../stores/cbz-conversion.store'
 import { useGlobalJobs, type ProgressJob } from '../../stores/job-progress'
 import { ProgressStack } from '../shared/ProgressBar'
@@ -781,6 +782,7 @@ export default function LibraryPage(): React.JSX.Element {
         </p>
       </div>
       <ProgressStack jobs={jobs} />
+      <ResumeConversionBanner />
 
       {/* Error banner */}
       {error && (

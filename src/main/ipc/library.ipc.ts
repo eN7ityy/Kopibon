@@ -4,6 +4,9 @@ import { join as pathJoin } from 'path'
 import { libraryRepo } from '../db/repositories/library.repo'
 import { galleryRepo } from '../db/repositories/gallery.repo'
 import { settingsRepo } from '../db/repositories/settings.repo'
+import { conversionRepo } from '../db/repositories/conversion.repo'
+import { getSqlite } from '../db/connection'
+import { resolveOutputFormat } from '../services/output-format'
 import { getStoredApiKey } from './auth.ipc'
 import { renameSync, mkdirSync, existsSync, appendFileSync, writeFileSync, readFileSync, readdirSync, statSync, unlinkSync } from 'fs'
 import { createHash } from 'crypto'
@@ -443,11 +446,14 @@ export function registerLibraryIpc(): void {
     coverPath?: string | null
     sourcePath: string
     sourceType: 'pdf' | 'images'
+    /** Output format. Falls back to the same rule downloads use. */
+    format?: string
   }, libraryRoot: string) => {
     try {
       const { readdirSync, copyFileSync, mkdirSync, existsSync } = await import('fs')
       const { join } = await import('path')
-      const { generatePdf } = await import('../services/pdf-generator')
+
+      const format = resolveOutputFormat(metadata.format, settingsRepo.get('outputFormat'))
 
       const primaryArtist = metadata.artists[0] || 'Unknown'
       const artistDir = join(libraryRoot, primaryArtist)
@@ -455,72 +461,129 @@ export function registerLibraryIpc(): void {
         mkdirSync(artistDir, { recursive: true })
       }
 
-      // Generate safe filename
+      // Generate safe filename. The [nhentai-00000] prefix marks a custom entry
+      // and the scanner relies on that shape, so it stays regardless of format.
       const safeTitle = metadata.title
         .replace(/[/\\?%*:|"<>]/g, '')
         .substring(0, 120)
         .trim()
-      const filename = `[nhentai-00000] ${safeTitle}.pdf`
-      const destPath = join(artistDir, filename)
+      const destPath = join(artistDir, `[nhentai-00000] ${safeTitle}.${format}`)
 
-      let finalPdfPath: string
-
-      if (metadata.sourceType === 'images') {
-        // Convert images to PDF
-        const imageFiles = readdirSync(metadata.sourcePath)
-          .filter((f) => /\.(jpg|jpeg|png|webp|gif|bmp)$/i.test(f))
-          .sort()
-          .map((f) => join(metadata.sourcePath, f))
-
-        if (imageFiles.length === 0) {
-          return { success: false, error: 'No image files found in selected folder' }
-        }
-
-        await generatePdf(imageFiles, destPath, {
-          pageSize: 'fit',
-          quality: 90,
-          blackBackground: false
-        })
-        finalPdfPath = destPath
-      } else {
-        // Copy PDF to library
-        copyFileSync(metadata.sourcePath, destPath)
-        finalPdfPath = destPath
-      }
-
-      // Embed metadata
       const tagList = metadata.tags
         ? metadata.tags.split(',').map((t) => t.trim()).filter(Boolean)
         : []
 
-      // Embed metadata (offloaded to worker thread)
-      await spawnMetadataWorker({
-        type: 'apply',
-        pdfPath: finalPdfPath,
-        metadata: {
-          id: 0,
-          title: {
-            english: metadata.title,
-            japanese: null,
-            pretty: metadata.title
-          },
-          tags: [
-            ...tagList.map((name) => ({ id: 0, type: 'tag', name })),
-            ...metadata.artists.map((name) => ({ id: 0, type: 'artist', name })),
-            ...(metadata.language ? [{ id: 0, type: 'language', name: metadata.language }] : [])
-          ],
-          uploadDate: metadata.date
-            ? Math.floor(new Date(metadata.date).getTime() / 1000)
-            : Math.floor(Date.now() / 1000),
-          numPages: 0,
-          seriesName: metadata.series,
-          description: metadata.description
+      let finalPath: string
+
+      if (format === 'cbz') {
+        // A CBZ carries its metadata inside the archive, so it is written during
+        // generation rather than by a second pass over a finished file.
+        const { generateCbz } = await import('../services/cbz-generator')
+        const { resolveLanguageName } = await import('../services/xml-utils')
+        const { rmSync } = await import('fs')
+
+        // No gallery behind a custom entry, so there is no Web URL and no real
+        // release date — omitted rather than invented, the same rule the
+        // conversion path applies to scanner stubs.
+        const ciMeta = {
+          title: metadata.title,
+          series: metadata.series || metadata.title,
+          writers: metadata.artists.length > 0 ? metadata.artists : ['Unknown'],
+          genres: [] as string[],
+          tags: tagList,
+          characters: [] as string[],
+          summary: metadata.description || undefined,
+          pageCount: 0, // generateCbz overwrites this with the real count
+          languageIso: resolveLanguageName([metadata.language]),
+          ageRating: 'Adults Only 18+',
+          manga: (settingsRepo.get('cbzMangaDirection') || 'YesAndRightToLeft') as
+            | 'Yes'
+            | 'YesAndRightToLeft'
+            | 'No'
         }
-      })
+
+        // Scratch only exists for a PDF source, and lives under userData rather
+        // than /tmp because extracted pages can run to hundreds of megabytes.
+        let scratch: string | null = null
+        try {
+          let imageFiles: string[]
+          if (metadata.sourceType === 'images') {
+            imageFiles = readdirSync(metadata.sourcePath)
+              .filter((f) => /\.(jpg|jpeg|png|webp|gif|bmp)$/i.test(f))
+              .sort()
+              .map((f) => join(metadata.sourcePath, f))
+            if (imageFiles.length === 0) {
+              return { success: false, error: 'No image files found in selected folder' }
+            }
+          } else {
+            // Reuses the conversion extractor, so a PDF source gets the same
+            // lossless copy, page-count verification and fallback instead of a
+            // second implementation that could drift from it.
+            const { extractPdfImages } = await import('../services/pdf-extract')
+            scratch = join(app.getPath('userData'), 'add-custom', String(Date.now()))
+            mkdirSync(scratch, { recursive: true })
+            imageFiles = (await extractPdfImages(metadata.sourcePath, scratch)).imagePaths
+          }
+
+          await generateCbz(imageFiles, destPath, ciMeta, { quality: null, maxDimension: null })
+          finalPath = destPath
+        } finally {
+          if (scratch) {
+            try { rmSync(scratch, { recursive: true, force: true }) } catch { /* */ }
+          }
+        }
+      } else {
+        const { generatePdf } = await import('../services/pdf-generator')
+
+        if (metadata.sourceType === 'images') {
+          const imageFiles = readdirSync(metadata.sourcePath)
+            .filter((f) => /\.(jpg|jpeg|png|webp|gif|bmp)$/i.test(f))
+            .sort()
+            .map((f) => join(metadata.sourcePath, f))
+
+          if (imageFiles.length === 0) {
+            return { success: false, error: 'No image files found in selected folder' }
+          }
+
+          await generatePdf(imageFiles, destPath, {
+            pageSize: 'fit',
+            quality: 90,
+            blackBackground: false
+          })
+        } else {
+          copyFileSync(metadata.sourcePath, destPath)
+        }
+        finalPath = destPath
+
+        // Embed metadata (offloaded to worker thread)
+        await spawnMetadataWorker({
+          type: 'apply',
+          pdfPath: finalPath,
+          metadata: {
+            id: 0,
+            title: {
+              english: metadata.title,
+              japanese: null,
+              pretty: metadata.title
+            },
+            tags: [
+              ...tagList.map((name) => ({ id: 0, type: 'tag', name })),
+              ...metadata.artists.map((name) => ({ id: 0, type: 'artist', name })),
+              ...(metadata.language ? [{ id: 0, type: 'language', name: metadata.language }] : [])
+            ],
+            uploadDate: metadata.date
+              ? Math.floor(new Date(metadata.date).getTime() / 1000)
+              : Math.floor(Date.now() / 1000),
+            numPages: 0,
+            seriesName: metadata.series,
+            description: metadata.description
+          }
+        })
+      }
 
       // Get file size
       const { statSync } = await import('fs')
-      const fileSize = statSync(finalPdfPath).size
+      const fileSize = statSync(finalPath).size
 
       // Insert into DB
       const now = Date.now()
@@ -532,9 +595,11 @@ export function registerLibraryIpc(): void {
         customLanguage: metadata.language || null,
         customDate: metadata.date || null,
         customCoverPath: metadata.coverPath || null,
-        filePath: finalPdfPath,
+        filePath: finalPath,
         fileSize,
-        format: 'pdf',
+        // Must match what was actually written: a wrong format column sends
+        // every later metadata edit to the wrong writer.
+        format,
         primaryArtist,
         seriesName: metadata.series || null,
         description: metadata.description || null,
@@ -552,7 +617,7 @@ export function registerLibraryIpc(): void {
         })
       }
 
-      return { success: true, data: { id: newId, filePath: finalPdfPath } }
+      return { success: true, data: { id: newId, filePath: finalPath, format } }
     } catch (error) {
       return { success: false, error: String(error) }
     }
@@ -1191,7 +1256,7 @@ export function registerLibraryIpc(): void {
     event,
     ids: number[],
     dryRun: boolean = false,
-    options?: { keepOriginal?: boolean }
+    options?: { keepOriginal?: boolean; resume?: boolean }
   ) => {
     const win = BrowserWindow.fromWebContents(event.sender)
     if (!win) return { success: false, error: 'No window found' }
@@ -1233,20 +1298,42 @@ export function registerLibraryIpc(): void {
     // Only PDFs are convertible. Filtering here rather than failing per item
     // keeps the reported total honest: a mixed selection should show progress
     // out of the number actually being worked on.
-    const targets = ids.filter((id) => {
-      const item = libraryRepo.findById(id)
-      return !!item && (item.format || 'pdf') === 'pdf'
-    })
+    const targets = ids
+      .map((id) => libraryRepo.findById(id))
+      .filter((item): item is NonNullable<typeof item> => !!item && (item.format || 'pdf') === 'pdf')
     const skipped = ids.length - targets.length
-    if (targets.length === 0) {
+
+    // `resume: true` continues whatever is already pending instead of enqueuing.
+    // Anything left over from an interrupted run is still in the table, and
+    // startup-maintenance has already put mid-crash 'converting' rows back to
+    // 'pending', so there is nothing to rebuild.
+    const resume = options?.resume === true
+    if (!resume) {
+      if (targets.length === 0) {
+        return { success: true, data: { converted: 0, failed: 0, total: 0, skipped, cancelled: false } }
+      }
+      // Finished rows from earlier batches are history, not work.
+      conversionRepo.clearFinished()
+      conversionRepo.enqueue(
+        targets.map((item) => ({
+          libraryItemId: item.id,
+          filePath: item.filePath,
+          keepOriginal
+        }))
+      )
+    }
+
+    // The queue, not the caller's array, decides how much work there is: on a
+    // resume the batch is whatever survived.
+    const batchTotal = conversionRepo.counts().pending
+    if (batchTotal === 0) {
       return { success: true, data: { converted: 0, failed: 0, total: 0, skipped, cancelled: false } }
     }
 
-    // Claim every target up front so the edit guard covers items that are still
-    // waiting for a runner, not just the handful currently in workers.
-    for (const id of targets) cbzQueued.add(id)
+    // Claim every queued item up front so the edit guard covers rows that are
+    // still waiting for a runner, not just the handful inside workers.
+    for (const id of conversionRepo.pendingItemIds()) cbzQueued.add(id)
 
-    let queueIndex = 0
     let converted = 0
     let failed = 0
     // Items whose original had to be kept despite keepOriginal=false, because
@@ -1259,7 +1346,7 @@ export function registerLibraryIpc(): void {
     function sendProgress(running = true): void {
       win!.webContents.send('library:convertToCbzProgress', {
         current: converted + failed,
-        total: targets.length,
+        total: batchTotal,
         converted,
         failed,
         skipped,
@@ -1277,6 +1364,8 @@ export function registerLibraryIpc(): void {
         const workerPath = pathJoin(__dirname, 'services/convert-cbz.worker.js')
         const worker = new Worker(workerPath)
         let currentId: number | null = null
+        /** conversion_queue row id for the item in flight, so it can be settled. */
+        let currentRowId: number | null = null
         // Captured when the item is dispatched: the message handler needs it to
         // re-key the thumbnail, and the row is re-read there anyway.
         let currentCover: string | null = null
@@ -1289,20 +1378,27 @@ export function registerLibraryIpc(): void {
         }
 
         const processNext = (): void => {
-          if (cbzConversionCancelled || queueIndex >= targets.length) {
+          if (cbzConversionCancelled) {
             stop()
             return
           }
-          currentId = targets[queueIndex++]
-          if (!currentId) {
+          // Claiming is a single atomic statement, so runners never collide on a
+          // row and there is no shared index to keep in step.
+          const claim = conversionRepo.claimNext()
+          if (!claim) {
             stop()
             return
           }
+          currentId = claim.libraryItemId
+          currentRowId = claim.id
 
-          const item = libraryRepo.findById(currentId)
+          const item = currentId ? libraryRepo.findById(currentId) : null
           if (!item || item.format !== 'pdf') {
-            cbzQueued.delete(currentId)
-            failed++
+            // Already converted, or the row vanished. Not a failure worth
+            // reporting to the user, but the queue row has to be settled or a
+            // resume would retry it forever.
+            conversionRepo.markCompleted(claim.id)
+            if (currentId) cbzQueued.delete(currentId)
             sendProgress()
             processNext()
             return
@@ -1344,7 +1440,10 @@ export function registerLibraryIpc(): void {
                 rawTagsJson
               },
               options: {
-                keepOriginal,
+                // Per-row rather than per-batch: a resumed run must honour the
+                // choice the user made when they started it, not whatever the
+                // setting happens to say now.
+                keepOriginal: claim.keepOriginal,
                 libraryRoot,
                 userDataDir: app.getPath('userData'),
                 mangaDirection,
@@ -1391,9 +1490,17 @@ export function registerLibraryIpc(): void {
                   updatedAt: Date.now()
                 })
               } catch { /* */ }
+              // Settle the queue row only after the library row is updated, so a
+              // crash between the two leaves the item pending and it converts
+              // again rather than being silently skipped.
+              if (currentRowId) conversionRepo.markCompleted(currentRowId)
+            } else if (cbzConversionCancelled) {
+              // Not a failure: put it back so a resume picks it up.
+              if (currentRowId) conversionRepo.release(currentRowId)
             } else {
               failed++
               if (msg.error) errors.push(msg.error)
+              if (currentRowId) conversionRepo.markFailed(currentRowId, msg.error || 'unknown error')
             }
             if (msg.log) {
               logLines.push(msg.log)
@@ -1410,12 +1517,23 @@ export function registerLibraryIpc(): void {
           if (!stopping) {
             failed++
             errors.push(String(err))
+            // The item in flight died with the runner. Mark it failed rather
+            // than leaving the row 'converting' forever: startup-maintenance
+            // would eventually reset it, but only after a restart.
+            if (currentRowId) conversionRepo.markFailed(currentRowId, String(err))
+            if (currentId) { cbzConverting.delete(currentId); cbzQueued.delete(currentId) }
             sendProgress()
           }
           stop()
         })
         worker.on('exit', (code) => {
-          if (!stopping && code !== 0 && currentId) { failed++; sendProgress() }
+          if (!stopping && code !== 0 && currentId) {
+            failed++
+            if (currentRowId) conversionRepo.markFailed(currentRowId, `worker exited with code ${code}`)
+            cbzConverting.delete(currentId)
+            cbzQueued.delete(currentId)
+            sendProgress()
+          }
           stopping = true
           resolve()
         })
@@ -1429,11 +1547,10 @@ export function registerLibraryIpc(): void {
       await Promise.all(workers)
       // Clear anything left claimed — a cancel or a dead runner leaves items in
       // the queued set, and a stale entry would lock those rows for the rest of
-      // the session.
-      for (const id of targets) {
-        cbzQueued.delete(id)
-        cbzConverting.delete(id)
-      }
+      // the session. Cleared wholesale rather than per-target because a resume
+      // works on rows this call never saw.
+      cbzQueued.clear()
+      cbzConverting.clear()
       sendProgress(false)
 
       return {
@@ -1441,7 +1558,7 @@ export function registerLibraryIpc(): void {
         data: {
           converted,
           failed,
-          total: targets.length,
+          total: batchTotal,
           skipped,
           keptOriginals: keepOriginal,
           forcedKeeps,
@@ -1451,11 +1568,11 @@ export function registerLibraryIpc(): void {
       }
     } catch (error) {
       // Never leave rows claimed on an unexpected throw — a stale lock would
-      // make those items permanently uneditable until the app restarts.
-      for (const id of targets) {
-        cbzQueued.delete(id)
-        cbzConverting.delete(id)
-      }
+      // make those items permanently uneditable until the app restarts. Queue
+      // rows are deliberately left alone: whatever is still pending stays
+      // pending and can be resumed.
+      cbzQueued.clear()
+      cbzConverting.clear()
       sendProgress(false)
       return { success: false, error: String(error) }
     }
@@ -1464,6 +1581,43 @@ export function registerLibraryIpc(): void {
   ipcMain.handle('library:cancelConvertToCbz', async () => {
     cbzConversionCancelled = true
     return { success: true }
+  })
+
+  /**
+   * Outstanding conversion work, so an interrupted batch can be offered back.
+   *
+   * Quitting mid-conversion leaves rows pending; startup-maintenance resets any
+   * that were mid-flight. Without this the queue survived but nothing ever asked
+   * about it, which is why converting a large library had no working resume.
+   */
+  ipcMain.handle('library:getConversionQueue', async () => {
+    try {
+      const counts = conversionRepo.counts()
+      return {
+        success: true,
+        data: {
+          ...counts,
+          // 'converting' only appears here if a batch is running right now:
+          // crashed rows were already reset to pending at startup.
+          outstanding: counts.pending + counts.converting,
+          errors: counts.failed > 0 ? conversionRepo.recentErrors(5) : []
+        }
+      }
+    } catch (error) {
+      return { success: false, error: String(error) }
+    }
+  })
+
+  /** Forget a leftover queue, when the user would rather not resume it. */
+  ipcMain.handle('library:clearConversionQueue', async () => {
+    try {
+      const cleared = getSqlite().prepare('DELETE FROM conversion_queue').run().changes
+      cbzQueued.clear()
+      cbzConverting.clear()
+      return { success: true, data: { cleared } }
+    } catch (error) {
+      return { success: false, error: String(error) }
+    }
   })
 
   /**
