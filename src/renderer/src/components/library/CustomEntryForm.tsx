@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import AutocompleteInput from '../shared/AutocompleteInput'
 import FormatSelector from '../shared/FormatSelector'
+import ProgressBar from '../shared/ProgressBar'
 import { useSettingsStore, type OutputFormat } from '../../stores/settings.store'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -61,8 +62,17 @@ export default function CustomEntryForm({
 
   // UI state
   const [submitting, setSubmitting] = useState(false)
+  /** Live phase from the main process while the entry is being built. */
+  const [progress, setProgress] = useState<{ phase: string; current: number; total: number } | null>(
+    null
+  )
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+
+  useEffect(() => {
+    const off = window.api.onAddCustomProgress((p) => setProgress(p))
+    return () => { off() }
+  }, [])
 
   if (!isOpen) return null
 
@@ -186,6 +196,7 @@ export default function CustomEntryForm({
 
     setSubmitting(true)
     setError(null)
+    setProgress({ phase: 'Preparing', current: 0, total: 0 })
 
     try {
       const result = await window.api.library.addCustom(
@@ -223,6 +234,7 @@ export default function CustomEntryForm({
       setError(String(err))
     } finally {
       setSubmitting(false)
+      setProgress(null)
     }
   }
 
@@ -649,7 +661,20 @@ export default function CustomEntryForm({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3 sticky bottom-0 bg-white dark:bg-gray-900">
+        <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 sticky bottom-0 bg-white dark:bg-gray-900 space-y-3">
+          {/* Same shared bar as every other job in the app. total is 0 for the
+              steps that are not per-page, which renders as indeterminate. */}
+          {submitting && progress && (
+            <ProgressBar
+              id="add-custom"
+              label={progress.phase}
+              current={progress.current}
+              total={progress.total}
+              tone="write"
+            />
+          )}
+
+          <div className="flex justify-end gap-3">
           <button
             onClick={onClose}
             disabled={submitting}
@@ -674,6 +699,7 @@ export default function CustomEntryForm({
               'Add to Library'
             )}
           </button>
+          </div>
         </div>
       </div>
     </div>

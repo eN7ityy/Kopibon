@@ -86,6 +86,40 @@ function renameThumbnailForPath(currentCover: string | null, newFilePath: string
   }
 }
 
+/**
+ * Build a library thumbnail for a file, using the scanner's conventions.
+ *
+ * Must match `generateThumbnail`/`generateCbzThumbnail` in
+ * library-scanner.worker.ts: same directory, same `sha1(filePath)` key and the
+ * same 300x400 JPEG. Matching matters because a later rescan looks for exactly
+ * that path — a differently named thumbnail would be regenerated and the old one
+ * orphaned.
+ *
+ * @param sourceImage Image to shrink: a chosen cover, or the first page
+ * @param targetFile  The library file the thumbnail belongs to
+ * @returns The thumbnail path, or null if one could not be made
+ */
+async function buildThumbnailFor(
+  sourceImage: string,
+  targetFile: string
+): Promise<string | null> {
+  try {
+    const sharp = (await import('sharp')).default
+    const thumbDir = join(app.getPath('userData'), 'thumbnails')
+    mkdirSync(thumbDir, { recursive: true })
+    const hash = createHash('sha1').update(targetFile).digest('hex').slice(0, 16)
+    const thumbPath = join(thumbDir, `${hash}.jpg`)
+    await sharp(sourceImage, { failOn: 'none' })
+      .resize(300, 400, { fit: 'inside' })
+      .jpeg({ quality: 80 })
+      .toFile(thumbPath)
+    return thumbPath
+  } catch {
+    // A missing thumbnail is cosmetic; the entry is still valid without one.
+    return null
+  }
+}
+
 export function registerLibraryIpc(): void {
   ipcMain.handle('library:getAll', async () => {
     try {
@@ -435,7 +469,7 @@ export function registerLibraryIpc(): void {
 
   // ─── Custom Entry ──────────────────────────────────────────────────
 
-  ipcMain.handle('library:addCustom', async (_event, metadata: {
+  ipcMain.handle('library:addCustom', async (event, metadata: {
     title: string
     artists: string[]
     series?: string
@@ -471,6 +505,13 @@ export function registerLibraryIpc(): void {
 
       const format = resolveOutputFormat(metadata.format, settingsRepo.get('outputFormat'))
 
+      // Re-encoding a folder of pages is slow enough to need feedback: without
+      // it the dialog just sat there looking hung.
+      const win = BrowserWindow.fromWebContents(event.sender)
+      const report = (phase: string, current = 0, total = 0): void => {
+        win?.webContents.send('library:addCustomProgress', { phase, current, total })
+      }
+
       const primaryArtist = metadata.artists[0] || 'Unknown'
       const artistDir = join(libraryRoot, primaryArtist)
       if (!existsSync(artistDir)) {
@@ -490,6 +531,18 @@ export function registerLibraryIpc(): void {
         : []
 
       let finalPath: string
+      // Image the thumbnail gets built from: a chosen cover wins, otherwise the
+      // first page, captured below while the pages are in hand.
+      let thumbSource: string | null = metadata.coverPath || null
+      /**
+       * Thumbnail written into the library's cache.
+       *
+       * customCoverPath used to be set to whatever file the user picked, which
+       * meant no thumbnail at all unless they picked one, and a broken one if
+       * they later moved that file. It now points at a generated thumbnail keyed
+       * the way the scanner keys them.
+       */
+      let generatedThumb: string | null = null
 
       if (format === 'cbz') {
         // A CBZ carries its metadata inside the archive, so it is written during
@@ -536,20 +589,29 @@ export function registerLibraryIpc(): void {
             // lossless copy, page-count verification and fallback instead of a
             // second implementation that could drift from it.
             const { extractPdfImages } = await import('../services/pdf-extract')
+            report('Extracting pages from the PDF')
             scratch = join(app.getPath('userData'), 'add-custom', String(Date.now()))
             mkdirSync(scratch, { recursive: true })
             imageFiles = (await extractPdfImages(metadata.sourcePath, scratch)).imagePaths
           }
 
+          if (!thumbSource && imageFiles.length > 0) thumbSource = imageFiles[0]
+
           const compress = metadata.compression?.enabled === true
-          await generateCbz(imageFiles, destPath, ciMeta, {
-            quality: compress ? metadata.compression!.quality : null,
-            maxDimension: compress ? metadata.compression!.maxDimension : null,
-            // Transform scratch under userData, not beside the library file.
-            scratchDir: compress
-              ? join(app.getPath('userData'), 'add-custom-pages', String(Date.now()))
-              : undefined
-          })
+          await generateCbz(
+            imageFiles,
+            destPath,
+            ciMeta,
+            {
+              quality: compress ? metadata.compression!.quality : null,
+              maxDimension: compress ? metadata.compression!.maxDimension : null,
+              // Transform scratch under userData, not beside the library file.
+              scratchDir: compress
+                ? join(app.getPath('userData'), 'add-custom-pages', String(Date.now()))
+                : undefined
+            },
+            (current, total) => report(compress ? 'Compressing pages' : 'Building archive', current, total)
+          )
           finalPath = destPath
         } finally {
           if (scratch) {
@@ -569,19 +631,27 @@ export function registerLibraryIpc(): void {
             return { success: false, error: 'No image files found in selected folder' }
           }
 
+          if (!thumbSource && imageFiles.length > 0) thumbSource = imageFiles[0]
+
           // quality >= 100 makes pdf-generator embed the source bytes untouched,
           // which is what "compression off" has to mean for a PDF.
           const compress = metadata.compression?.enabled === true
-          await generatePdf(imageFiles, destPath, {
-            pageSize: metadata.compression?.pageSize ?? 'fit',
-            quality: compress ? metadata.compression!.quality : 100,
-            blackBackground: metadata.compression?.blackBackground ?? false
-          })
+          await generatePdf(
+            imageFiles,
+            destPath,
+            {
+              pageSize: metadata.compression?.pageSize ?? 'fit',
+              quality: compress ? metadata.compression!.quality : 100,
+              blackBackground: metadata.compression?.blackBackground ?? false
+            },
+            (current, total) => report(compress ? 'Compressing pages' : 'Building PDF', current, total)
+          )
         } else {
           copyFileSync(metadata.sourcePath, destPath)
         }
         finalPath = destPath
 
+        report('Writing metadata')
         // Embed metadata (offloaded to worker thread)
         await spawnMetadataWorker({
           type: 'apply',
@@ -608,6 +678,36 @@ export function registerLibraryIpc(): void {
         })
       }
 
+      report('Creating the thumbnail')
+      // Copying a PDF straight into the library never touches its pages, so
+      // there is no first image to hand. Render page one for the thumbnail.
+      if (!thumbSource && format === 'pdf') {
+        const { execFile } = await import('child_process')
+        const { rmSync } = await import('fs')
+        const dir = join(app.getPath('userData'), 'thumb-src', String(Date.now()))
+        mkdirSync(dir, { recursive: true })
+        try {
+          await new Promise<void>((resolve, reject) => {
+            execFile(
+              'pdftoppm',
+              ['-f', '1', '-l', '1', '-r', '60', '-jpeg', finalPath, join(dir, 'p')],
+              { timeout: 30_000 },
+              (err) => (err ? reject(err) : resolve())
+            )
+          })
+          const rendered = readdirSync(dir).find((f) => f.startsWith('p'))
+          if (rendered) {
+            generatedThumb = await buildThumbnailFor(join(dir, rendered), finalPath)
+          }
+        } catch {
+          // poppler missing or the render failed: no thumbnail, entry still fine.
+        } finally {
+          try { rmSync(dir, { recursive: true, force: true }) } catch { /* */ }
+        }
+      } else if (thumbSource) {
+        generatedThumb = await buildThumbnailFor(thumbSource, finalPath)
+      }
+
       // Get file size
       const { statSync } = await import('fs')
       const fileSize = statSync(finalPath).size
@@ -621,7 +721,7 @@ export function registerLibraryIpc(): void {
         customTags: metadata.tags || null,
         customLanguage: metadata.language || null,
         customDate: metadata.date || null,
-        customCoverPath: metadata.coverPath || null,
+        customCoverPath: generatedThumb,
         filePath: finalPath,
         fileSize,
         // Must match what was actually written: a wrong format column sends

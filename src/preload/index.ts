@@ -231,6 +231,22 @@ const api = {
     ipcRenderer.on('app:updateStatus', handler)
     return () => ipcRenderer.removeListener('app:updateStatus', handler)
   },
+  /**
+   * Progress while a custom entry is being built.
+   *
+   * Re-encoding a folder of pages takes long enough that the dialog looked hung
+   * without it. `total` is 0 for the steps that are not per-page.
+   */
+  onAddCustomProgress: (
+    callback: (p: { phase: string; current: number; total: number }) => void
+  ) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      p: { phase: string; current: number; total: number }
+    ): void => callback(p)
+    ipcRenderer.on('library:addCustomProgress', handler)
+    return () => ipcRenderer.removeListener('library:addCustomProgress', handler)
+  },
   onConvertToCbzProgress: (callback: (progress: CbzConvertProgress) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, progress: CbzConvertProgress): void =>
       callback(progress)
