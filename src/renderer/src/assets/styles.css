@@ -110,6 +110,39 @@
 }
 
 /*
+ * Tag hues.
+ *
+ * The original seven were raw Tailwind pinks, teals and oranges at full
+ * saturation, and they fought both each other and the buttons. Collapsing them
+ * all to neutral went too far the other way — the type of a tag is genuinely
+ * useful when scanning a dense list, and losing it made detail panels harder to
+ * read, not calmer.
+ *
+ * So: six deliberate hues plus neutral, held at lower saturation than the state
+ * colours so a chip never reads as a status, and always rendered as a tinted
+ * chip (a `/15` background with the same hue as text) rather than a solid fill.
+ * Artist keeps the accent, because it is the field most often scanned for.
+ *
+ * These are separate tokens from `--c-info` and friends on purpose. Reusing the
+ * state colours here would undermine the rule that hue means state.
+ */
+:root {
+  --c-tag-language: #3f6f96;
+  --c-tag-group: #2f7a54;
+  --c-tag-category: #8a6320;
+  --c-tag-parody: #6a4a9c;
+  --c-tag-character: #1f6f6a;
+}
+
+.dark {
+  --c-tag-language: #7aa8d4;
+  --c-tag-group: #6fb992;
+  --c-tag-category: #d0a457;
+  --c-tag-parody: #a992d8;
+  --c-tag-character: #5cb8b0;
+}
+
+/*
  * Reader surfaces, deliberately outside the theme.
  *
  * The page viewers show artwork, and a light chrome around a dark page is both
@@ -161,6 +194,12 @@
   --color-danger: var(--c-danger);
   --color-danger-fill: var(--c-danger-fill);
   --color-danger-wash: var(--c-danger-wash);
+
+  --color-tag-language: var(--c-tag-language);
+  --color-tag-group: var(--c-tag-group);
+  --color-tag-category: var(--c-tag-category);
+  --color-tag-parody: var(--c-tag-parody);
+  --color-tag-character: var(--c-tag-character);
 
   --color-reader: var(--c-reader-bg);
   --color-reader-surface: var(--c-reader-surface);

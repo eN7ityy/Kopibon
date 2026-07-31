@@ -29,8 +29,8 @@ interface DownloadItemProps {
 
 const TAG_COLORS: Record<string, string> = {
   artist: 'bg-accent-wash text-accent',
-  group: 'bg-raised text-fg-muted',
-  language: 'bg-raised text-fg-muted',
+  group: 'bg-tag-group/15 text-tag-group',
+  language: 'bg-tag-language/15 text-tag-language',
   tag: 'bg-raised text-fg-muted'
 }
 
@@ -81,8 +81,15 @@ export default function DownloadItem({
             </h4>
             <span
               className={`text-xs font-medium ml-2 flex-shrink-0 px-2 py-0.5 rounded-full ${
+                /*
+                  Active, queued and completed had all collapsed to the same
+                  neutral chip: the hue migration matched these class strings by
+                  exact text to neutralise the seven *tag* colours, and the
+                  status pill happened to use the identical strings. Restored to
+                  the state tokens, which is what they always meant.
+                */
                 isActive
-                  ? 'bg-raised text-fg-muted'
+                  ? 'bg-info-wash text-info'
                   : isPaused
                     ? 'bg-warning-wash text-warning'
                     : isQueued
@@ -90,7 +97,7 @@ export default function DownloadItem({
                       : isFailed
                         ? 'bg-danger-wash text-danger'
                         : isCompleted
-                          ? 'bg-raised text-fg-muted'
+                          ? 'bg-success-wash text-success'
                           : 'bg-raised text-fg-muted'
               }`}
             >

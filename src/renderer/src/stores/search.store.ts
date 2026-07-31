@@ -1,11 +1,25 @@
 import { create } from 'zustand'
 import type { GalleryListItem, DownloadStatus } from '../types/api.types'
+import { UNOWNED, type LibraryFacts } from '../components/shared/library-facts'
 
+/**
+ * The store holds `LibraryFacts` rather than a bare `DownloadStatus`.
+ *
+ * Search already looked every result up in the library to work out its download
+ * status, then discarded the rest of the row. The cards now show artist,
+ * language and format from that same lookup, so the facts have to survive as far
+ * as the grid — carrying only the status was what forced the three card designs
+ * apart in the first place.
+ *
+ * `setDownloadStatus` remains, because several call sites know a new status
+ * without having re-read the row (a download starting, for one). It merges into
+ * whatever facts are already held instead of replacing them.
+ */
 interface SearchStore {
   query: string
   sort: string
   results: GalleryListItem[]
-  downloadStatuses: Record<number, DownloadStatus>
+  libraryFacts: Record<number, LibraryFacts>
   currentPage: number
   totalPages: number
   loading: boolean
@@ -20,19 +34,19 @@ interface SearchStore {
   setSort: (sort: string) => void
   setResults: (
     results: GalleryListItem[],
-    downloadStatuses: Map<number, DownloadStatus>,
+    facts: Record<number, LibraryFacts>,
     currentPage: number,
     totalPages: number
   ) => void
   appendResults: (
     results: GalleryListItem[],
-    downloadStatuses: Map<number, DownloadStatus>,
+    facts: Record<number, LibraryFacts>,
     currentPage: number
   ) => void
-  /** Update a single gallery's download status (triggers a re-render). */
+  /** Update one gallery's status, keeping any facts already known about it. */
   setDownloadStatus: (galleryId: number, status: DownloadStatus) => void
-  /** Merge many statuses at once. */
-  mergeDownloadStatuses: (statuses: Map<number, DownloadStatus>) => void
+  /** Merge a page's worth of freshly resolved facts. */
+  mergeLibraryFacts: (facts: Record<number, LibraryFacts>) => void
   setLoading: (loading: boolean) => void
   setLoadingMore: (loadingMore: boolean) => void
   setError: (error: string | null) => void
@@ -42,11 +56,22 @@ interface SearchStore {
   clear: () => void
 }
 
+/** True when two fact records would render identically. */
+function sameFacts(a: LibraryFacts | undefined, b: LibraryFacts): boolean {
+  return (
+    a !== undefined &&
+    a.status === b.status &&
+    a.format === b.format &&
+    a.artist === b.artist &&
+    a.language === b.language
+  )
+}
+
 export const useSearchStore = create<SearchStore>()((set) => ({
   query: '',
   sort: '',
   results: [],
-  downloadStatuses: {},
+  libraryFacts: {},
   currentPage: 0,
   totalPages: 0,
   loading: false,
@@ -60,10 +85,10 @@ export const useSearchStore = create<SearchStore>()((set) => ({
   setSort: (sort) => set({ sort }),
   setPendingGalleryId: (id) => set({ pendingGalleryId: id }),
 
-  setResults: (results, downloadStatuses, currentPage, totalPages) =>
+  setResults: (results, facts, currentPage, totalPages) =>
     set({
       results,
-      downloadStatuses: Object.fromEntries(downloadStatuses),
+      libraryFacts: facts,
       currentPage,
       totalPages,
       loading: false,
@@ -72,42 +97,41 @@ export const useSearchStore = create<SearchStore>()((set) => ({
       rateLimited: false
     }),
 
-  appendResults: (results, downloadStatuses, currentPage) =>
+  appendResults: (results, facts, currentPage) =>
     set((state) => ({
       results: [...state.results, ...results],
-      downloadStatuses: {
-        ...state.downloadStatuses,
-        ...Object.fromEntries(downloadStatuses)
-      },
+      libraryFacts: { ...state.libraryFacts, ...facts },
       currentPage,
       loading: false,
       loadingMore: false,
       error: null
     })),
 
-  // Callers previously assigned into store.downloadStatuses directly, which
-  // zustand cannot observe — badges never refreshed until an unrelated
-  // re-render happened to occur.
+  // Callers previously assigned into the store directly, which zustand cannot
+  // observe — badges never refreshed until an unrelated re-render happened.
   setDownloadStatus: (galleryId, status) =>
-    set((state) =>
-      state.downloadStatuses[galleryId] === status
-        ? state
-        : { downloadStatuses: { ...state.downloadStatuses, [galleryId]: status } }
-    ),
+    set((state) => {
+      const current = state.libraryFacts[galleryId] ?? UNOWNED
+      if (current.status === status) return state
+      return {
+        libraryFacts: {
+          ...state.libraryFacts,
+          [galleryId]: { ...current, status }
+        }
+      }
+    }),
 
-  mergeDownloadStatuses: (statuses) =>
+  mergeLibraryFacts: (facts) =>
     set((state) => {
       let changed = false
-      for (const [id, status] of statuses) {
-        if (state.downloadStatuses[id] !== status) {
+      for (const [id, next] of Object.entries(facts)) {
+        if (!sameFacts(state.libraryFacts[Number(id)], next)) {
           changed = true
           break
         }
       }
       if (!changed) return state
-      return {
-        downloadStatuses: { ...state.downloadStatuses, ...Object.fromEntries(statuses) }
-      }
+      return { libraryFacts: { ...state.libraryFacts, ...facts } }
     }),
 
   setLoading: (loading) => set({ loading, error: null, rateLimited: false }),
@@ -143,7 +167,7 @@ export const useSearchStore = create<SearchStore>()((set) => ({
     set({
       query: '',
       results: [],
-      downloadStatuses: {},
+      libraryFacts: {},
       currentPage: 0,
       totalPages: 0,
       error: null,

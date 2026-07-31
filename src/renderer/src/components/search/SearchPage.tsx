@@ -3,6 +3,7 @@ import type { DownloadStatus } from '../../types/api.types'
 import { SORT_OPTIONS } from '../../types/api.types'
 import { useSearchStore } from '../../stores/search.store'
 import GalleryGrid from './GalleryGrid'
+import { resolveLibraryFacts } from '../shared/library-facts'
 import GalleryDetail from '../gallery/GalleryDetail'
 import LoadingSkeleton from '../shared/LoadingSkeleton'
 import EmptyState from '../shared/EmptyState'
@@ -49,8 +50,8 @@ export default function SearchPage(): React.JSX.Element {
       try {
         const result = await window.api.getLatest(1)
         if (result.success && result.data) {
-          const statuses = await resolveDownloadStatuses(result.data.result.map((r) => r.id))
-          store.setResults(result.data.result, statuses, 1, result.data.num_pages)
+          const facts = await resolveLibraryFacts(result.data.result.map((r) => r.id))
+          store.setResults(result.data.result, facts, 1, result.data.num_pages)
         }
       } catch {
         // silently ignore
@@ -78,13 +79,13 @@ export default function SearchPage(): React.JSX.Element {
     }
   }, [store.rateLimited])
 
-  // Refresh statuses on mount + poll every 2s for real-time updates
+  // Refresh facts on mount + poll every 2s for real-time updates
   useEffect(() => {
     const refreshStatuses = async () => {
       if (store.results.length === 0) return
       const ids = store.results.map((r) => r.id)
-      const statuses = await resolveDownloadStatuses(ids)
-      useSearchStore.getState().mergeDownloadStatuses(statuses)
+      const facts = await resolveLibraryFacts(ids)
+      useSearchStore.getState().mergeLibraryFacts(facts)
     }
     refreshStatuses()
     const interval = setInterval(refreshStatuses, 2000)
@@ -105,39 +106,7 @@ export default function SearchPage(): React.JSX.Element {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [store.sort])
 
-  const resolveDownloadStatuses = useCallback(
-    async (ids: number[]): Promise<Map<number, DownloadStatus>> => {
-      const statuses = new Map<number, DownloadStatus>()
 
-      // Library is the single source of truth for download status.
-      // - isCustom=0 with filePath → "in_library" (on disk)
-      // - isCustom=2 → "downloading" (placeholder, not yet complete)
-      // - not found → "not_downloaded"
-      await Promise.all(
-        ids.map(async (id) => {
-          try {
-            const libResult = await window.api.library.getByGalleryId(id)
-            if (libResult.success && libResult.data) {
-              const item = libResult.data
-              if (item.isCustom === 2) {
-                // Placeholder created when download started
-                statuses.set(id, 'downloading')
-              } else {
-                statuses.set(id, 'in_library')
-              }
-              return
-            }
-            statuses.set(id, 'not_downloaded')
-          } catch {
-            statuses.set(id, 'not_downloaded')
-          }
-        })
-      )
-
-      return statuses
-    },
-    []
-  )
 
   const performSearch = useCallback(
     async (page: number, overrideQuery?: string) => {
@@ -155,8 +124,8 @@ export default function SearchPage(): React.JSX.Element {
 
         if (result.success && result.data) {
           const data = result.data
-          const statuses = await resolveDownloadStatuses(data.result.map((r) => r.id))
-          store.setResults(data.result, statuses, page > 0 ? page : 0, data.num_pages)
+          const facts = await resolveLibraryFacts(data.result.map((r) => r.id))
+          store.setResults(data.result, facts, page > 0 ? page : 0, data.num_pages)
         } else {
           const errorMsg = result.error || 'Search failed'
           if (errorMsg.includes('429') || errorMsg.toLowerCase().includes('rate')) {
@@ -169,7 +138,7 @@ export default function SearchPage(): React.JSX.Element {
         store.setError(err instanceof Error ? err.message : 'Search failed')
       }
     },
-    [store.query, store.sort, resolveDownloadStatuses]
+    [store.query, store.sort, resolveLibraryFacts]
   )
 
   const loadPage = useCallback(
@@ -187,14 +156,14 @@ export default function SearchPage(): React.JSX.Element {
           : await window.api.getLatest(page)
         if (result.success && result.data) {
           const data = result.data
-          const statuses = await resolveDownloadStatuses(data.result.map((r) => r.id))
-          store.setResults(data.result, statuses, isPopular ? 1 : page, data.num_pages)
+          const facts = await resolveLibraryFacts(data.result.map((r) => r.id))
+          store.setResults(data.result, facts, isPopular ? 1 : page, data.num_pages)
         }
       } catch {
         store.setError('Failed to load')
       }
     },
-    [store.query, store.sort, performSearch, resolveDownloadStatuses]
+    [store.query, store.sort, performSearch, resolveLibraryFacts]
   )
 
   /**
@@ -256,16 +225,16 @@ export default function SearchPage(): React.JSX.Element {
   const refreshSingleDownloadStatus = useCallback(
     async (galleryId: number): Promise<void> => {
       try {
-        const statuses = await resolveDownloadStatuses([galleryId])
-        const status = statuses.get(galleryId)
-        if (status) {
-          useSearchStore.getState().setDownloadStatus(galleryId, status)
-        }
+        // Merge the whole record, not just the status: this lookup returns the
+        // format, artist and language too, so a card gains its metadata the
+        // moment a download finishes rather than waiting for the next poll.
+        const facts = await resolveLibraryFacts([galleryId])
+        useSearchStore.getState().mergeLibraryFacts(facts)
       } catch {
         // Silently ignore
       }
     },
-    [resolveDownloadStatuses]
+    []
   )
 
   const handleDownload = useCallback(
@@ -280,7 +249,7 @@ export default function SearchPage(): React.JSX.Element {
     [refreshSingleDownloadStatus]
   )
 
-  // C4: Listen for download progress events from main process to refresh statuses
+  // C4: Listen for download progress events from main process to refresh facts
   useEffect(() => {
     const cleanup = window.api.onDownloadProgress(async (progress) => {
       if (!progress.galleryId) return
@@ -413,7 +382,7 @@ export default function SearchPage(): React.JSX.Element {
             <GalleryGrid
               galleries={store.results.map((g) => ({
                 gallery: g,
-                downloadStatus: (store.downloadStatuses[g.id] as DownloadStatus) ?? 'not_downloaded'
+                facts: store.libraryFacts[g.id]
               }))}
               onGalleryClick={handleGalleryClick}
             />

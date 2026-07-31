@@ -24,12 +24,12 @@ interface RelatedGallery {
 }
 
 const TAG_COLORS: Record<string, string> = {
-  language: 'bg-raised text-fg-muted',
+  language: 'bg-tag-language/15 text-tag-language',
   artist: 'bg-accent-wash text-accent',
-  group: 'bg-raised text-fg-muted',
-  category: 'bg-raised text-fg-muted',
-  parody: 'bg-raised text-fg-muted',
-  character: 'bg-raised text-fg-muted',
+  group: 'bg-tag-group/15 text-tag-group',
+  category: 'bg-tag-category/15 text-tag-category',
+  parody: 'bg-tag-parody/15 text-tag-parody',
+  character: 'bg-tag-character/15 text-tag-character',
   tag: 'bg-raised text-fg-muted'
 }
 
@@ -346,44 +346,60 @@ export default function GalleryDetailPanel({
                 ))}
             </div>
 
-            {/* Related Galleries */}
+            {/*
+              Related galleries.
+
+              Previously 64×80px thumbnails with a bare caption, which was too
+              small to recognise a cover by and read as an afterthought under the
+              tags. Now proper cards at the same 3/4 ratio as the grids, wide
+              enough to actually see, scrolling horizontally inside their own
+              container so the row can never widen the panel.
+            */}
             {relatedGalleries.length > 0 && (
               <div className="mb-6">
-                <h3 className="text-sm font-semibold text-fg mb-2">
-                  Related Galleries
-                </h3>
-                <div className="flex gap-2 overflow-x-auto pb-2">
-                  {relatedGalleries.map((rg) => (
-                    <button
-                      key={rg.id}
-                      onClick={() => {
-                        if (onGalleryChange) {
-                          onGalleryChange(rg.id)
-                        } else {
-                          window.api.shell.openExternal(`https://nhentai.net/g/${rg.id}`)
-                        }
-                      }}
-                      className="flex-shrink-0 w-20 text-center group"
-                    >
-                      <div className="w-16 h-20 mx-auto rounded bg-raised overflow-hidden mb-1">
-                        {rg.thumbnailUrl ? (
-                          <img
-                            src={rg.thumbnailUrl}
-                            alt={rg.title}
-                            draggable={false}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-fg-faint">
-                            <BookOpen size={18} strokeWidth={1.5} aria-hidden="true" />
-                          </div>
-                        )}
-                      </div>
-                      <p className="text-xs text-fg-muted truncate group-hover:text-accent transition-colors">
-                        {rg.title}
-                      </p>
-                    </button>
-                  ))}
+                <div className="flex items-baseline justify-between mb-2">
+                  <h3 className="text-sm font-semibold text-fg">Related</h3>
+                  <span className="text-label text-fg-faint">
+                    {relatedGalleries.length} galleries
+                  </span>
+                </div>
+
+                <div className="-mx-1 overflow-x-auto px-1 pb-2">
+                  <div className="flex gap-3 w-max">
+                    {relatedGalleries.map((rg) => (
+                      <button
+                        key={rg.id}
+                        onClick={() => {
+                          if (onGalleryChange) {
+                            onGalleryChange(rg.id)
+                          } else {
+                            window.api.shell.openExternal(`https://nhentai.net/g/${rg.id}`)
+                          }
+                        }}
+                        title={rg.title}
+                        className="group w-28 shrink-0 overflow-hidden rounded-lg border border-line bg-surface text-left transition-all duration-200 hover:border-accent hover:shadow-lg"
+                      >
+                        <div className="aspect-[3/4] overflow-hidden bg-raised">
+                          {rg.thumbnailUrl ? (
+                            <img
+                              src={rg.thumbnailUrl}
+                              alt={rg.title}
+                              draggable={false}
+                              loading="lazy"
+                              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                            />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center text-fg-faint">
+                              <BookOpen size={22} strokeWidth={1.5} aria-hidden="true" />
+                            </div>
+                          )}
+                        </div>
+                        <p className="line-clamp-2 p-2 text-xs leading-snug text-fg-muted transition-colors group-hover:text-fg">
+                          {rg.title}
+                        </p>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}

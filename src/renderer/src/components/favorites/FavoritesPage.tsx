@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
-import type { GalleryListItem, DownloadStatus } from '../../types/api.types'
+import type { GalleryListItem } from '../../types/api.types'
 import GalleryGrid from '../search/GalleryGrid'
+import { resolveLibraryFacts, type LibraryFacts } from '../shared/library-facts'
 import GalleryDetail from '../gallery/GalleryDetail'
 import LoadingSkeleton from '../shared/LoadingSkeleton'
 import EmptyState from '../shared/EmptyState'
@@ -25,30 +26,10 @@ export default function FavoritesPage(): React.JSX.Element {
   const [page, setPage] = useState(1)
   const [query, setQuery] = useState('')
   const [searchInput, setSearchInput] = useState('')
-  const [downloadStatuses, setDownloadStatuses] = useState<Record<number, DownloadStatus>>({})
+  const [libraryFacts, setLibraryFacts] = useState<Record<number, LibraryFacts>>({})
   const [selectedGalleryId, setSelectedGalleryId] = useState<number | null>(null)
 
-  const resolveDownloadStatuses = useCallback(
-    async (ids: number[]): Promise<Record<number, DownloadStatus>> => {
-      const statuses: Record<number, DownloadStatus> = {}
-      await Promise.all(
-        ids.map(async (id) => {
-          try {
-            const libResult = await window.api.library.getByGalleryId(id)
-            if (libResult.success && libResult.data) {
-              statuses[id] = libResult.data.isCustom === 2 ? 'downloading' : 'in_library'
-            } else {
-              statuses[id] = 'not_downloaded'
-            }
-          } catch {
-            statuses[id] = 'not_downloaded'
-          }
-        })
-      )
-      return statuses
-    },
-    []
-  )
+
 
   const fetchFavorites = useCallback(async (p: number, q?: string): Promise<void> => {
     setPageState({ status: 'loading' })
@@ -59,8 +40,8 @@ export default function FavoritesPage(): React.JSX.Element {
           setPageState({ status: 'empty' })
         } else {
           const ids = result.data.result.map((r) => r.id)
-          const statuses = await resolveDownloadStatuses(ids)
-          setDownloadStatuses(statuses)
+          const facts = await resolveLibraryFacts(ids)
+          setLibraryFacts(facts)
           setPageState({ status: 'loaded', data: result.data })
         }
       } else {
@@ -69,7 +50,7 @@ export default function FavoritesPage(): React.JSX.Element {
     } catch (err) {
       setPageState({ status: 'error', error: String(err) })
     }
-  }, [resolveDownloadStatuses])
+  }, [])
 
   useEffect(() => {
     fetchFavorites(page, query || undefined)
@@ -79,11 +60,11 @@ export default function FavoritesPage(): React.JSX.Element {
     if (pageState.status !== 'loaded') return
     const interval = setInterval(async () => {
       const ids = pageState.data.result.map((r) => r.id)
-      const statuses = await resolveDownloadStatuses(ids)
-      setDownloadStatuses(statuses)
+      const facts = await resolveLibraryFacts(ids)
+      setLibraryFacts(facts)
     }, 2000)
     return () => clearInterval(interval)
-  }, [pageState.status, resolveDownloadStatuses])
+  }, [pageState.status])
 
   /**
    * Submit the search box. An emptied box resets to the full favourites list.
@@ -114,13 +95,13 @@ export default function FavoritesPage(): React.JSX.Element {
     async (galleryId: number, format?: string): Promise<void> => {
       try {
         await window.api.downloads.addToQueue(galleryId, format)
-        const statuses = await resolveDownloadStatuses([galleryId])
-        setDownloadStatuses((prev) => ({ ...prev, ...statuses }))
+        const facts = await resolveLibraryFacts([galleryId])
+        setLibraryFacts((prev) => ({ ...prev, ...facts }))
       } catch {
         // silently ignore
       }
     },
-    [resolveDownloadStatuses]
+    []
   )
 
   // One header, outside the state switch.
@@ -212,7 +193,7 @@ export default function FavoritesPage(): React.JSX.Element {
         <GalleryGrid
           galleries={pageState.data.result.map((g) => ({
             gallery: g,
-            downloadStatus: downloadStatuses[g.id] ?? 'not_downloaded'
+            facts: libraryFacts[g.id]
           }))}
           onGalleryClick={handleGalleryClick}
         />

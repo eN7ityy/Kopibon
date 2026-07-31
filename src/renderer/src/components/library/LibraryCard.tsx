@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { useIsConverting } from '../../stores/cbz-conversion.store'
 import { BookOpen, FolderOpen, ListX, Trash2 } from 'lucide-react'
+import { TileCover, TileFormatBadge, TileMeta } from '../shared/GalleryTile'
+import { displayLanguage } from '../shared/language'
+import { formatBytes } from '../shared/format'
 
 // ─── Types matching library_item DB schema ──────────────────────────────────
 
@@ -135,58 +138,41 @@ export default function LibraryCard({
         onContextMenu={handleContextMenu}
         className="text-left w-full"
       >
-        {/* Cover image */}
-        <div className={`${compact ? 'aspect-[2/3]' : 'aspect-[3/4]'} bg-raised relative overflow-hidden`}>
-          {coverSrc ? (
-            <img
-              src={coverSrc}
-              alt={title}
-              draggable={false}
-              loading="lazy"
-              onError={() => setImgError(true)}
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-fg-faint">
-              <BookOpen size={compact ? 20 : 32} strokeWidth={1.5} aria-hidden="true" />
-            </div>
-          )}
-
-          {/* Converting badge takes the format badge's place — the format is
-              about to change, so showing the old one would be misleading. */}
-          {converting ? (
-            <span className="absolute top-2 right-2 flex items-center gap-1 bg-accent-fill/90 text-white text-xs px-1.5 py-0.5 rounded font-medium">
-              <span className="w-2.5 h-2.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              {!compact && 'CBZ…'}
-            </span>
-          ) : (
-            !compact && (
-              <span className="absolute top-2 right-2 bg-accent-fill/80 text-white text-xs px-1.5 py-0.5 rounded font-medium">
-                {item.format?.toUpperCase() || 'PDF'}
-              </span>
+        {/*
+          Same anatomy as the Search and Favorites cards, from the same parts —
+          these three had drifted into three different designs.
+        */}
+        <TileCover
+          src={coverSrc}
+          alt={title}
+          compact={compact}
+          // formatBytes returns '0 B' for a missing value, which would print a
+          // meaningless badge, so an unknown size leaves the corner empty.
+          stat={item.fileSize && item.fileSize > 0 ? formatBytes(item.fileSize) : null}
+          onError={() => setImgError(true)}
+          badge={
+            // Converting takes the format badge's place: the format is about to
+            // change, so showing the old one would be misleading.
+            compact && !converting ? null : (
+              <TileFormatBadge
+                format={converting ? null : item.format || 'pdf'}
+                busy={converting}
+              />
             )
-          )}
-        </div>
+          }
+        />
 
-        {/* Info section */}
-        <div className={compact ? 'p-1.5 space-y-0.5' : 'p-3 space-y-1'}>
-          {/* Title */}
-          <h3 className={`${compact ? 'text-xs' : 'text-sm'} font-medium text-fg line-clamp-2 leading-snug`}>
-            {title}
-          </h3>
+        <TileMeta
+          title={title}
+          artist={artist}
+          language={displayLanguage(item.language, item.customLanguage)}
+          compact={compact}
+        />
 
-          {/* Artist */}
-          <p className={`${compact ? 'text-label' : 'text-xs'} text-fg-muted truncate`}>
-            {artist}
-          </p>
-
-          {/* Series badge — hide in compact mode */}
-          {!compact && item.seriesName && (
-            <p className="text-xs text-info truncate">
-              {item.seriesName}
-            </p>
-          )}
-        </div>
+        {/* Series is Library-only, so it sits outside the shared meta block. */}
+        {!compact && item.seriesName && (
+          <p className="px-3 pb-3 -mt-1 truncate text-xs text-fg-muted">{item.seriesName}</p>
+        )}
       </button>
 
       {/* Right-click context menu */}
