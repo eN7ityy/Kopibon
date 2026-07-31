@@ -10,9 +10,55 @@ import ProgressBar from '../shared/ProgressBar'
 import ToolchainStatus from './ToolchainStatus'
 import UpdateStatus from './UpdateStatus'
 import LogsPage from './LogsPage'
-import { Check, Trash2, X } from 'lucide-react'
+import {
+  Check,
+  Trash2,
+  X,
+  FolderTree,
+  KeyRound,
+  Download,
+  Monitor,
+  Wrench,
+  ScrollText,
+  SlidersHorizontal,
+  TriangleAlert,
+  type LucideIcon
+} from 'lucide-react'
 import Notice from '../shared/Notice'
 import Button from '../shared/Button'
+
+/**
+ * Settings panes.
+ *
+ * `savable` marks the panes that hold values the Save button writes. Tools,
+ * Logs, Advanced and Danger Zone act immediately or act on their own controls,
+ * so showing Save there would offer a button that does nothing.
+ */
+type PaneKey =
+  | 'library'
+  | 'account'
+  | 'downloads'
+  | 'interface'
+  | 'tools'
+  | 'logs'
+  | 'advanced'
+  | 'danger'
+
+const SETTINGS_PANES: Array<{
+  key: PaneKey
+  label: string
+  Icon: LucideIcon
+  savable?: boolean
+}> = [
+  { key: 'library', label: 'Library', Icon: FolderTree, savable: true },
+  { key: 'account', label: 'Account', Icon: KeyRound },
+  { key: 'downloads', label: 'Downloads', Icon: Download, savable: true },
+  { key: 'interface', label: 'Interface', Icon: Monitor, savable: true },
+  { key: 'tools', label: 'Required Tools', Icon: Wrench },
+  { key: 'logs', label: 'Logs', Icon: ScrollText },
+  { key: 'advanced', label: 'Advanced', Icon: SlidersHorizontal },
+  { key: 'danger', label: 'Danger Zone', Icon: TriangleAlert }
+]
 
 type ValidationState =
   | { status: 'idle' }
@@ -25,6 +71,7 @@ export default function SettingsPage(): React.JSX.Element {
   const ui = useUiStore()
   const auth = useAuthStore()
 
+  const [pane, setPane] = useState<PaneKey>('library')
   const [keyInput, setKeyInput] = useState('')
   const [validation, setValidation] = useState<ValidationState>({ status: 'idle' })
 
@@ -93,17 +140,55 @@ export default function SettingsPage(): React.JSX.Element {
     }
   }
 
+  const activePane = SETTINGS_PANES.find((p) => p.key === pane)
+
   return (
-    <div className="flex flex-col h-full max-w-2xl">
-      <div className="mb-6">
+    <div className="flex flex-col h-full">
+      <div className="mb-6 shrink-0">
         <h1 className="text-2xl font-bold tracking-tight text-fg">Settings</h1>
-        <p className="mt-1 text-sm text-fg-muted">
-          Configure application preferences
-        </p>
+        <p className="mt-1 text-sm text-fg-muted">Configure application preferences</p>
       </div>
 
-      <div className="space-y-6">
+      <div className="flex flex-1 min-h-0 gap-6">
+        {/*
+          Sub-navigation. Eight groups in one scroll was the problem: sections
+          were only distinguishable because their headings were oversized, and
+          reaching Logs meant scrolling past everything including the
+          irreversible reset.
+        */}
+        <nav className="w-44 shrink-0 space-y-0.5" aria-label="Settings sections">
+          {SETTINGS_PANES.map((item) => {
+            const isActive = item.key === pane
+            return (
+              <button
+                key={item.key}
+                onClick={() => setPane(item.key)}
+                aria-current={isActive ? 'page' : undefined}
+                className={`relative flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                  isActive
+                    ? 'bg-accent-wash text-accent'
+                    : item.key === 'danger'
+                      ? 'text-danger/80 hover:bg-raised hover:text-danger'
+                      : 'text-fg-muted hover:bg-raised hover:text-fg'
+                }`}
+              >
+                {isActive && (
+                  <span
+                    className="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-r bg-accent"
+                    aria-hidden="true"
+                  />
+                )}
+                <item.Icon size={16} className="shrink-0" aria-hidden="true" />
+                <span className="truncate">{item.label}</span>
+              </button>
+            )
+          })}
+        </nav>
+
+        <div className="flex-1 min-w-0 overflow-y-auto pr-1">
+          <div className="max-w-2xl space-y-6 pb-6">
         {/* Library */}
+        {pane === 'library' && (
         <section>
           <h2 className="text-section font-semibold text-fg mb-3">Library</h2>
           <div className="space-y-3">
@@ -123,8 +208,10 @@ export default function SettingsPage(): React.JSX.Element {
             </div>
           </div>
         </section>
+        )}
 
         {/* Nhentai Account */}
+        {pane === 'account' && (
         <section>
           <h2 className="text-section font-semibold text-fg mb-3">
             Nhentai Account
@@ -191,8 +278,10 @@ export default function SettingsPage(): React.JSX.Element {
             </div>
           </div>
         </section>
+        )}
 
         {/* Downloads */}
+        {pane === 'downloads' && (
         <section>
           <h2 className="text-section font-semibold text-fg mb-3">
             Downloads
@@ -334,8 +423,10 @@ export default function SettingsPage(): React.JSX.Element {
             </div>
           </div>
         </section>
+        )}
 
         {/* Interface */}
+        {pane === 'interface' && (
         <section>
           <h2 className="text-section font-semibold text-fg mb-3">
             Interface
@@ -357,20 +448,23 @@ export default function SettingsPage(): React.JSX.Element {
             </div>
           </div>
         </section>
+        )}
 
         {/* Required tools — not bundled, and the app degrades quietly without
             them, so this is deliberately its own section rather than a footnote */}
+        {pane === 'tools' && (
         <section>
           <h2 className="text-section font-semibold text-fg mb-3">
             Required Tools
           </h2>
           <ToolchainStatus />
         </section>
+        )}
 
-        {/* Logs (§1.9) */}
-        <LogsPage />
+        {pane === 'logs' && <LogsPage />}
 
         {/* Advanced */}
+        {pane === 'advanced' && (
         <section>
           <h2 className="text-section font-semibold text-fg mb-3">Advanced</h2>
           <div className="space-y-3">
@@ -379,6 +473,7 @@ export default function SettingsPage(): React.JSX.Element {
             <AppVersion />
           </div>
         </section>
+        )}
 
         {/*
           Destructive settings, last and visually separated.
@@ -388,6 +483,7 @@ export default function SettingsPage(): React.JSX.Element {
           to reach Logs meant scrolling through it. Irreversible actions belong at
           the end, behind a boundary you have to cross deliberately.
         */}
+        {pane === 'danger' && (
         <section aria-labelledby="danger-zone" className="pt-2">
           <div className="border-t border-danger/40 pt-5">
             <h2 id="danger-zone" className="text-section font-semibold text-danger mb-1">
@@ -435,23 +531,31 @@ export default function SettingsPage(): React.JSX.Element {
             </div>
           </div>
         </section>
+        )}
 
-        {/* Save */}
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleSaveSettings}
-            disabled={saveState === 'saving'}
-            className="px-6 py-2.5 rounded-lg bg-accent-fill text-white font-medium hover:bg-accent-hover disabled:opacity-50 transition-colors"
-          >
-            {saveState === 'saving' ? 'Saving...' : 'Save Settings'}
-          </button>
+          </div>
+        </div>
+      </div>
+
+      {/*
+        Save stays outside the scroll area and outside the pane switch. It was at
+        the very bottom of a long page, so on the panes that have saveable
+        settings you had to scroll to reach it. Panes that save nothing —
+        Tools, Logs, Advanced, Danger Zone — hide it rather than showing a
+        control that would do nothing.
+      */}
+      {activePane?.savable && (
+        <div className="flex shrink-0 items-center gap-3 border-t border-line pt-4">
+          <Button role="primary" onClick={handleSaveSettings} disabled={saveState === 'saving'}>
+            {saveState === 'saving' ? 'Saving…' : 'Save settings'}
+          </Button>
           {saveState === 'saved' && (
-            <span className="text-sm text-success inline-flex items-center gap-1">
-              <Check size={14} aria-hidden="true" /> Settings saved
+            <span className="inline-flex items-center gap-1 text-sm text-success">
+              <Check size={14} aria-hidden="true" /> Saved
             </span>
           )}
         </div>
-      </div>
+      )}
     </div>
   )
 }
