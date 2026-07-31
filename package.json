@@ -14,7 +14,7 @@
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
     "start": "node tools/run-electron-vite.mjs preview",
     "dev": "node tools/run-electron-vite.mjs dev",
-    "build": "npm run typecheck && electron-vite build",
+    "build": "npm run notices && npm run typecheck && electron-vite build",
     "rebuild": "electron-rebuild -f -w better-sqlite3",
     "build:unpack": "npm run build && electron-builder --dir",
     "build:win": "npm run build && electron-builder --win",
@@ -23,7 +23,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "notices": "node tools/generate-notices.mjs"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",

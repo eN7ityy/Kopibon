@@ -18,6 +18,15 @@ export default defineConfig(
     }
   },
   {
+    // Build scripts in tools/ are plain Node ESM, not part of the app bundle.
+    // The TypeScript-flavoured rules cannot be satisfied there: a return type
+    // annotation is not valid syntax in a .mjs file.
+    files: ['tools/**/*.mjs'],
+    rules: {
+      '@typescript-eslint/explicit-function-return-type': 'off'
+    }
+  },
+  {
     files: ['**/*.{ts,tsx}'],
     plugins: {
       'react-hooks': eslintPluginReactHooks,
