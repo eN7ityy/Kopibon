@@ -930,6 +930,77 @@ export default function LibraryPage(): React.JSX.Element {
         </div>
       </div>
 
+      {/*
+        Selection bar.
+
+        Above the grid, directly under the toolbar. Below the grid it was easy to
+        miss entirely — with a full page of cards it sat off screen, so the
+        actions for a selection you had just made were somewhere you had to go
+        looking for. It is still its own bar rather than part of the toolbar, so
+        entering select mode does not reflow the toolbar row.
+
+        Destructive actions sit last, after a divider, in the `danger` role —
+        outlined rather than filled, since a filled red would read as the
+        primary action of the view.
+      */}
+      {selectMode && selectedIds.size > 0 && (
+        <div className="shrink-0 mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-accent/40 bg-accent-wash px-3 py-2">
+          <span className="text-sm text-fg">
+            <span className="tnum font-semibold">{selectedIds.size}</span> selected
+          </span>
+
+          <span className="mx-1 h-5 w-px bg-line" />
+
+          <Button size="sm" icon={<Layers size={14} />} onClick={() => setShowSeriesModal(true)}>
+            Assign Series
+          </Button>
+          <Button size="sm" role="ghost" onClick={handleBatchUnassignSeries}>
+            Unassign
+          </Button>
+          <Button
+            size="sm"
+            icon={<RefreshCw size={14} />}
+            onClick={async () => {
+              const ids = [...selectedIds]
+              if (ids.length === 0) return
+              setBatchSyncing(true)
+              try {
+                await window.api.library.syncBatch(ids)
+              } catch {
+                /* the sync worker reports its own failures to the log */
+              }
+              setBatchSyncing(false)
+            }}
+            disabled={batchSyncing}
+          >
+            {batchSyncing ? 'Syncing…' : 'Sync'}
+          </Button>
+          <Button
+            size="sm"
+            icon={<FileArchive size={14} />}
+            onClick={() => setShowConvertDialog(true)}
+            disabled={cbzRunning || pdfSelectionCount === 0}
+            count={pdfSelectionCount}
+            title={
+              pdfSelectionCount === 0
+                ? 'None of the selected files are PDFs'
+                : `Convert ${pdfSelectionCount} PDF${pdfSelectionCount === 1 ? '' : 's'} to CBZ`
+            }
+          >
+            {cbzRunning ? 'Converting…' : 'Convert to CBZ'}
+          </Button>
+
+          <span className="mx-1 h-5 w-px bg-line" />
+
+          <Button size="sm" role="ghost" onClick={handleBatchRemove}>
+            Remove from Library
+          </Button>
+          <Button size="sm" role="danger" icon={<Trash2 size={14} />} onClick={handleBatchDelete}>
+            Delete Files
+          </Button>
+        </div>
+      )}
+
       {/* Scan progress bar */}
       {/* Filter panel */}
       {showFilters && (
@@ -1158,74 +1229,6 @@ export default function LibraryPage(): React.JSX.Element {
             }}
             style={{ height: '100%' }}
           />
-        </div>
-      )}
-
-      {/*
-        Selection bar.
-        Anchored below the grid rather than expanding the toolbar, so the row of
-        batch actions appears next to the cards it acts on and the layout does
-        not jump when select mode is entered. The count gets a home here too.
-
-        Destructive actions sit last, after a divider, in the `danger` role —
-        outlined rather than filled, since a filled red would read as the
-        primary action of the view.
-      */}
-      {selectMode && selectedIds.size > 0 && (
-        <div className="shrink-0 mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-line bg-surface px-3 py-2">
-          <span className="text-sm text-fg">
-            <span className="tnum font-semibold">{selectedIds.size}</span> selected
-          </span>
-
-          <span className="mx-1 h-5 w-px bg-line" />
-
-          <Button size="sm" icon={<Layers size={14} />} onClick={() => setShowSeriesModal(true)}>
-            Assign Series
-          </Button>
-          <Button size="sm" role="ghost" onClick={handleBatchUnassignSeries}>
-            Unassign
-          </Button>
-          <Button
-            size="sm"
-            icon={<RefreshCw size={14} />}
-            onClick={async () => {
-              const ids = [...selectedIds]
-              if (ids.length === 0) return
-              setBatchSyncing(true)
-              try {
-                await window.api.library.syncBatch(ids)
-              } catch {
-                /* the sync worker reports its own failures to the log */
-              }
-              setBatchSyncing(false)
-            }}
-            disabled={batchSyncing}
-          >
-            {batchSyncing ? 'Syncing…' : 'Sync'}
-          </Button>
-          <Button
-            size="sm"
-            icon={<FileArchive size={14} />}
-            onClick={() => setShowConvertDialog(true)}
-            disabled={cbzRunning || pdfSelectionCount === 0}
-            count={pdfSelectionCount}
-            title={
-              pdfSelectionCount === 0
-                ? 'None of the selected files are PDFs'
-                : `Convert ${pdfSelectionCount} PDF${pdfSelectionCount === 1 ? '' : 's'} to CBZ`
-            }
-          >
-            {cbzRunning ? 'Converting…' : 'Convert to CBZ'}
-          </Button>
-
-          <span className="mx-1 h-5 w-px bg-line" />
-
-          <Button size="sm" role="ghost" onClick={handleBatchRemove}>
-            Remove from Library
-          </Button>
-          <Button size="sm" role="danger" icon={<Trash2 size={14} />} onClick={handleBatchDelete}>
-            Delete Files
-          </Button>
         </div>
       )}
 
