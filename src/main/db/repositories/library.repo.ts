@@ -20,6 +20,70 @@ export type NewLibraryItem = InferInsertModel<typeof libraryItem>
 export type NewLibraryItemArtist = InferInsertModel<typeof libraryItemArtist>
 export type NewLibraryScanLog = InferInsertModel<typeof libraryScanLog>
 
+/**
+ * Filters shared by every list query over the library.
+ *
+ * Extracted so "select all" can resolve exactly the set the grid is showing.
+ * A second copy of this logic would drift, and the failure mode is bad: select
+ * all would hand a delete action a different set of items than the one on
+ * screen.
+ */
+export interface LibraryFilterParams {
+  searchQuery?: string
+  artistFilters?: string[]
+  seriesFilters?: string[]
+  tagFilters?: string[]
+  showUnmatchedOnly?: boolean
+}
+
+function buildLibraryFilter(params: LibraryFilterParams): SQL | undefined {
+  // Every value below is bound as a parameter. This used to be built by string
+  // concatenation, which meant a search term containing % or _ acted as a LIKE
+  // wildcard and any quoting slip changed the query shape.
+  const conditions: SQL[] = []
+
+  if (params.searchQuery && params.searchQuery.trim()) {
+    const pattern = `%${escapeLikePattern(params.searchQuery.trim())}%`
+    const columns = [
+      libraryItem.customTitle,
+      libraryItem.primaryArtist,
+      libraryItem.seriesName,
+      libraryItem.customTags,
+      libraryItem.publisher,
+      libraryItem.language,
+      libraryItem.description
+    ]
+    const anyColumnMatches = columns.map(
+      (column) => sql`${column} LIKE ${pattern} ESCAPE '\\' COLLATE NOCASE`
+    )
+    conditions.push(sql`(${sql.join(anyColumnMatches, sql` OR `)})`)
+  }
+
+  if (params.artistFilters && params.artistFilters.length > 0) {
+    conditions.push(inArray(libraryItem.primaryArtist, params.artistFilters))
+  }
+
+  if (params.seriesFilters && params.seriesFilters.length > 0) {
+    conditions.push(inArray(libraryItem.seriesName, params.seriesFilters))
+  }
+
+  if (params.tagFilters && params.tagFilters.length > 0) {
+    const anyTagMatches = params.tagFilters.map(
+      (tag) =>
+        sql`${libraryItem.customTags} LIKE ${`%${escapeLikePattern(tag)}%`} ESCAPE '\\' COLLATE NOCASE`
+    )
+    conditions.push(sql`(${sql.join(anyTagMatches, sql` OR `)})`)
+  }
+
+  if (params.showUnmatchedOnly) {
+    conditions.push(
+      or(isNull(libraryItem.galleryId), eq(libraryItem.galleryId, 0)) as SQL
+    )
+  }
+
+  return conditions.length > 0 ? and(...conditions) : undefined
+}
+
 export const libraryRepo = {
   findAll(): LibraryItem[] {
     const db = getDatabase()
@@ -127,52 +191,7 @@ export const libraryRepo = {
     showUnmatchedOnly?: boolean
   }): { items: LibraryItem[]; total: number } {
     const db = getDatabase()
-
-    // Every value below is bound as a parameter. This used to be built by
-    // string concatenation, which meant a search term containing % or _ acted
-    // as a LIKE wildcard and any quoting slip changed the query shape.
-    const conditions: SQL[] = []
-
-    if (params.searchQuery && params.searchQuery.trim()) {
-      const pattern = `%${escapeLikePattern(params.searchQuery.trim())}%`
-      const columns = [
-        libraryItem.customTitle,
-        libraryItem.primaryArtist,
-        libraryItem.seriesName,
-        libraryItem.customTags,
-        libraryItem.publisher,
-        libraryItem.language,
-        libraryItem.description
-      ]
-      const anyColumnMatches = columns.map(
-        (column) => sql`${column} LIKE ${pattern} ESCAPE '\\' COLLATE NOCASE`
-      )
-      conditions.push(sql`(${sql.join(anyColumnMatches, sql` OR `)})`)
-    }
-
-    if (params.artistFilters && params.artistFilters.length > 0) {
-      conditions.push(inArray(libraryItem.primaryArtist, params.artistFilters))
-    }
-
-    if (params.seriesFilters && params.seriesFilters.length > 0) {
-      conditions.push(inArray(libraryItem.seriesName, params.seriesFilters))
-    }
-
-    if (params.tagFilters && params.tagFilters.length > 0) {
-      const anyTagMatches = params.tagFilters.map(
-        (tag) =>
-          sql`${libraryItem.customTags} LIKE ${`%${escapeLikePattern(tag)}%`} ESCAPE '\\' COLLATE NOCASE`
-      )
-      conditions.push(sql`(${sql.join(anyTagMatches, sql` OR `)})`)
-    }
-
-    if (params.showUnmatchedOnly) {
-      conditions.push(
-        or(isNull(libraryItem.galleryId), eq(libraryItem.galleryId, 0)) as SQL
-      )
-    }
-
-    const where = conditions.length > 0 ? and(...conditions) : undefined
+    const where = buildLibraryFilter(params)
 
     let orderBy: SQL
     switch (params.sortField) {
@@ -206,6 +225,27 @@ export const libraryRepo = {
       .all()
 
     return { items, total: totalRow?.count ?? 0 }
+  },
+
+  /**
+   * Every id matching the current filters, ignoring pagination.
+   *
+   * Backs "select all in library": the grid is virtualised and only holds the
+   * pages loaded so far, so the visible select-all could never reach beyond
+   * those. Returns ids only — the full rows would be thousands of records the
+   * caller does not need.
+   *
+   * Uses the same filter builder as findPaginated, so the set is exactly what
+   * the grid is showing. That equivalence is the safety property: these ids get
+   * handed to batch delete.
+   */
+  findAllIds(params: LibraryFilterParams): Array<{ id: number; format: string }> {
+    const db = getDatabase()
+    return db
+      .select({ id: libraryItem.id, format: libraryItem.format })
+      .from(libraryItem)
+      .where(buildLibraryFilter(params))
+      .all()
   },
 
   count(): number {

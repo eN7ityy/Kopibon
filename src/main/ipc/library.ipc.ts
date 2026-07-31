@@ -168,6 +168,30 @@ export function registerLibraryIpc(): void {
     return { success: true, data: item }
   })
 
+  /**
+   * Ids of every item matching the current filters, for "select all in library".
+   *
+   * The grid is virtualised, so the visible select-all can only reach the pages
+   * loaded so far. This deliberately respects the active filters and search:
+   * selecting items the user cannot see, and then handing them to batch delete,
+   * would be a bad surprise.
+   */
+  handle(
+    'library:getAllIds',
+    async (
+      _event,
+      params: {
+        searchQuery?: string
+        artistFilters?: string[]
+        seriesFilters?: string[]
+        tagFilters?: string[]
+        showUnmatchedOnly?: boolean
+      } = {}
+    ) => {
+      return { success: true, data: libraryRepo.findAllIds(params) }
+    }
+  )
+
   handle('library:getByGalleryId', async (_event, galleryId: number) => {
     const item = libraryRepo.findByGalleryId(galleryId)
     return { success: true, data: item }

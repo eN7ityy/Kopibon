@@ -1,13 +1,23 @@
 import { useState, useEffect } from 'react'
 import AutocompleteInput from '../shared/AutocompleteInput'
 import type { LibraryItemData } from './LibraryCard'
-import { FileText } from 'lucide-react'
+import { FileText, ListX } from 'lucide-react'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 interface SeriesAssignmentProps {
   isOpen: boolean
+  /** The selected rows this dialog can display and prefill volumes for. */
   items: LibraryItemData[]
+  /**
+   * Every selected id, which may exceed `items`.
+   *
+   * The grid is virtualised, so "Select all" can select ids whose rows were
+   * never loaded. The series name applies to all of them; per-item volumes only
+   * exist for the rows above, so the rest are assigned the series with no volume
+   * rather than being silently skipped.
+   */
+  allSelectedIds?: number[]
   onClose: () => void
   onAssigned: () => void
 }
@@ -17,6 +27,7 @@ interface SeriesAssignmentProps {
 export default function SeriesAssignment({
   isOpen,
   items,
+  allSelectedIds,
   onClose,
   onAssigned
 }: SeriesAssignmentProps): React.JSX.Element | null {
@@ -24,6 +35,7 @@ export default function SeriesAssignment({
   // Per-item volume map: itemId → volume string
   const [volumes, setVolumes] = useState<Map<number, string>>(new Map())
   const [applying, setApplying] = useState(false)
+  const selectionSize = allSelectedIds?.length ?? items.length
   const [error, setError] = useState<string | null>(null)
 
   // Pre-fill series name and volumes from existing data
@@ -99,7 +111,16 @@ export default function SeriesAssignment({
         }
       })
 
-      const result = await window.api.library.assignSeries(entries, seriesName.trim())
+      // Ids with no loaded row still get the series, just without a volume.
+      const displayed = new Set(items.map((item) => item.id))
+      const extra = (allSelectedIds ?? [])
+        .filter((id) => !displayed.has(id))
+        .map((id) => ({ id, seriesIndex: null }))
+
+      const result = await window.api.library.assignSeries(
+        [...entries, ...extra],
+        seriesName.trim()
+      )
 
       if (result.success) {
         onAssigned()
@@ -107,6 +128,38 @@ export default function SeriesAssignment({
       } else {
         setError(result.error || 'Failed to assign series')
       }
+    } catch (err) {
+      setError(String(err))
+    } finally {
+      setApplying(false)
+    }
+  }
+
+  /**
+   * Clear the series from every selected item.
+   *
+   * Lives here rather than as its own button in the selection bar: assigning and
+   * clearing a series are the same decision, and the bar was carrying two
+   * buttons for it. Clearing is also the destructive half, so it belongs behind
+   * the dialog you already opened to change series, not one click away in a
+   * toolbar.
+   */
+  const handleUnassign = async (): Promise<void> => {
+    setApplying(true)
+    setError(null)
+    try {
+      const ids =
+        allSelectedIds && allSelectedIds.length > 0
+          ? allSelectedIds
+          : items.map((item) => item.id)
+      for (const id of ids) {
+        await window.api.library.updateMetadata(id, {
+          seriesName: null,
+          seriesIndex: null
+        })
+      }
+      onAssigned()
+      onClose()
     } catch (err) {
       setError(String(err))
     } finally {
@@ -126,7 +179,7 @@ export default function SeriesAssignment({
             Assign Series
           </h2>
           <p className="text-sm text-fg-muted mt-1">
-            {items.length} item{items.length !== 1 ? 's' : ''} selected
+            {selectionSize} item{selectionSize !== 1 ? 's' : ''} selected
           </p>
         </div>
 
@@ -192,7 +245,27 @@ export default function SeriesAssignment({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-line flex justify-end gap-3">
+        <div className="px-6 py-4 border-t border-line flex items-center gap-3">
+          {/*
+            Clearing the series sits apart from Cancel and Apply, on the left,
+            because it acts on the selection rather than confirming the form —
+            and unlike Apply it does not need a series name to be typed.
+
+            Always shown rather than gated on the selection having a series: the
+            check could only look at the loaded rows, so once "Select all" reached
+            past them the button would hide exactly when it was still needed.
+          */}
+          <button
+            onClick={handleUnassign}
+            disabled={applying}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-danger px-3 py-2 text-sm font-medium text-danger transition-colors hover:bg-danger-wash disabled:opacity-50"
+          >
+            <ListX size={14} aria-hidden="true" />
+            Remove from series
+          </button>
+
+          <div className="flex-1" />
+
           <button
             onClick={onClose}
             disabled={applying}

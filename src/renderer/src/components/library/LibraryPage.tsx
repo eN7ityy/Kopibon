@@ -20,7 +20,7 @@ import { useGlobalJobs, type ProgressJob } from '../../stores/job-progress'
 import { ProgressStack } from '../shared/ProgressBar'
 import Button from '../shared/Button'
 import Notice, { NoticeRegion } from '../shared/Notice'
-import { Check, FileArchive, Grid3x3, Layers, LayoutGrid, Library, List, ListX, Pause, Play, Plus, RefreshCw, SlidersHorizontal, Trash2, X } from 'lucide-react'
+import { Check, FileArchive, Grid3x3, Layers, LayoutGrid, Library, List, ListChecks, ListX, Pause, Play, Plus, RefreshCw, SlidersHorizontal, Trash2, X } from 'lucide-react'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -302,6 +302,16 @@ export default function LibraryPage(): React.JSX.Element {
   const [batchSyncing, setBatchSyncing] = useState(false)
   const [showConvertDialog, setShowConvertDialog] = useState(false)
   const [selectMode, setSelectMode] = useState(false)
+  const [selectingAll, setSelectingAll] = useState(false)
+  /**
+   * Format per id for the current selection.
+   *
+   * The grid is virtualised, so once "Select all" reaches beyond the loaded
+   * pages, `items` no longer contains every selected row — anything derived from
+   * it would quietly act on the loaded subset instead of the selection. This map
+   * is populated from the same query that resolves the ids.
+   */
+  const [selectionFormats, setSelectionFormats] = useState<Map<number, string>>(new Map())
   const [showSeriesModal, setShowSeriesModal] = useState(false)
   const [showCustomForm, setShowCustomForm] = useState(false)
   const [detailItem, setDetailItem] = useState<LibraryItemData | null>(null)
@@ -574,7 +584,7 @@ export default function LibraryPage(): React.JSX.Element {
     for (const id of ids) {
       try { await window.api.library.delete(id) } catch { /* */ }
     }
-    setSelectedIds(new Set())
+    setSelectedIds(new Set()); setSelectionFormats(new Map())
     setSelectionTick((t) => t + 1)
     fetchPage(0, true)
   }
@@ -584,7 +594,7 @@ export default function LibraryPage(): React.JSX.Element {
     for (const id of ids) {
       try { await window.api.library.deleteFile(id) } catch { /* */ }
     }
-    setSelectedIds(new Set())
+    setSelectedIds(new Set()); setSelectionFormats(new Map())
     setSelectionTick((t) => t + 1)
     fetchPage(0, true)
   }
@@ -598,7 +608,8 @@ export default function LibraryPage(): React.JSX.Element {
    * events rather than by this promise.
    */
   const handleBatchConvertToCbz = async (keepOriginal: boolean): Promise<void> => {
-    const ids = items.filter((i) => selectedIds.has(i.id) && (i.format || 'pdf') === 'pdf').map((i) => i.id)
+    // The same set the button counts, so what runs matches what it promised.
+    const ids = pdfSelectionIds
     if (ids.length === 0) return
     useCbzConversionStore.getState().begin(ids.length)
     try {
@@ -618,25 +629,45 @@ export default function LibraryPage(): React.JSX.Element {
       // handler that returned early (e.g. the library-path guard) and never
       // emitted one.
       useCbzConversionStore.getState().finish()
-      setSelectedIds(new Set())
+      setSelectedIds(new Set()); setSelectionFormats(new Map())
       setSelectionTick((t) => t + 1)
       fetchPage(0, true)
     }
   }
 
-  const handleBatchUnassignSeries = async () => {
-    const ids = [...selectedIds]
-    for (const id of ids) {
-      try { await window.api.library.updateMetadata(id, { seriesName: null, seriesIndex: null }) } catch { /* */ }
+  /**
+   * Select every item matching the current filters, not just the loaded pages.
+   *
+   * Resolved in the main process from the same filter builder the grid uses, so
+   * the selection is exactly the set on screen — that matters, because these ids
+   * go on to batch delete.
+   */
+  const handleSelectAllInLibrary = async (): Promise<void> => {
+    setSelectingAll(true)
+    try {
+      const result = await window.api.library.getAllIds({
+        searchQuery: debouncedSearch || undefined,
+        artistFilters: selectedArtistFilters.size > 0 ? [...selectedArtistFilters] : undefined,
+        seriesFilters: selectedSeriesFilters.size > 0 ? [...selectedSeriesFilters] : undefined,
+        tagFilters: selectedTagFilters.size > 0 ? [...selectedTagFilters] : undefined,
+        showUnmatchedOnly: showUnmatchedOnly || undefined
+      })
+      if (result.success && Array.isArray(result.data)) {
+        const rows = result.data as Array<{ id: number; format: string }>
+        setSelectedIds(new Set(rows.map((row) => row.id)))
+        setSelectionFormats(new Map(rows.map((row) => [row.id, row.format || 'pdf'])))
+        setSelectionTick((tick) => tick + 1)
+      }
+    } catch {
+      /* leaving the existing selection alone is the safe failure here */
+    } finally {
+      setSelectingAll(false)
     }
-    setSelectedIds(new Set())
-    setSelectionTick((t) => t + 1)
-    fetchPage(0, true)
   }
 
   const toggleSelectAll = () => {
     if (selectedIds.size === items.length) {
-      setSelectedIds(new Set())
+      setSelectedIds(new Set()); setSelectionFormats(new Map())
     } else {
       setSelectedIds(new Set(items.map((i) => i.id)))
     }
@@ -649,10 +680,24 @@ export default function LibraryPage(): React.JSX.Element {
    * Shown in the button label so a selection of already-converted CBZs reads as
    * "nothing to do" rather than starting a batch that silently skips everything.
    */
-  const pdfSelectionCount = items.reduce(
-    (n, i) => (selectedIds.has(i.id) && (i.format || 'pdf') === 'pdf' ? n + 1 : n),
-    0
+  /**
+   * Format for a selected id, preferring the loaded row and falling back to the
+   * map filled by "Select all" for ids whose rows were never fetched.
+   */
+  const formatOf = useCallback(
+    (id: number): string => {
+      const loaded = items.find((i) => i.id === id)
+      if (loaded) return loaded.format || 'pdf'
+      return selectionFormats.get(id) || 'pdf'
+    },
+    [items, selectionFormats]
   )
+
+  const pdfSelectionIds = useMemo(
+    () => [...selectedIds].filter((id) => formatOf(id) === 'pdf'),
+    [selectedIds, formatOf]
+  )
+  const pdfSelectionCount = pdfSelectionIds.length
 
   // ─── Progress ──────────────────────────────────────────────────────────────
 
@@ -949,6 +994,13 @@ export default function LibraryPage(): React.JSX.Element {
       */}
       {selectMode && (
         <div className="shrink-0 mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-accent/40 bg-accent-wash px-3 py-2">
+          {/*
+            Two scopes, grouped. The checkbox covers what is loaded; the grid is
+            virtualised, so on a large library that is only the pages fetched so
+            far. The second button resolves every id matching the current
+            filters, which is why its label quotes the same total the header
+            does.
+          */}
           <label className="flex cursor-pointer items-center gap-2 text-sm text-fg">
             <input
               type="checkbox"
@@ -961,13 +1013,23 @@ export default function LibraryPage(): React.JSX.Element {
             </span>
           </label>
 
+          {totalCount > items.length && (
+            <Button
+              size="sm"
+              role="ghost"
+              icon={<ListChecks size={14} />}
+              onClick={handleSelectAllInLibrary}
+              disabled={selectingAll}
+              title={`Select all ${totalCount} items matching the current filters`}
+            >
+              {selectingAll ? 'Selecting…' : `Select all ${totalCount}`}
+            </Button>
+          )}
+
           <span className="mx-1 h-5 w-px bg-line" />
 
           <Button size="sm" icon={<Layers size={14} />} onClick={() => setShowSeriesModal(true)}>
             Assign Series
-          </Button>
-          <Button size="sm" role="ghost" onClick={handleBatchUnassignSeries}>
-            Unassign
           </Button>
           <Button
             size="sm"
@@ -1038,7 +1100,7 @@ export default function LibraryPage(): React.JSX.Element {
               role="primary"
               icon={<Check size={14} />}
               onClick={() => {
-                setSelectedIds(new Set())
+                setSelectedIds(new Set()); setSelectionFormats(new Map())
                 setSelectMode(false)
                 setSelectionTick((tick) => tick + 1)
               }}
@@ -1294,10 +1356,11 @@ export default function LibraryPage(): React.JSX.Element {
       <SeriesAssignment
         isOpen={showSeriesModal}
         items={items.filter((item) => selectedIds.has(item.id))}
+        allSelectedIds={[...selectedIds]}
         onClose={() => setShowSeriesModal(false)}
         onAssigned={() => {
           setShowSeriesModal(false)
-          setSelectedIds(new Set())
+          setSelectedIds(new Set()); setSelectionFormats(new Map())
           setSelectMode(false)
           fetchPage(0, true)
         }}

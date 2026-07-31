@@ -92,6 +92,14 @@ const api = {
       showUnmatchedOnly?: boolean
     }) => ipcRenderer.invoke('library:getPaginated', params),
     getByGalleryId: (galleryId: number) => ipcRenderer.invoke('library:getByGalleryId', galleryId),
+    /** Ids of every item matching the given filters, ignoring pagination. */
+    getAllIds: (params: {
+      searchQuery?: string
+      artistFilters?: string[]
+      seriesFilters?: string[]
+      tagFilters?: string[]
+      showUnmatchedOnly?: boolean
+    }) => ipcRenderer.invoke('library:getAllIds', params),
     /** Typed tags from the cached gallery row; empty when only flat tags exist. */
     getGalleryTags: (galleryId: number) =>
       ipcRenderer.invoke('library:getGalleryTags', galleryId),
