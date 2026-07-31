@@ -4,6 +4,7 @@
   "description": "A desktop application for downloading, managing, and organizing doujinshi from nhentai",
   "main": "./out/main/index.js",
   "author": "eN7ity",
+  "license": "GPL-3.0-or-later",
   "homepage": "https://github.com/eN7ityy/Doujinshi-Downloader",
   "scripts": {
     "format": "prettier --write .",
