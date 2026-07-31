@@ -6,6 +6,7 @@ import type { LibraryItemData } from './LibraryCard'
 import { useCbzConversionStore, useIsConverting } from '../../stores/cbz-conversion.store'
 import ConvertToCbzDialog from './ConvertToCbzDialog'
 import { AlertTriangle, BookOpen, FileArchive, FolderOpen, ListX, Loader2, Pencil, Trash2, X } from 'lucide-react'
+import { sortTags, tagClass, type TagLike } from '../shared/tags'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -85,6 +86,16 @@ export default function LibraryDetail({
   // This ensures series, tags, thumbnail etc. are up-to-date after a scan
   // completes, rather than showing the stale snapshot from the grid.
   const [freshItem, setFreshItem] = useState<LibraryItemData | null>(null)
+
+  /**
+   * Typed tags for this item, used for the Genre and Parody rows.
+   *
+   * Empty for scanner-created items, which only ever stored a flat comma-joined
+   * `custom_tags`. Syncing an item now backfills these.
+   */
+  const [typedTags, setTypedTags] = useState<{ galleryId: number; tags: TagLike[] } | null>(
+    null
+  )
 
   useEffect(() => {
     if (!item) { setFreshItem(null); return }
@@ -239,10 +250,43 @@ export default function LibraryDetail({
     finally { setDeleting(false) }
   }
 
+  /*
+   * Typed tags for the Genre and Parody rows.
+   *
+   * Must sit above the `if (!item)` return below — a hook after an early return
+   * is called conditionally, which breaks React's hook ordering.
+   *
+   * Keyed by galleryId, and state is only ever set from the promise callback.
+   * Clearing it synchronously when there is no gallery would set state during
+   * the effect and cascade a render; keying it instead means a previous item's
+   * tags can never render against the current one.
+   */
+  useEffect(() => {
+    const galleryId = (freshItem || item)?.galleryId
+    if (!galleryId) return
+    let cancelled = false
+    window.api.library
+      .getGalleryTags(galleryId)
+      .then((r) => {
+        if (!cancelled && r.success && Array.isArray(r.data)) {
+          setTypedTags({ galleryId, tags: r.data as TagLike[] })
+        }
+      })
+      .catch(() => {
+        /* genre and parody are additive; absence is the normal case */
+      })
+    return () => { cancelled = true }
+  }, [freshItem, item])
+
   if (!item) return null
 
   // Use freshly fetched data when available, fall back to prop
   const detail = freshItem || item
+
+  const activeTags =
+    typedTags && typedTags.galleryId === detail.galleryId ? typedTags.tags : []
+  const genreTags = sortTags(activeTags.filter((tg) => tg.type === 'category')).map((tg) => tg.name)
+  const parodyTags = sortTags(activeTags.filter((tg) => tg.type === 'parody')).map((tg) => tg.name)
 
   // Choose viewer by format
   const isCbz = detail.format === 'cbz'
@@ -320,16 +364,6 @@ export default function LibraryDetail({
               <div><span className="text-xs font-medium text-fg-muted">Title</span><p className="text-sm text-fg">{detail.customTitle || 'Untitled'}</p></div>
             )}
 
-            <div><span className="text-xs font-medium text-fg-muted">Artist</span>
-              {onFilterArtist ? (
-                <button onClick={() => { onClose(); onFilterArtist(detail.primaryArtist) }} className="block text-sm text-accent hover:underline cursor-pointer">
-                  {detail.primaryArtist || 'Unknown'}
-                </button>
-              ) : (
-                <p className="text-sm text-fg">{detail.primaryArtist || 'Unknown'}</p>
-              )}
-            </div>
-
             {/* Series with autocomplete */}
             {editing ? (
               <div className="grid grid-cols-3 gap-2">
@@ -360,6 +394,33 @@ export default function LibraryDetail({
               </div>
             ) : null}
 
+            <div><span className="text-xs font-medium text-fg-muted">Artist</span>
+              {onFilterArtist ? (
+                <button onClick={() => { onClose(); onFilterArtist(detail.primaryArtist) }} className="block text-sm text-accent hover:underline cursor-pointer">
+                  {detail.primaryArtist || 'Unknown'}
+                </button>
+              ) : (
+                <p className="text-sm text-fg">{detail.primaryArtist || 'Unknown'}</p>
+              )}
+            </div>
+
+            {/* Group — `publisher` internally, which is what Kavita reads. */}
+            {editing ? (
+              <div><label className="block text-xs font-medium text-fg-muted mb-1">Group</label>
+                <input type="text" value={editPublisher} onChange={e => setEditPublisher(e.target.value)} placeholder="Publisher/Group name..." className="w-full px-3 py-2 rounded-lg border border-line bg-surface text-sm text-fg focus:ring-2 focus:ring-accent" />
+              </div>
+            ) : detail.publisher ? (
+              <div><span className="text-xs font-medium text-fg-muted">Group</span>
+                {onFilterPublisher ? (
+                  <button onClick={() => { onClose(); onFilterPublisher(detail.publisher!) }} className="block text-sm text-accent hover:underline cursor-pointer">
+                    {detail.publisher}
+                  </button>
+                ) : (
+                  <p className="text-sm text-fg">{detail.publisher}</p>
+                )}
+              </div>
+            ) : null}
+
             {/* Language with dropdown + free-text */}
             {editing ? (
               <div><label className="block text-xs font-medium text-fg-muted mb-1">Language</label>
@@ -375,31 +436,39 @@ export default function LibraryDetail({
               <div><span className="text-xs font-medium text-fg-muted">Language</span><p className="text-sm text-fg">{detail.customLanguage}</p></div>
             ) : null}
 
-            {/* Publisher */}
-            {editing ? (
-              <div><label className="block text-xs font-medium text-fg-muted mb-1">Publisher</label>
-                <input type="text" value={editPublisher} onChange={e => setEditPublisher(e.target.value)} placeholder="Publisher/Group name..." className="w-full px-3 py-2 rounded-lg border border-line bg-surface text-sm text-fg focus:ring-2 focus:ring-accent" />
-              </div>
-            ) : detail.publisher ? (
-              <div><span className="text-xs font-medium text-fg-muted">Publisher</span>
-                {onFilterPublisher ? (
-                  <button onClick={() => { onClose(); onFilterPublisher(detail.publisher!) }} className="block text-sm text-accent hover:underline cursor-pointer">
-                    {detail.publisher}
-                  </button>
-                ) : (
-                  <p className="text-sm text-fg">{detail.publisher}</p>
-                )}
-              </div>
-            ) : null}
 
-            {/* Description */}
-            {editing ? (
-              <div><label className="block text-xs font-medium text-fg-muted mb-1">Summary</label>
-                <textarea value={editDescription} onChange={e => setEditDescription(e.target.value)} placeholder="Description/summary..." rows={3} className="w-full px-3 py-2 rounded-lg border border-line bg-surface text-sm text-fg focus:ring-2 focus:ring-accent resize-none" />
+            {/*
+              Genre and parody come from the typed tags on the cached gallery
+              row, because `custom_tags` keeps only a comma-joined string with
+              the types discarded. Downloaded items have them; scanned items do
+              not until they are synced, so these rows simply do not render
+              rather than showing empty labels.
+            */}
+            {!editing && genreTags.length > 0 && (
+              <div>
+                <span className="text-xs font-medium text-fg-muted">Genre</span>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {genreTags.map((name) => (
+                    <span key={name} className={`px-2 py-0.5 rounded-full text-xs font-medium ${tagClass('category')}`}>
+                      {name}
+                    </span>
+                  ))}
+                </div>
               </div>
-            ) : detail.description ? (
-              <div><span className="text-xs font-medium text-fg-muted">Summary</span><p className="text-sm text-fg whitespace-pre-wrap">{detail.description}</p></div>
-            ) : null}
+            )}
+
+            {!editing && parodyTags.length > 0 && (
+              <div>
+                <span className="text-xs font-medium text-fg-muted">Parody</span>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {parodyTags.map((name) => (
+                    <span key={name} className={`px-2 py-0.5 rounded-full text-xs font-medium ${tagClass('parody')}`}>
+                      {name}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Tags with chip editor */}
             {editing ? (
@@ -446,6 +515,15 @@ export default function LibraryDetail({
                   })}
                 </div>
               </div>
+            ) : null}
+
+            {/* Description */}
+            {editing ? (
+              <div><label className="block text-xs font-medium text-fg-muted mb-1">Summary</label>
+                <textarea value={editDescription} onChange={e => setEditDescription(e.target.value)} placeholder="Description/summary..." rows={3} className="w-full px-3 py-2 rounded-lg border border-line bg-surface text-sm text-fg focus:ring-2 focus:ring-accent resize-none" />
+              </div>
+            ) : detail.description ? (
+              <div><span className="text-xs font-medium text-fg-muted">Summary</span><p className="text-sm text-fg whitespace-pre-wrap">{detail.description}</p></div>
             ) : null}
 
             {detail.customDate && (<div><span className="text-xs font-medium text-fg-muted">Date</span><p className="text-sm text-fg">{detail.customDate}</p></div>)}

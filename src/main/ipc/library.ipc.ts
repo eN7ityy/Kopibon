@@ -173,6 +173,35 @@ export function registerLibraryIpc(): void {
     return { success: true, data: item }
   })
 
+  /**
+   * Typed tags for a library item, so the detail panel can show genre and
+   * parody rather than one flat tag list.
+   *
+   * These live on the cached gallery row, not on `library_item` — which stores
+   * only `custom_tags`, a comma-joined string with the types thrown away. The
+   * download path writes them (`rawTagsJson`), so downloaded items have them;
+   * scanner-created rows never did, and until now neither did a sync.
+   *
+   * Returns an empty array rather than an error when nothing is known, since a
+   * missing gallery row is the normal case for a scanned item.
+   */
+  handle('library:getGalleryTags', async (_event, galleryId: number) => {
+    if (!galleryId) return { success: true, data: [] }
+    const row = galleryRepo.findById(galleryId)
+    if (!row?.rawTagsJson) return { success: true, data: [] }
+    try {
+      const parsed = JSON.parse(row.rawTagsJson)
+      if (!Array.isArray(parsed)) return { success: true, data: [] }
+      // Scanner stubs stored flat tags with every type set to 'tag', which
+      // carries no more information than custom_tags already does.
+      const types = new Set(parsed.map((t: { type?: string }) => t.type))
+      if (types.size <= 1 && types.has('tag')) return { success: true, data: [] }
+      return { success: true, data: parsed }
+    } catch {
+      return { success: true, data: [] }
+    }
+  })
+
   handle(
     'library:getPaginated',
     async (
@@ -1392,6 +1421,7 @@ export function registerLibraryIpc(): void {
           itemId: number
           success?: boolean
           message?: string
+          rawTags?: Array<{ id: number; type: string; name: string }>
           metadata?: {
             title: string
             primaryArtist: string
@@ -1424,6 +1454,28 @@ export function registerLibraryIpc(): void {
                 msg.itemId,
                 updateData
               )
+
+              /*
+               * Persist the typed tags on the cached gallery row.
+               *
+               * `custom_tags` keeps only a comma-joined string, so before this a
+               * synced item could never show genre or parody separately. The
+               * download path already stored these; sync doing the same is what
+               * lets an existing library be backfilled rather than needing every
+               * item re-downloaded.
+               */
+              if (msg.rawTags && msg.rawTags.length > 0) {
+                const item = libraryRepo.findById(msg.itemId)
+                if (item?.galleryId) {
+                  const existing = galleryRepo.findById(item.galleryId)
+                  if (existing) {
+                    galleryRepo.upsert({
+                      ...existing,
+                      rawTagsJson: JSON.stringify(msg.rawTags)
+                    })
+                  }
+                }
+              }
             } catch {
               /* best-effort */
             }

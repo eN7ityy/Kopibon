@@ -5,6 +5,7 @@ import type {
 } from '../../types/api.types'
 import DownloadProgressBar from './DownloadProgress'
 import { BookOpen, Check, FolderOpen } from 'lucide-react'
+import { tagClass } from '../shared/tags'
 
 interface GalleryInfo {
   title: string
@@ -25,13 +26,6 @@ interface DownloadItemProps {
   onResume: (id: number) => void
   onCancel: (id: number) => void
   onRetry: (id: number) => void
-}
-
-const TAG_COLORS: Record<string, string> = {
-  artist: 'bg-accent-wash text-accent',
-  group: 'bg-tag-group/15 text-tag-group',
-  language: 'bg-tag-language/15 text-tag-language',
-  tag: 'bg-raised text-fg-muted'
 }
 
 export default function DownloadItem({
@@ -121,17 +115,17 @@ export default function DownloadItem({
           {galleryInfo && (galleryInfo.artists.length > 0 || galleryInfo.groups.length > 0 || galleryInfo.language) && (
             <div className="flex flex-wrap gap-1 mb-1">
               {galleryInfo.artists.map((name) => (
-                <span key={`artist-${name}`} className={`px-1.5 py-0.5 rounded-full text-xs font-medium ${TAG_COLORS.artist}`}>
+                <span key={`artist-${name}`} className={`px-1.5 py-0.5 rounded-full text-xs font-medium ${tagClass('artist')}`}>
                   {name}
                 </span>
               ))}
               {galleryInfo.groups.map((name) => (
-                <span key={`group-${name}`} className={`px-1.5 py-0.5 rounded-full text-xs font-medium ${TAG_COLORS.group}`}>
+                <span key={`group-${name}`} className={`px-1.5 py-0.5 rounded-full text-xs font-medium ${tagClass('group')}`}>
                   {name}
                 </span>
               ))}
               {galleryInfo.language && (
-                <span className={`px-1.5 py-0.5 rounded-full text-xs font-medium ${TAG_COLORS.language}`}>
+                <span className={`px-1.5 py-0.5 rounded-full text-xs font-medium ${tagClass('language')}`}>
                   {galleryInfo.language}
                 </span>
               )}
@@ -142,7 +136,7 @@ export default function DownloadItem({
           {galleryInfo && galleryInfo.tags.length > 0 && (
             <div className="flex flex-wrap gap-1 mb-1">
               {galleryInfo.tags.slice(0, 6).map((name) => (
-                <span key={`tag-${name}`} className={`px-1.5 py-0.5 rounded-full text-xs font-medium ${TAG_COLORS.tag}`}>
+                <span key={`tag-${name}`} className={`px-1.5 py-0.5 rounded-full text-xs font-medium ${tagClass('tag')}`}>
                   {name}
                 </span>
               ))}

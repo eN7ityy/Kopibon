@@ -92,6 +92,9 @@ const api = {
       showUnmatchedOnly?: boolean
     }) => ipcRenderer.invoke('library:getPaginated', params),
     getByGalleryId: (galleryId: number) => ipcRenderer.invoke('library:getByGalleryId', galleryId),
+    /** Typed tags from the cached gallery row; empty when only flat tags exist. */
+    getGalleryTags: (galleryId: number) =>
+      ipcRenderer.invoke('library:getGalleryTags', galleryId),
     search: (query: string) => ipcRenderer.invoke('library:search', query),
     getArtists: (libraryItemId: number) => ipcRenderer.invoke('library:getArtists', libraryItemId),
     getAllArtistNames: () => ipcRenderer.invoke('library:getAllArtistNames'),

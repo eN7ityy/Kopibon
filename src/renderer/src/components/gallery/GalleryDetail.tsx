@@ -6,6 +6,9 @@ import FormatSelector from '../shared/FormatSelector'
 import { useAuthStore } from '../../stores/auth.store'
 import { useSettingsStore, type OutputFormat } from '../../stores/settings.store'
 import GalleryViewer from './GalleryViewer'
+import { sortDescriptiveTags, tagClass } from '../shared/tags'
+import { TileCover, TileFormatBadge, TileMeta } from '../shared/GalleryTile'
+import { resolveLibraryFacts, type LibraryFacts } from '../shared/library-facts'
 import { AlertCircle, BookOpen, Check, FolderOpen, Heart, ListX, Loader2, Trash2 } from 'lucide-react'
 
 interface GalleryDetailProps {
@@ -21,16 +24,7 @@ interface RelatedGallery {
   id: number
   title: string
   thumbnailUrl: string | null
-}
-
-const TAG_COLORS: Record<string, string> = {
-  language: 'bg-tag-language/15 text-tag-language',
-  artist: 'bg-accent-wash text-accent',
-  group: 'bg-tag-group/15 text-tag-group',
-  category: 'bg-tag-category/15 text-tag-category',
-  parody: 'bg-tag-parody/15 text-tag-parody',
-  character: 'bg-tag-character/15 text-tag-character',
-  tag: 'bg-raised text-fg-muted'
+  pages: number
 }
 
 function formatDate(timestamp: number): string {
@@ -59,6 +53,7 @@ export default function GalleryDetailPanel({
   const [showRedownloadConfirm, setShowRedownloadConfirm] = useState(false)
   const [libraryPath, setLibraryPath] = useState<string | null>(null)
   const [relatedGalleries, setRelatedGalleries] = useState<RelatedGallery[]>([])
+  const [relatedFacts, setRelatedFacts] = useState<Record<number, LibraryFacts>>({})
   const [isFavorited, setIsFavorited] = useState(false)
   const [favLoading, setFavLoading] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState<'none' | 'remove' | 'deleteFile'>('none')
@@ -150,14 +145,26 @@ export default function GalleryDetailPanel({
     window.api.getRelatedGalleries(galleryId).then((result) => {
       if (cancelled) return
       if (result.success && result.data) {
-        const related = result.data.result.slice(0, 5).map((item) => ({
+        // The row scrolls now, so it is no longer limited to what fits.
+        const related = result.data.result.slice(0, 12).map((item) => ({
           id: item.id,
-          title: item.english_title || `Gallery #${item.id}`,
+          title: item.english_title || item.japanese_title || `Gallery #${item.id}`,
           thumbnailUrl: item.thumbnail
             ? `https://t.nhentai.net/${item.thumbnail}`
-            : null
+            : null,
+          pages: item.num_pages || 0
         }))
         setRelatedGalleries(related)
+
+        // Same lookup the grids use, so these cards can show the in-library
+        // tick, format, artist and language exactly like the main ones.
+        resolveLibraryFacts(related.map((r) => r.id))
+          .then((facts) => {
+            if (!cancelled) setRelatedFacts(facts)
+          })
+          .catch(() => {
+            /* the cards fall back to title and page count */
+          })
       }
     }).catch(() => { /* silently ignore */ })
 
@@ -313,7 +320,7 @@ export default function GalleryDetailPanel({
                   <button
                     key={tag.id}
                     onClick={() => handleTagClick('artist', tag.name)}
-                    className={`px-2.5 py-1 rounded-full text-xs font-medium cursor-pointer hover:opacity-80 transition-opacity ${TAG_COLORS.artist}`}
+                    className={`px-2.5 py-1 rounded-full text-xs font-medium cursor-pointer hover:opacity-80 transition-opacity ${tagClass('artist')}`}
                   >
                     {tag.name}
                   </button>
@@ -324,7 +331,7 @@ export default function GalleryDetailPanel({
                   <button
                     key={tag.id}
                     onClick={() => handleTagClick('group', tag.name)}
-                    className={`px-2.5 py-1 rounded-full text-xs font-medium cursor-pointer hover:opacity-80 transition-opacity ${TAG_COLORS.group}`}
+                    className={`px-2.5 py-1 rounded-full text-xs font-medium cursor-pointer hover:opacity-80 transition-opacity ${tagClass('group')}`}
                   >
                     {tag.name}
                   </button>
@@ -333,13 +340,12 @@ export default function GalleryDetailPanel({
 
             {/* All tags */}
             <div className="flex flex-wrap gap-1.5 mb-4">
-              {detail.tags
-                .filter((t) => !['artist', 'group'].includes(t.type))
-                .map((tag) => (
+              {/* Grouped by type: Genre, Languages, Parodies, Characters, then tags. */}
+              {sortDescriptiveTags(detail.tags).map((tag) => (
                   <button
                     key={tag.id}
                     onClick={() => handleTagClick(tag.type, tag.name)}
-                    className={`px-2 py-0.5 rounded-full text-xs font-medium cursor-pointer hover:opacity-80 transition-opacity ${TAG_COLORS[tag.type] || TAG_COLORS.tag}`}
+                    className={`px-2 py-0.5 rounded-full text-xs font-medium cursor-pointer hover:opacity-80 transition-opacity ${tagClass(tag.type)}`}
                   >
                     {tag.name}
                   </button>
@@ -366,39 +372,47 @@ export default function GalleryDetailPanel({
 
                 <div className="-mx-1 overflow-x-auto px-1 pb-2">
                   <div className="flex gap-3 w-max">
-                    {relatedGalleries.map((rg) => (
-                      <button
-                        key={rg.id}
-                        onClick={() => {
-                          if (onGalleryChange) {
-                            onGalleryChange(rg.id)
-                          } else {
-                            window.api.shell.openExternal(`https://nhentai.net/g/${rg.id}`)
-                          }
-                        }}
-                        title={rg.title}
-                        className="group w-28 shrink-0 overflow-hidden rounded-lg border border-line bg-surface text-left transition-all duration-200 hover:border-accent hover:shadow-lg"
-                      >
-                        <div className="aspect-[3/4] overflow-hidden bg-raised">
-                          {rg.thumbnailUrl ? (
-                            <img
-                              src={rg.thumbnailUrl}
-                              alt={rg.title}
-                              draggable={false}
-                              loading="lazy"
-                              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                            />
-                          ) : (
-                            <div className="flex h-full w-full items-center justify-center text-fg-faint">
-                              <BookOpen size={22} strokeWidth={1.5} aria-hidden="true" />
-                            </div>
-                          )}
-                        </div>
-                        <p className="line-clamp-2 p-2 text-xs leading-snug text-fg-muted transition-colors group-hover:text-fg">
-                          {rg.title}
-                        </p>
-                      </button>
-                    ))}
+                    {relatedGalleries.map((rg) => {
+                      const facts = relatedFacts[rg.id]
+                      return (
+                        <button
+                          key={rg.id}
+                          onClick={() => {
+                            if (onGalleryChange) {
+                              onGalleryChange(rg.id)
+                            } else {
+                              window.api.shell.openExternal(`https://nhentai.net/g/${rg.id}`)
+                            }
+                          }}
+                          title={rg.title}
+                          className="group w-36 shrink-0 overflow-hidden rounded-lg border border-line bg-surface text-left transition-all duration-200 hover:border-accent hover:shadow-lg"
+                        >
+                          {/*
+                            The same parts as the main grids, so a related card
+                            carries the same information in the same places: page
+                            count bottom right, format and in-library tick top
+                            right, artist and language under the title.
+                          */}
+                          <TileCover
+                            src={rg.thumbnailUrl}
+                            alt={rg.title}
+                            stat={rg.pages > 0 ? `${rg.pages}p` : null}
+                            badge={
+                              <TileFormatBadge
+                                format={facts?.format}
+                                owned={facts?.status === 'in_library'}
+                                busy={facts?.status === 'downloading'}
+                              />
+                            }
+                          />
+                          <TileMeta
+                            title={rg.title}
+                            artist={facts?.artist}
+                            language={facts?.language}
+                          />
+                        </button>
+                      )
+                    })}
                   </div>
                 </div>
               </div>

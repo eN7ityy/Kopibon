@@ -145,6 +145,20 @@ parentPort?.on('message', async (cmd: SyncCommand) => {
       type: 'complete',
       itemId: cmd.itemId,
       success: true,
+      /**
+       * The typed tags, alongside the flat list.
+       *
+       * `customTags` throws the types away, so a synced item had no way to show
+       * genre or parody separately — the detail panel could only ever render one
+       * undifferentiated tag list. The download path already persists these;
+       * sync now does too, which is what lets an existing library be backfilled
+       * with "Sync with Nhentai".
+       */
+      rawTags: (tags as Array<{ id?: number; type: string; name: string }>).map((t) => ({
+        id: t.id ?? 0,
+        type: t.type,
+        name: t.name
+      })),
       metadata: {
         title,
         primaryArtist: creators[0] || 'Unknown',

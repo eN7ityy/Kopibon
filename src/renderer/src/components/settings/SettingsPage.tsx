@@ -149,7 +149,7 @@ export default function SettingsPage(): React.JSX.Element {
         <p className="mt-1 text-sm text-fg-muted">Configure application preferences</p>
       </div>
 
-      <div className="flex flex-1 min-h-0 gap-6">
+      <div className="flex flex-1 min-h-0 gap-8">
         {/*
           Sub-navigation. Eight groups in one scroll was the problem: sections
           were only distinguishable because their headings were oversized, and
@@ -185,7 +185,15 @@ export default function SettingsPage(): React.JSX.Element {
           })}
         </nav>
 
-        <div className="flex-1 min-w-0 overflow-y-auto pr-1">
+        {/*
+          Horizontal padding inside the scroll area, not just on the right.
+
+          Full-width inputs sit flush against the container edge, and the focus
+          ring is a 2px outline at a 2px offset — so it rendered 4px outside the
+          input, where `overflow-y-auto` clipped it and the left side appeared to
+          slide under the sub-nav. `px-2` clears the ring on both sides.
+        */}
+        <div className="flex-1 min-w-0 overflow-y-auto px-2">
           <div className="max-w-2xl space-y-6 pb-6">
         {/* Library */}
         {pane === 'library' && (
