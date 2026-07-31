@@ -7,7 +7,9 @@ import App from './App'
 // ─── Renderer-side logger helper ────────────────────────────────────────────
 
 type LogBridge = {
-  log?: (level: string, scope: string, msg: string, fields?: Record<string, unknown>) => unknown
+  log?: {
+    write?: (level: string, scope: string, msg: string, fields?: Record<string, unknown>) => unknown
+  }
 }
 
 function rendererLog(
@@ -17,7 +19,7 @@ function rendererLog(
   fields?: Record<string, unknown>
 ): void {
   try {
-    ;(window as unknown as { api?: LogBridge }).api?.log?.(level, scope, msg, fields)
+    ;(window as unknown as { api?: LogBridge }).api?.log?.write?.(level, scope, msg, fields)
   } catch {
     /* logger unavailable */
   }

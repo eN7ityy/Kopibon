@@ -11,7 +11,9 @@ interface State {
 }
 
 type LogBridge = {
-  log?: (level: string, scope: string, msg: string, fields?: Record<string, unknown>) => unknown
+  log?: {
+    write?: (level: string, scope: string, msg: string, fields?: Record<string, unknown>) => unknown
+  }
 }
 
 export default class ErrorBoundary extends Component<Props, State> {
@@ -31,7 +33,7 @@ export default class ErrorBoundary extends Component<Props, State> {
 
     // Log to the main process so it reaches the log file
     try {
-      ;(window as unknown as { api?: LogBridge }).api?.log?.('error', 'renderer:ErrorBoundary', error.message, {
+      ;(window as unknown as { api?: LogBridge }).api?.log?.write?.('error', 'renderer:ErrorBoundary', error.message, {
         err: { name: error.name, message: error.message, stack: error.stack },
         componentStack: errorInfo.componentStack,
         errorId

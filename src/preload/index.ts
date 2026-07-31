@@ -265,8 +265,17 @@ const api = {
   },
 
   // Logging (§1.6 — renderer console output is invisible in a packaged build)
-  log: (level: string, scope: string, msg: string, fields?: Record<string, unknown>) =>
-    ipcRenderer.invoke('log:write', level, scope, msg, fields),
+  log: {
+    write: (level: string, scope: string, msg: string, fields?: Record<string, unknown>) =>
+      ipcRenderer.invoke('log:write', level, scope, msg, fields),
+    getRecords: () => ipcRenderer.invoke('log:getRecords'),
+    setLevel: (level: string) => ipcRenderer.invoke('log:setLevel', level),
+    getLevel: () => ipcRenderer.invoke('log:getLevel'),
+    setRetention: (days: number) => ipcRenderer.invoke('log:setRetention', days),
+    getRetention: () => ipcRenderer.invoke('log:getRetention'),
+    openFolder: () => ipcRenderer.invoke('log:openFolder'),
+    exportDiagnostics: () => ipcRenderer.invoke('log:exportDiagnostics')
+  },
 
   // App
   app: {

@@ -9,6 +9,7 @@ import OriginalsCleanup from './OriginalsCleanup'
 import ProgressBar from '../shared/ProgressBar'
 import ToolchainStatus from './ToolchainStatus'
 import UpdateStatus from './UpdateStatus'
+import LogsPage from './LogsPage'
 
 type ValidationState =
   | { status: 'idle' }
@@ -397,6 +398,9 @@ export default function SettingsPage(): React.JSX.Element {
           </h2>
           <ToolchainStatus />
         </section>
+
+        {/* Logs (§1.9) */}
+        <LogsPage />
 
         {/* Advanced */}
         <section>

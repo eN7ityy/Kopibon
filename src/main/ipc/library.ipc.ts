@@ -271,8 +271,12 @@ export function registerLibraryIpc(): void {
           removalSkippedReason?: string | null
         }
         message?: string
+        record?: import('../services/logger').LogRecord
       }) => {
         switch (msg.type) {
+          case 'log':
+            if (msg.record) log.writeRecord(msg.record)
+            break
           case 'newItems':
             if (msg.items) {
               win.webContents.send('library:newItems', msg.items)

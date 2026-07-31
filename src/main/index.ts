@@ -230,18 +230,134 @@ app.whenReady().then(async () => {
       msg: string,
       fields?: Record<string, unknown>
     ) => {
-      // Validate level to prevent injection
       const validLevels = ['error', 'warn', 'info', 'debug']
       if (!validLevels.includes(level)) return
-      const logFn = logger[level as 'error' | 'warn' | 'info' | 'debug']
-      if (typeof logFn === 'function') {
-        ;(logFn as (msg: string, fields?: Record<string, unknown>) => void)(
-          msg,
-          { scope, ...fields }
-        )
-      }
+      // Route through a scoped logger so scope is the record's scope field,
+      // not a user field — otherwise filtering by scope never groups renderer
+      // records.
+      logger.scope(scope)[level as 'error' | 'warn' | 'info' | 'debug'](msg, fields)
     }
   )
+
+  // ─── Log viewer / diagnostics (§1.9) ────────────────────────────────
+
+  handle('log:getRecords', async () => {
+    return { success: true, data: logger.getRingBuffer() }
+  })
+
+  ipcMain.handle('log:setLevel', async (_event, level: string) => {
+    const validLevels = ['error', 'warn', 'info', 'debug']
+    if (!validLevels.includes(level)) return { success: false, error: 'Invalid level' }
+    logger.setLevel(level as 'error' | 'warn' | 'info' | 'debug')
+    return { success: true }
+  })
+
+  ipcMain.handle('log:getLevel', async () => {
+    return { success: true, data: logger.getConfig().level }
+  })
+
+  handle('log:setRetention', async (_event, days: number) => {
+    // getConfig() returns Readonly, so this went through `any` to write to it.
+    // Cast to the mutable shape once instead: the intent is a deliberate config
+    // write, and spelling it out beats disabling the type system.
+    const cfg = logger.getConfig() as unknown as { retentionDays: number }
+    cfg.retentionDays = Math.max(1, Math.min(365, Math.floor(days)))
+    return { success: true }
+  })
+
+  handle('log:getRetention', async () => {
+    return { success: true, data: logger.getConfig().retentionDays }
+  })
+
+  ipcMain.handle('log:openFolder', async () => {
+    await shell.openPath(logger.getConfig().logDir)
+  })
+
+  handle('log:exportDiagnostics', async () => {
+    const { writeFileSync } = await import('fs')
+    const { platform, arch, release, cpus, totalmem, homedir } = await import('os')
+    const { buildDiagnostics, serializeDiagnostics } = await import('./services/diagnostics')
+    const { libraryRepo } = await import('./db/repositories/library.repo')
+    const { settingsRepo } = await import('./db/repositories/settings.repo')
+
+    let toolchain: unknown = null
+    try {
+      toolchain = await checkToolchain()
+    } catch {
+      toolchain = { error: 'probe failed' }
+    }
+
+    let allSettings: Record<string, string> = {}
+    try {
+      allSettings = settingsRepo.getAll()
+    } catch {
+      /* settings may not be readable; the bundle is still worth writing */
+    }
+
+    let libraryCount = -1
+    try {
+      libraryCount = libraryRepo.count()
+    } catch {
+      /* DB may not be ready */
+    }
+
+    // The stored key is decrypted only to register it for scrubbing. safeStorage
+    // falls back to storing the key verbatim when unavailable, so both the
+    // encrypted blob and the plaintext have to be treated as secrets.
+    const secrets: string[] = []
+    try {
+      const stored = settingsRepo.get('nhentai_api_key')
+      if (stored) {
+        secrets.push(stored)
+        const { decryptKey } = await import('./ipc/auth.ipc')
+        const real = decryptKey(stored)
+        if (real) secrets.push(real)
+      }
+    } catch {
+      /* the allowlist already keeps the key out; this is belt and braces */
+    }
+
+    const input = {
+      appVersion: app.getVersion(),
+      versions: {
+        electron: process.versions.electron,
+        chrome: process.versions.chrome,
+        node: process.versions.node
+      },
+      os: {
+        platform: platform(),
+        arch: arch(),
+        release: release(),
+        cpus: cpus().length,
+        totalMemGb: Math.round(totalmem() / (1024 * 1024 * 1024))
+      },
+      toolchain,
+      settings: allSettings,
+      libraryItemCount: libraryCount,
+      records: logger.getRingBuffer().slice(-500),
+      secrets,
+      redactPaths: true,
+      exportedAt: new Date().toISOString()
+    }
+
+    // Written once, from already-scrubbed text. The previous version wrote the
+    // file and then "rewrote" it after registering the secret, which re-emitted
+    // an unchanged object and so produced identical bytes.
+    const text = serializeDiagnostics(input, homedir())
+    const ts = input.exportedAt.replace(/[:.]/g, '-')
+    const exportPath = join(logger.getConfig().logDir, `diagnostics-${ts}.json`)
+    writeFileSync(exportPath, text, 'utf-8')
+
+    const bundle = buildDiagnostics(input)
+    logger.info('diagnostics exported', {
+      path: exportPath,
+      records: bundle.recentRecords.length,
+      omittedSettings: bundle.omittedSettings.length
+    })
+
+    await shell.showItemInFolder(exportPath)
+    return { success: true, data: { path: exportPath } }
+  })
 
   handle('app:checkForUpdates', async () => {
     const result = await autoUpdater.checkForUpdates()
