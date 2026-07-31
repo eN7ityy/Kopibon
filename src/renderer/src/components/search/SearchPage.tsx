@@ -8,6 +8,7 @@ import LoadingSkeleton from '../shared/LoadingSkeleton'
 import EmptyState from '../shared/EmptyState'
 import ErrorState from '../shared/ErrorState'
 import Pagination from '../shared/Pagination'
+import { Search } from 'lucide-react'
 
 interface EntityBanner {
   type: string
@@ -401,7 +402,7 @@ export default function SearchPage(): React.JSX.Element {
 
         {!store.loading && !store.error && store.totalPages === 0 && store.query.trim() !== '' && (
           <EmptyState
-            icon="🔍"
+            icon={Search}
             title="No results found"
             description="Try adjusting your search query"
           />

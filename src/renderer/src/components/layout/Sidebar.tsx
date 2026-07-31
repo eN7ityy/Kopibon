@@ -2,20 +2,37 @@ import { NavLink, useLocation } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { useUiStore } from '../../stores/ui.store'
 import { useAuthStore } from '../../stores/auth.store'
+import {
+  Search,
+  Star,
+  Library,
+  Download,
+  Settings,
+  Sun,
+  Moon,
+  MonitorSmartphone,
+  type LucideIcon
+} from 'lucide-react'
 
 interface NavItem {
   to: string
   label: string
-  icon: string
+  Icon: LucideIcon
   requiresAuth?: boolean
 }
 
+/**
+ * Nav icons were emoji (🔍 ⭐ 📚 ⬇️ ⚙️), which render in the OS emoji font and
+ * so carry their own colour, weight and baseline — none of which respond to the
+ * palette, the type scale or the theme. These inherit `currentColor`, so the
+ * active and hover states below style them for free.
+ */
 const navItems: NavItem[] = [
-  { to: '/search', label: 'Search', icon: '🔍' },
-  { to: '/favorites', label: 'Favorites', icon: '⭐', requiresAuth: true },
-  { to: '/library', label: 'Library', icon: '📚' },
-  { to: '/downloads', label: 'Downloads', icon: '⬇️' },
-  { to: '/settings', label: 'Settings', icon: '⚙️' }
+  { to: '/search', label: 'Search', Icon: Search },
+  { to: '/favorites', label: 'Favorites', Icon: Star, requiresAuth: true },
+  { to: '/library', label: 'Library', Icon: Library },
+  { to: '/downloads', label: 'Downloads', Icon: Download },
+  { to: '/settings', label: 'Settings', Icon: Settings }
 ]
 
 export default function Sidebar(): React.JSX.Element {
@@ -56,8 +73,10 @@ export default function Sidebar(): React.JSX.Element {
     setTheme(order[(idx + 1) % order.length])
   }
 
-  const themeIcon = theme === 'dark' ? '🌙' : theme === 'light' ? '☀️' : '🖥️'
+  const ThemeIcon = theme === 'dark' ? Moon : theme === 'light' ? Sun : MonitorSmartphone
   const themeLabel = theme === 'dark' ? 'Dark' : theme === 'light' ? 'Light' : 'System'
+  // The button cycles, so say where it goes next rather than only where it is.
+  const nextLabel = theme === 'light' ? 'Dark' : theme === 'dark' ? 'System' : 'Light'
 
   return (
     <aside
@@ -65,11 +84,12 @@ export default function Sidebar(): React.JSX.Element {
         sidebarCollapsed ? 'w-16' : 'w-56'
       }`}
     >
-      {/* App Title */}
-      <div className="flex items-center h-14 px-4 border-b border-line">
+      {/* Wordmark. The accent carries the mark; the rest of the chrome stays quiet. */}
+      <div className="flex items-center gap-2 h-14 px-4 border-b border-line">
+        <span className="h-5 w-1 rounded-full bg-accent shrink-0" aria-hidden="true" />
         {!sidebarCollapsed && (
-          <span className="text-lg font-bold text-fg truncate">
-            Doujin DL
+          <span className="text-lg font-bold tracking-tight text-fg truncate">
+            Doujin<span className="text-accent">DL</span>
           </span>
         )}
       </div>
@@ -82,6 +102,10 @@ export default function Sidebar(): React.JSX.Element {
             <NavLink
               key={item.to}
               to={item.to}
+              // The title is always set, not just when collapsed: a collapsed
+              // sidebar was previously unreadable until you guessed by hovering,
+              // because the labels were hidden with no tooltip behind them.
+              title={item.label}
               className={({ isActive }) =>
                 // `relative` so the collapsed-mode badge below anchors to this
                 // row. Without it the absolutely positioned badge climbed to the
@@ -90,25 +114,40 @@ export default function Sidebar(): React.JSX.Element {
                 `relative flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                   isActive
                     ? 'bg-accent-wash text-accent'
-                    : 'text-fg-muted hover:bg-raised'
+                    : 'text-fg-muted hover:bg-raised hover:text-fg'
                 }`
               }
             >
-              <span className="text-xl flex-shrink-0">{item.icon}</span>
-              {!sidebarCollapsed && (
-                <span className="truncate flex items-center gap-1.5">
-                  {item.label}
-                  {item.to === '/downloads' && downloadCount > 0 && (
-                    <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold rounded-full bg-accent-fill text-white">
+              {({ isActive }) => (
+                <>
+                  {/*
+                    A leading accent bar for the active row, rather than relying
+                    on a tinted fill alone. It reads more deliberate and it
+                    survives the palette change without needing a pale accent.
+                  */}
+                  {isActive && (
+                    <span
+                      className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-0.5 rounded-r bg-accent"
+                      aria-hidden="true"
+                    />
+                  )}
+                  <item.Icon size={20} strokeWidth={isActive ? 2.25 : 2} className="shrink-0" />
+                  {!sidebarCollapsed && (
+                    <span className="truncate flex items-center gap-1.5">
+                      {item.label}
+                      {item.to === '/downloads' && downloadCount > 0 && (
+                        <span className="tnum inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold rounded-full bg-accent-fill text-white">
+                          {downloadCount}
+                        </span>
+                      )}
+                    </span>
+                  )}
+                  {sidebarCollapsed && item.to === '/downloads' && downloadCount > 0 && (
+                    <span className="tnum absolute top-0.5 right-0.5 inline-flex items-center justify-center min-w-[16px] h-[16px] px-0.5 text-[9px] font-bold rounded-full bg-accent-fill text-white">
                       {downloadCount}
                     </span>
                   )}
-                </span>
-              )}
-              {sidebarCollapsed && item.to === '/downloads' && downloadCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 inline-flex items-center justify-center min-w-[16px] h-[16px] px-0.5 text-[9px] font-bold rounded-full bg-accent-fill text-white">
-                  {downloadCount}
-                </span>
+                </>
               )}
             </NavLink>
           ))}
@@ -118,11 +157,11 @@ export default function Sidebar(): React.JSX.Element {
       <div className="p-2 border-t border-line">
         <button
           onClick={cycleTheme}
-          className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium text-fg-muted hover:bg-raised transition-colors"
-          title={`Theme: ${themeLabel}`}
+          className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium text-fg-muted hover:bg-raised hover:text-fg transition-colors"
+          title={`Theme: ${themeLabel} — click for ${nextLabel}`}
         >
-          <span className="text-xl flex-shrink-0">{themeIcon}</span>
-          {!sidebarCollapsed && <span className="truncate">{themeLabel} Mode</span>}
+          <ThemeIcon size={20} className="shrink-0" />
+          {!sidebarCollapsed && <span className="truncate">{themeLabel}</span>}
         </button>
       </div>
     </aside>

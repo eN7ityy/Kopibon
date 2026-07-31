@@ -1,5 +1,9 @@
+import { Inbox, type LucideIcon } from 'lucide-react'
+import Button from './Button'
+
 interface EmptyStateProps {
-  icon?: string
+  /** Pass a lucide component, e.g. `icon={Library}`. */
+  icon?: LucideIcon
   title: string
   description?: string
   actionLabel?: string
@@ -7,7 +11,7 @@ interface EmptyStateProps {
 }
 
 export default function EmptyState({
-  icon = '📭',
+  icon: Icon = Inbox,
   title,
   description,
   actionLabel,
@@ -15,17 +19,19 @@ export default function EmptyState({
 }: EmptyStateProps): React.JSX.Element {
   return (
     <div className="flex-1 flex items-center justify-center">
-      <div className="text-center text-fg-faint max-w-sm px-4">
-        <span className="text-5xl block mb-4">{icon}</span>
+      <div className="flex flex-col items-center text-center text-fg-faint max-w-sm px-4">
+        {/*
+          A stroked icon at a restrained size rather than a 48px emoji. The
+          emoji brought its own colour and weight, so an empty state shouted
+          louder than the content around it.
+        */}
+        <Icon size={40} strokeWidth={1.5} className="mb-4 text-fg-faint" aria-hidden="true" />
         <p className="text-lg font-medium text-fg-muted">{title}</p>
         {description && <p className="text-sm mt-1">{description}</p>}
         {actionLabel && onAction && (
-          <button
-            onClick={onAction}
-            className="mt-4 px-4 py-2 rounded-lg bg-accent-fill text-white font-medium hover:bg-accent-hover transition-colors"
-          >
+          <Button role="primary" onClick={onAction} extraClass="mt-4">
             {actionLabel}
-          </button>
+          </Button>
         )}
       </div>
     </div>

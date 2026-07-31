@@ -18,6 +18,8 @@ import ResumeConversionBanner from './ResumeConversionBanner'
 import { useCbzConversionStore } from '../../stores/cbz-conversion.store'
 import { useGlobalJobs, type ProgressJob } from '../../stores/job-progress'
 import { ProgressStack } from '../shared/ProgressBar'
+import Button from '../shared/Button'
+import { CheckSquare, FileArchive, Layers, Library, Pause, Play, Plus, RefreshCw, Trash2 } from 'lucide-react'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -799,84 +801,60 @@ export default function LibraryPage(): React.JSX.Element {
         </div>
       )}
 
-      {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-3 mb-4">
-        {/* Rescan / Pause / Resume button */}
+      {/*
+        Toolbar. Only view-level actions live here; batch actions moved to the
+        selection bar below the grid, so entering select mode no longer grows
+        this row from three buttons to eight and pushes the grid off screen.
+
+        The scan control is one button whose label, icon and handler change with
+        state, rather than four differently coloured buttons across three
+        branches.
+      */}
+      <div className="flex flex-wrap items-center gap-2 mb-4">
         {!scanning && !scanPaused && (
-          <button
+          <Button
+            role="primary"
+            icon={<RefreshCw size={16} />}
             onClick={handleRescan}
             disabled={conversionStore.running}
             title={conversionStore.running ? 'Scan disabled during metadata conversion' : 'Rescan Library'}
-            className="px-4 py-2 rounded-lg bg-accent-fill text-white font-medium text-sm hover:bg-accent-hover transition-colors flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            🔄 Rescan Library
-          </button>
+            Rescan Library
+          </Button>
         )}
         {scanning && !scanPaused && (
           <>
-            <button onClick={handlePauseScan} className="px-4 py-2 rounded-lg bg-warning-fill text-white font-medium text-sm hover:bg-warning-fill transition-colors flex items-center gap-2">
-              <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+            <Button role="secondary" icon={<Pause size={16} />} onClick={handlePauseScan}>
               Pause Scan
-            </button>
-            <button onClick={handleCancelScan} className="px-3 py-2 rounded-lg bg-danger-fill text-white font-medium text-sm hover:bg-danger-fill transition-colors">✕ Cancel</button>
+            </Button>
+            <Button role="ghost" onClick={handleCancelScan}>
+              Cancel
+            </Button>
           </>
         )}
         {scanPaused && (
           <>
-            <button onClick={handleResumeScan} className="px-4 py-2 rounded-lg bg-success-fill text-white font-medium text-sm hover:bg-success-fill transition-colors flex items-center gap-2">▶ Resume Scan</button>
-            <button onClick={handleCancelScan} className="px-3 py-2 rounded-lg bg-danger-fill text-white font-medium text-sm hover:bg-danger-fill transition-colors">✕ Cancel</button>
+            <Button role="primary" icon={<Play size={16} />} onClick={handleResumeScan}>
+              Resume Scan
+            </Button>
+            <Button role="ghost" onClick={handleCancelScan}>
+              Cancel
+            </Button>
           </>
         )}
 
-        <button onClick={() => setShowCustomForm(true)} className="px-4 py-2 rounded-lg bg-success-fill text-white font-medium text-sm hover:bg-success-fill transition-colors">
-          + Add Custom
-        </button>
+        <Button icon={<Plus size={16} />} onClick={() => setShowCustomForm(true)}>
+          Add Custom
+        </Button>
 
         {items.length > 0 && (
-          <button
+          <Button
+            role={selectMode ? 'primary' : 'secondary'}
+            icon={<CheckSquare size={16} />}
             onClick={() => { setSelectMode(!selectMode); if (selectMode) { setSelectedIds(new Set()); setSelectionTick((t) => t + 1) } }}
-            className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${selectMode ? 'bg-info-wash text-info' : 'bg-raised text-fg-muted hover:bg-raised'}`}
           >
-            {selectMode ? `Selected (${selectedIds.size})` : 'Select'}
-          </button>
-        )}
-
-        {selectMode && selectedIds.size > 0 && (
-          <>
-            <button onClick={() => setShowSeriesModal(true)} className="px-3 py-2 rounded-lg bg-info-fill text-white text-sm font-medium hover:bg-info-fill transition-colors">Assign Series</button>
-            <button onClick={handleBatchUnassignSeries} className="px-3 py-2 rounded-lg bg-raised text-white text-sm font-medium hover:bg-raised transition-colors">Unassign Series</button>
-            <button
-              onClick={async () => {
-                const ids = [...selectedIds]
-                if (ids.length === 0) return
-                setBatchSyncing(true)
-                try {
-                  await window.api.library.syncBatch(ids)
-                } catch (e) {
-                  console.error('Batch sync error:', e)
-                }
-                setBatchSyncing(false)
-              }}
-              disabled={batchSyncing}
-              className="px-3 py-2 rounded-lg bg-success-fill text-white text-sm font-medium hover:bg-success-fill disabled:opacity-40 transition-colors"
-            >
-              {batchSyncing ? 'Syncing...' : 'Sync with Nhentai'}
-            </button>
-            <button
-              onClick={() => setShowConvertDialog(true)}
-              disabled={cbzRunning || pdfSelectionCount === 0}
-              title={
-                pdfSelectionCount === 0
-                  ? 'None of the selected files are PDFs'
-                  : `Convert ${pdfSelectionCount} PDF${pdfSelectionCount === 1 ? '' : 's'} to CBZ`
-              }
-              className="px-3 py-2 rounded-lg bg-accent-fill text-white text-sm font-medium hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            >
-              {cbzRunning ? 'Converting…' : `Convert to CBZ${pdfSelectionCount > 0 ? ` (${pdfSelectionCount})` : ''}`}
-            </button>
-            <button onClick={handleBatchRemove} className="px-3 py-2 rounded-lg bg-warning-fill text-white text-sm font-medium hover:bg-warning-fill transition-colors">Remove from Library</button>
-            <button onClick={handleBatchDelete} className="px-3 py-2 rounded-lg bg-danger-fill text-white text-sm font-medium hover:bg-danger-fill transition-colors">Delete Files</button>
-          </>
+            {selectMode ? 'Done' : 'Select'}
+          </Button>
         )}
 
         <div className="flex-1" />
@@ -1000,7 +978,7 @@ export default function LibraryPage(): React.JSX.Element {
 
       {/* Content area */}
       {items.length === 0 ? (
-        <EmptyState icon="📚" title="Library is empty" description="Download your first doujin or add a custom entry to get started" actionLabel="Rescan Library" onAction={handleRescan} />
+        <EmptyState icon={Library} title="Library is empty" description="Download your first doujin or add a custom entry to get started" actionLabel="Rescan Library" onAction={handleRescan} />
       ) : viewMode === 'list' ? (
         <div className="flex-1">
           {/* Column headers */}
@@ -1164,6 +1142,74 @@ export default function LibraryPage(): React.JSX.Element {
             }}
             style={{ height: '100%' }}
           />
+        </div>
+      )}
+
+      {/*
+        Selection bar.
+        Anchored below the grid rather than expanding the toolbar, so the row of
+        batch actions appears next to the cards it acts on and the layout does
+        not jump when select mode is entered. The count gets a home here too.
+
+        Destructive actions sit last, after a divider, in the `danger` role —
+        outlined rather than filled, since a filled red would read as the
+        primary action of the view.
+      */}
+      {selectMode && selectedIds.size > 0 && (
+        <div className="shrink-0 mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-line bg-surface px-3 py-2">
+          <span className="text-sm text-fg">
+            <span className="tnum font-semibold">{selectedIds.size}</span> selected
+          </span>
+
+          <span className="mx-1 h-5 w-px bg-line" />
+
+          <Button size="sm" icon={<Layers size={14} />} onClick={() => setShowSeriesModal(true)}>
+            Assign Series
+          </Button>
+          <Button size="sm" role="ghost" onClick={handleBatchUnassignSeries}>
+            Unassign
+          </Button>
+          <Button
+            size="sm"
+            icon={<RefreshCw size={14} />}
+            onClick={async () => {
+              const ids = [...selectedIds]
+              if (ids.length === 0) return
+              setBatchSyncing(true)
+              try {
+                await window.api.library.syncBatch(ids)
+              } catch {
+                /* the sync worker reports its own failures to the log */
+              }
+              setBatchSyncing(false)
+            }}
+            disabled={batchSyncing}
+          >
+            {batchSyncing ? 'Syncing…' : 'Sync'}
+          </Button>
+          <Button
+            size="sm"
+            icon={<FileArchive size={14} />}
+            onClick={() => setShowConvertDialog(true)}
+            disabled={cbzRunning || pdfSelectionCount === 0}
+            count={pdfSelectionCount}
+            title={
+              pdfSelectionCount === 0
+                ? 'None of the selected files are PDFs'
+                : `Convert ${pdfSelectionCount} PDF${pdfSelectionCount === 1 ? '' : 's'} to CBZ`
+            }
+          >
+            {cbzRunning ? 'Converting…' : 'Convert to CBZ'}
+          </Button>
+
+          <span className="mx-1 h-5 w-px bg-line" />
+
+          <Button size="sm" role="ghost" onClick={handleBatchRemove}>
+            Remove from Library
+          </Button>
+          <Button size="sm" role="danger" icon={<Trash2 size={14} />} onClick={handleBatchDelete}>
+            Delete Files
+          </Button>
         </div>
       )}
 

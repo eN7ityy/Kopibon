@@ -6,6 +6,7 @@ import LoadingSkeleton from '../shared/LoadingSkeleton'
 import EmptyState from '../shared/EmptyState'
 import ErrorState from '../shared/ErrorState'
 import Pagination from '../shared/Pagination'
+import { Star } from 'lucide-react'
 
 interface FavoritesResponse {
   result: GalleryListItem[]
@@ -148,7 +149,7 @@ export default function FavoritesPage(): React.JSX.Element {
           </p>
         </div>
         <EmptyState
-          icon="⭐"
+          icon={Star}
           title="No favorites found"
           description={query ? 'No favorites match your search query.' : 'Favorite some galleries on nhentai.net to see them here.'}
         />

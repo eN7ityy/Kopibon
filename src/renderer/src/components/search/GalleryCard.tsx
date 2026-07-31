@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { BookOpen } from 'lucide-react'
 import type { GalleryListItem, DownloadStatus } from '../../types/api.types'
 import StatusBadge from '../shared/StatusBadge'
 
@@ -42,7 +43,7 @@ export default function GalleryCard({
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-fg-faint">
-            <span className="text-3xl">📖</span>
+            <BookOpen size={32} strokeWidth={1.5} aria-hidden="true" />
           </div>
         )}
 

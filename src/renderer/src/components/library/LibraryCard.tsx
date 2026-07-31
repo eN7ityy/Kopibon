@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useIsConverting } from '../../stores/cbz-conversion.store'
+import { BookOpen, FolderOpen, ListX, Trash2 } from 'lucide-react'
 
 // ─── Types matching library_item DB schema ──────────────────────────────────
 
@@ -147,7 +148,7 @@ export default function LibraryCard({
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-fg-faint">
-              <span className={compact ? 'text-xl' : 'text-3xl'}>📖</span>
+              <BookOpen size={compact ? 20 : 32} strokeWidth={1.5} aria-hidden="true" />
             </div>
           )}
 
@@ -199,26 +200,26 @@ export default function LibraryCard({
             onClick={() => handleContextAction('open')}
             className="w-full text-left px-3 py-2 hover:bg-raised text-fg flex items-center gap-2"
           >
-            <span>📖</span> Open File
+            <BookOpen size={14} aria-hidden="true" /> Open File
           </button>
           <button
             onClick={() => handleContextAction('folder')}
             className="w-full text-left px-3 py-2 hover:bg-raised text-fg flex items-center gap-2"
           >
-            <span>📂</span> Open Folder
+            <FolderOpen size={14} aria-hidden="true" /> Open Folder
           </button>
           <div className="border-t border-line my-1" />
           <button
             onClick={() => handleContextAction('remove')}
             className="w-full text-left px-3 py-2 hover:bg-raised text-warning flex items-center gap-2"
           >
-            <span>📋</span> Remove from Library
+            <ListX size={14} aria-hidden="true" /> Remove from Library
           </button>
           <button
             onClick={() => handleContextAction('deleteFile')}
             className="w-full text-left px-3 py-2 hover:bg-raised text-danger flex items-center gap-2"
           >
-            <span>🗑️</span> Delete File
+            <Trash2 size={14} aria-hidden="true" /> Delete File
           </button>
         </div>
       )}

@@ -3,6 +3,7 @@ import type { DownloadQueueItem, DownloadProgressEvent } from '../../types/api.t
 import DownloadItem from './DownloadItem'
 import EmptyState from '../shared/EmptyState'
 import LoadingSkeleton from '../shared/LoadingSkeleton'
+import { Download } from 'lucide-react'
 
 interface GalleryInfo {
   title: string
@@ -246,7 +247,7 @@ export default function DownloadsPage(): React.JSX.Element {
 
       {!hasContent && (
         <EmptyState
-          icon="⬇️"
+          icon={Download}
           title="No active downloads"
           description="Search for doujinshi and add them to the download queue"
         />
