@@ -252,7 +252,34 @@ function runMigrations(sqlite: Database.Database): void {
       created_at INTEGER NOT NULL DEFAULT (unixepoch())
     );
 
+    CREATE TABLE IF NOT EXISTS blocked_value (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      type TEXT NOT NULL,
+      value TEXT NOT NULL,
+      mode TEXT NOT NULL DEFAULT 'exclude',
+      created_at INTEGER NOT NULL DEFAULT (unixepoch())
+    );
+
+    CREATE TABLE IF NOT EXISTS tag_cache (
+      id INTEGER PRIMARY KEY,
+      type TEXT NOT NULL,
+      name TEXT NOT NULL,
+      updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+    );
+
   `)
+
+  /*
+   * One blocked entry per type+value. NOCASE so 'Yuri' and 'yuri' cannot both be
+   * added — they would produce two identical negations in every search query.
+   */
+  sqlite.exec(
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_blocked_value_type_value
+       ON blocked_value(type, value COLLATE NOCASE)`
+  )
+
+  // Dim mode looks tags up by name for every result on screen.
+  sqlite.exec('CREATE INDEX IF NOT EXISTS idx_tag_cache_name ON tag_cache(name COLLATE NOCASE)')
 
   // Safe migration: add columns only if they don't exist
   const libraryItemCols = sqlite

@@ -119,6 +119,60 @@ export const libraryScanLog = sqliteTable('library_scan_log', {
   errorsJson: text('errors_json').default('[]')
 })
 
+// ─── Blocked Values ─────────────────────────────────────────────────────────
+
+/**
+ * User-defined values to keep out of, or mark up in, search results.
+ *
+ * `mode` is per entry rather than a single global setting, because the two are
+ * genuinely different jobs:
+ *
+ *   'exclude' — appended to the search query as a negation (`-tag:"x"`), so the
+ *               gallery never arrives. Cheap, and the result counts stay honest.
+ *   'dim'     — the gallery still arrives and is marked in the grid. Requires
+ *               knowing the result's tag names, which search does not return, so
+ *               these rely on the tag cache below.
+ *
+ * `type` is one of the nhentai tag types, or 'text' for a free-text phrase that
+ * matches the title.
+ */
+export const blockedValue = sqliteTable(
+  'blocked_value',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    /** 'tag' | 'artist' | 'group' | 'parody' | 'character' | 'language' | 'text' */
+    type: text('type').notNull(),
+    /** Stored as entered; matched case-insensitively. */
+    value: text('value').notNull(),
+    /** 'exclude' | 'dim' */
+    mode: text('mode').notNull().default('exclude'),
+    createdAt: integer('created_at').notNull().default(Date.now())
+  },
+  (table) => ({
+    // One entry per type+value. Without this, adding the same tag twice would
+    // put a duplicate negation in every query.
+    uniqueTypeValue: uniqueIndex('idx_blocked_value_type_value').on(table.type, table.value)
+  })
+)
+
+// ─── Tag Cache ──────────────────────────────────────────────────────────────
+
+/**
+ * Tag id → name, populated from `GET /api/v2/tags/ids`.
+ *
+ * Search results carry `tag_ids` and no names, so without this there is no way
+ * to tell whether a result holds a blocked tag — which is what 'dim' mode needs.
+ * Persisted rather than held in memory because the endpoint is rate limited
+ * (15/min) and tag ids are stable, so a resolved id never needs fetching again.
+ */
+export const tagCache = sqliteTable('tag_cache', {
+  /** The nhentai tag id. */
+  id: integer('id').primaryKey(),
+  type: text('type').notNull(),
+  name: text('name').notNull(),
+  updatedAt: integer('updated_at').notNull().default(Date.now())
+})
+
 // ─── Scan Queue ─────────────────────────────────────────────────────────────
 
 export const scanQueue = sqliteTable('scan_queue', {
