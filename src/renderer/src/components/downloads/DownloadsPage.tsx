@@ -161,7 +161,7 @@ export default function DownloadsPage(): React.JSX.Element {
     const item = allItems.find((i) => i.id === id)
     if (item) {
       await window.api.downloads.remove(id)
-      await window.api.downloads.addToQueue(item.galleryId)
+      await window.api.downloads.addToQueue(item.galleryId, (item as any).outputFormat)
     }
     fetchDownloads()
   }

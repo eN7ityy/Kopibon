@@ -4,6 +4,8 @@ import { useEffect } from 'react'
 import AppRoutes from './routes'
 import { useUiStore } from './stores/ui.store'
 import { useSettingsStore } from './stores/settings.store'
+import { setupSyncProgressListeners } from './stores/sync-progress.store'
+import { setupCbzConversionListeners, useCbzConversionStore } from './stores/cbz-conversion.store'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -24,6 +26,37 @@ function App(): React.JSX.Element {
   useEffect(() => {
     loadSettings()
   }, [loadSettings])
+
+  /**
+   * Register background-job listeners once, for the life of the app.
+   *
+   * These used to be set up inside the progress-bar components, which tore them
+   * down on unmount — so navigating away from the library genuinely stopped
+   * progress from being tracked, despite a comment claiming otherwise. App never
+   * unmounts, so a multi-hour conversion now keeps reporting wherever the user
+   * goes, and its state is correct when they come back.
+   */
+  useEffect(() => {
+    const offSync = setupSyncProgressListeners()
+    const offCbz = setupCbzConversionListeners()
+
+    // Progress arrives as events, so a window opened while a conversion is
+    // already running would show nothing busy — and offer edits the main process
+    // refuses. Ask for the current state once at startup.
+    window.api.library
+      .getCbzConversionState()
+      .then((r) => {
+        if (r?.success && r.data?.running) useCbzConversionStore.getState().hydrate(r.data)
+      })
+      .catch(() => {
+        /* absence of a running job is the safe assumption */
+      })
+
+    return () => {
+      offSync()
+      offCbz()
+    }
+  }, [])
 
   useEffect(() => {
     const root = document.documentElement

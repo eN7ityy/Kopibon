@@ -8,6 +8,23 @@
   --color-sidebar-active: #45475a;
   --color-accent: #cba6f7;
   --color-accent-hover: #b4befe;
+
+  --animate-progress-indeterminate: progress-indeterminate 1.4s ease-in-out infinite;
+}
+
+/*
+ * Indeterminate progress: a segment sweeping the track, used when a job is
+ * working but cannot report a total (early library scan, for one). The previous
+ * approach was a static 10% fill, which reads as stalled progress rather than
+ * as activity.
+ */
+@keyframes progress-indeterminate {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(300%);
+  }
 }
 
 html,

@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { JOB_SUMMARY_MS } from './sync-progress.store'
 
 export interface ConversionState {
   running: boolean
@@ -9,8 +10,16 @@ export interface ConversionState {
   etaSeconds: number
   logLines: string[]
   startTime: number | null
+  /**
+   * Terminal summary, matching the other job stores. This job previously ended
+   * silently outside the Settings log pane, so a user watching from the library
+   * never learned whether it had finished or failed.
+   */
+  lastMessage: string | null
 
   setRunning: (running: boolean) => void
+  /** Record the outcome and clear the summary after the shared delay. */
+  finish: (summary: string) => void
   updateProgress: (data: {
     current: number
     total: number
@@ -31,12 +40,23 @@ export const useConversionStore = create<ConversionState>()((set, get) => ({
   etaSeconds: 0,
   logLines: [],
   startTime: null,
+  lastMessage: null,
 
   setRunning: (running) =>
     set({
       running,
-      startTime: running ? Date.now() : null
+      startTime: running ? Date.now() : null,
+      lastMessage: running ? null : get().lastMessage
     }),
+
+  finish: (summary) => {
+    set({ running: false, etaSeconds: 0, lastMessage: summary })
+    setTimeout(() => {
+      if (!useConversionStore.getState().running) {
+        useConversionStore.setState({ lastMessage: null, current: 0, total: 0 })
+      }
+    }, JOB_SUMMARY_MS)
+  },
 
   updateProgress: (data) => {
     const state = get()
@@ -73,6 +93,7 @@ export const useConversionStore = create<ConversionState>()((set, get) => ({
       failed: 0,
       etaSeconds: 0,
       logLines: [],
-      startTime: null
+      startTime: null,
+      lastMessage: null
     })
 }))

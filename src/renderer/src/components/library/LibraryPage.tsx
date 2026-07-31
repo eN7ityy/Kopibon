@@ -13,7 +13,10 @@ import ErrorState from '../shared/ErrorState'
 import LoadingSkeleton from '../shared/LoadingSkeleton'
 import { useConversionStore } from '../../stores/conversion.store'
 import { useSettingsStore } from '../../stores/settings.store'
-import SyncProgressBar from './SyncProgressBar'
+import ConvertToCbzDialog from './ConvertToCbzDialog'
+import { useCbzConversionStore } from '../../stores/cbz-conversion.store'
+import { useGlobalJobs, type ProgressJob } from '../../stores/job-progress'
+import { ProgressStack } from '../shared/ProgressBar'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -261,6 +264,7 @@ function InlineEditCell({
 export default function LibraryPage(): React.JSX.Element {
   const navigate = useNavigate()
   const conversionStore = useConversionStore()
+  const cbzRunning = useCbzConversionStore((s) => s.running)
   // Single source of truth for where the library lives — this page used to
   // hardcode a path, so changing the setting had no effect on scanning.
   const libraryRoot = useSettingsStore((s) => s.libraryPath)
@@ -292,6 +296,7 @@ export default function LibraryPage(): React.JSX.Element {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [, setSelectionTick] = useState(0)
   const [batchSyncing, setBatchSyncing] = useState(false)
+  const [showConvertDialog, setShowConvertDialog] = useState(false)
   const [selectMode, setSelectMode] = useState(false)
   const [showSeriesModal, setShowSeriesModal] = useState(false)
   const [showCustomForm, setShowCustomForm] = useState(false)
@@ -580,6 +585,41 @@ export default function LibraryPage(): React.JSX.Element {
     fetchPage(0, true)
   }
 
+  /**
+   * Convert the selected PDFs to CBZ.
+   *
+   * Only PDFs are sent; the main process filters again and reports `skipped`, so
+   * a mixed selection is fine. The await runs for as long as the whole batch
+   * does — progress arrives on its own channel, and the store is driven by those
+   * events rather than by this promise.
+   */
+  const handleBatchConvertToCbz = async (keepOriginal: boolean): Promise<void> => {
+    const ids = items.filter((i) => selectedIds.has(i.id) && (i.format || 'pdf') === 'pdf').map((i) => i.id)
+    if (ids.length === 0) return
+    useCbzConversionStore.getState().begin(ids.length)
+    try {
+      const r = await window.api.library.convertToCbz(ids, false, { keepOriginal })
+      if (!r?.success) setError(r?.error || 'Conversion failed')
+      else if (r.data?.forcedKeeps > 0) {
+        setError(
+          `${r.data.forcedKeeps} original PDF${r.data.forcedKeeps === 1 ? ' was' : 's were'} kept ` +
+          `because that conversion needed the fallback converter — the PDF is the better copy. ` +
+          `They are in _originals/_lossy/.`
+        )
+      }
+    } catch (e) {
+      setError(String(e))
+    } finally {
+      // The store is also finished by the running:false event; this covers a
+      // handler that returned early (e.g. the library-path guard) and never
+      // emitted one.
+      useCbzConversionStore.getState().finish()
+      setSelectedIds(new Set())
+      setSelectionTick((t) => t + 1)
+      fetchPage(0, true)
+    }
+  }
+
   const handleBatchUnassignSeries = async () => {
     const ids = [...selectedIds]
     for (const id of ids) {
@@ -598,6 +638,38 @@ export default function LibraryPage(): React.JSX.Element {
     }
     setSelectionTick((t) => t + 1)
   }
+
+  /**
+   * How many of the selected items can actually be converted.
+   *
+   * Shown in the button label so a selection of already-converted CBZs reads as
+   * "nothing to do" rather than starting a batch that silently skips everything.
+   */
+  const pdfSelectionCount = items.reduce(
+    (n, i) => (selectedIds.has(i.id) && (i.format || 'pdf') === 'pdf' ? n + 1 : n),
+    0
+  )
+
+  // ─── Progress ──────────────────────────────────────────────────────────────
+
+  // Global jobs (sync, both conversions) come from their stores; the scan is
+  // owned by this page, so it is prepended here. All of them render through the
+  // same component in one stack under the header.
+  const globalJobs = useGlobalJobs()
+  const jobs: ProgressJob[] = []
+  if (scanning && scanProgress) {
+    jobs.push({
+      id: 'scan',
+      label: scanProgress.status || 'Scanning library',
+      current: scanProgress.current,
+      // 0 until the walk finishes counting — the bar shows motion rather than a
+      // fake 10% fill, which is what it used to do.
+      total: scanProgress.total,
+      tone: 'read',
+      onCancel: handleCancelScan
+    })
+  }
+  jobs.push(...globalJobs)
 
   // ─── Filter Toggles ────────────────────────────────────────────────────────
 
@@ -708,19 +780,13 @@ export default function LibraryPage(): React.JSX.Element {
           )}
         </p>
       </div>
-      <SyncProgressBar />
+      <ProgressStack jobs={jobs} />
 
       {/* Error banner */}
       {error && (
         <div className="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 text-sm flex items-center justify-between">
           <span>⚠️ {error}</span>
           <button onClick={() => setError(null)} className="ml-2 text-red-500 hover:text-red-700 dark:hover:text-red-300">✕</button>
-          {conversionStore.running && (
-            <div className="mt-1 p-1.5 rounded bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 text-orange-700 dark:text-orange-400 text-xs flex items-center gap-2">
-              <div className="w-3 h-3 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
-              Converting metadata... {conversionStore.current}/{conversionStore.total}
-            </div>
-          )}
         </div>
       )}
 
@@ -794,6 +860,18 @@ export default function LibraryPage(): React.JSX.Element {
             >
               {batchSyncing ? 'Syncing...' : 'Sync with Nhentai'}
             </button>
+            <button
+              onClick={() => setShowConvertDialog(true)}
+              disabled={cbzRunning || pdfSelectionCount === 0}
+              title={
+                pdfSelectionCount === 0
+                  ? 'None of the selected files are PDFs'
+                  : `Convert ${pdfSelectionCount} PDF${pdfSelectionCount === 1 ? '' : 's'} to CBZ`
+              }
+              className="px-3 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              {cbzRunning ? 'Converting…' : `Convert to CBZ${pdfSelectionCount > 0 ? ` (${pdfSelectionCount})` : ''}`}
+            </button>
             <button onClick={handleBatchRemove} className="px-3 py-2 rounded-lg bg-orange-600 text-white text-sm font-medium hover:bg-orange-700 transition-colors">Remove from Library</button>
             <button onClick={handleBatchDelete} className="px-3 py-2 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700 transition-colors">Delete Files</button>
           </>
@@ -857,18 +935,6 @@ export default function LibraryPage(): React.JSX.Element {
       </div>
 
       {/* Scan progress bar */}
-      {scanning && scanProgress && (
-        <div className="mb-4">
-          <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
-            <span>{scanProgress.status}</span>
-            <span>{scanProgress.total > 0 ? `${scanProgress.current}/${scanProgress.total}` : '...'}</span>
-          </div>
-          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-            <div className="bg-purple-600 h-2 rounded-full transition-all duration-300" style={{ width: scanProgress.total > 0 ? `${(scanProgress.current / scanProgress.total) * 100}%` : '10%' }} />
-          </div>
-        </div>
-      )}
-
       {/* Filter panel */}
       {showFilters && (
         <div className="mb-4 p-4 rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700">
@@ -1097,6 +1163,18 @@ export default function LibraryPage(): React.JSX.Element {
             style={{ height: '100%' }}
           />
         </div>
+      )}
+
+      {/* Convert to CBZ — asks what to do with the source PDFs */}
+      {showConvertDialog && (
+        <ConvertToCbzDialog
+          count={pdfSelectionCount}
+          onCancel={() => setShowConvertDialog(false)}
+          onConfirm={(keepOriginal) => {
+            setShowConvertDialog(false)
+            void handleBatchConvertToCbz(keepOriginal)
+          }}
+        />
       )}
 
       {/* Series Assignment Modal */}
