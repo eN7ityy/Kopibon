@@ -67,7 +67,7 @@ export default function ConvertToCbzDialog({
                 Keep the original PDFs
               </span>
               <span className="block text-xs text-fg-muted mt-0.5">
-                Moved to <code className="text-[11px]">_originals/</code> in your library. Uses
+                Moved to <code className="text-label">_originals/</code> in your library. Uses
                 roughly twice the disk space, and lets you go back.
               </span>
             </span>

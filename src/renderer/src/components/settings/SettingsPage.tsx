@@ -10,6 +10,9 @@ import ProgressBar from '../shared/ProgressBar'
 import ToolchainStatus from './ToolchainStatus'
 import UpdateStatus from './UpdateStatus'
 import LogsPage from './LogsPage'
+import { Check, Trash2, X } from 'lucide-react'
+import Notice from '../shared/Notice'
+import Button from '../shared/Button'
 
 type ValidationState =
   | { status: 'idle' }
@@ -93,7 +96,7 @@ export default function SettingsPage(): React.JSX.Element {
   return (
     <div className="flex flex-col h-full max-w-2xl">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-fg">Settings</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-fg">Settings</h1>
         <p className="mt-1 text-sm text-fg-muted">
           Configure application preferences
         </p>
@@ -102,7 +105,7 @@ export default function SettingsPage(): React.JSX.Element {
       <div className="space-y-6">
         {/* Library */}
         <section>
-          <h2 className="text-lg font-semibold text-fg mb-3">Library</h2>
+          <h2 className="text-section font-semibold text-fg mb-3">Library</h2>
           <div className="space-y-3">
             <div>
               <label className="block text-sm font-medium text-fg mb-1">
@@ -123,7 +126,7 @@ export default function SettingsPage(): React.JSX.Element {
 
         {/* Nhentai Account */}
         <section>
-          <h2 className="text-lg font-semibold text-fg mb-3">
+          <h2 className="text-section font-semibold text-fg mb-3">
             Nhentai Account
           </h2>
           <div className="space-y-3">
@@ -155,7 +158,7 @@ export default function SettingsPage(): React.JSX.Element {
               ) : (
                 <div className="px-4 py-3 rounded-lg bg-success-wash border border-success flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="text-success text-lg">✓</span>
+                    <Check size={18} className="text-success" aria-hidden="true" />
                     <div>
                       <p className="text-sm font-medium text-success">
                         API Key Configured
@@ -177,7 +180,7 @@ export default function SettingsPage(): React.JSX.Element {
               {/* Validation error */}
               {validation.status === 'invalid' && (
                 <p className="mt-2 text-sm text-danger flex items-center gap-1">
-                  <span>✗</span>
+                  <X size={14} aria-hidden="true" />
                   <span>{validation.error}</span>
                 </p>
               )}
@@ -191,7 +194,7 @@ export default function SettingsPage(): React.JSX.Element {
 
         {/* Downloads */}
         <section>
-          <h2 className="text-lg font-semibold text-fg mb-3">
+          <h2 className="text-section font-semibold text-fg mb-3">
             Downloads
           </h2>
           <div className="space-y-3">
@@ -246,7 +249,7 @@ export default function SettingsPage(): React.JSX.Element {
                     Keep original PDFs after converting
                   </label>
                   <p className="mt-0.5 text-xs text-fg-faint">
-                    Archives them under <code className="text-[11px]">_originals/</code> instead of
+                    Archives them under <code className="text-label">_originals/</code> instead of
                     deleting. Roughly doubles disk use. This is only the default — each conversion
                     asks.
                   </p>
@@ -334,7 +337,7 @@ export default function SettingsPage(): React.JSX.Element {
 
         {/* Interface */}
         <section>
-          <h2 className="text-lg font-semibold text-fg mb-3">
+          <h2 className="text-section font-semibold text-fg mb-3">
             Interface
           </h2>
           <div className="space-y-3">
@@ -355,45 +358,10 @@ export default function SettingsPage(): React.JSX.Element {
           </div>
         </section>
 
-        {/* Reset Library */}
-        <section>
-          <h2 className="text-lg font-semibold text-danger mb-3">Reset Library</h2>
-          <div className="p-4 rounded-lg border border-danger bg-danger-wash space-y-3">
-            <p className="text-sm text-danger">
-              This will permanently delete all library items from the database. Files on disk are <strong>not</strong> affected.
-            </p>
-            <div>
-              <label className="block text-xs font-medium text-danger mb-1">
-                Type <code className="font-mono bg-danger-wash px-1 rounded">DELETE ALL</code> to confirm
-              </label>
-              <input
-                type="text"
-                value={resetConfirm}
-                onChange={(e) => setResetConfirm(e.target.value)}
-                placeholder="DELETE ALL"
-                className="w-full px-3 py-2 rounded-lg border border-danger bg-surface text-sm text-fg focus:ring-2 focus:ring-danger"
-              />
-            </div>
-            {resetError && (
-              <p className="text-xs text-danger">{resetError}</p>
-            )}
-            {resetSuccess && (
-              <p className="text-xs text-success">✓ Library reset successfully</p>
-            )}
-            <button
-              onClick={handleResetLibrary}
-              disabled={resetConfirm !== 'DELETE ALL' || resetting}
-              className="px-4 py-2 rounded-lg bg-danger-fill text-white text-sm font-medium hover:bg-danger-fill disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {resetting ? 'Resetting...' : 'Reset Library'}
-            </button>
-          </div>
-        </section>
-
         {/* Required tools — not bundled, and the app degrades quietly without
             them, so this is deliberately its own section rather than a footnote */}
         <section>
-          <h2 className="text-lg font-semibold text-fg mb-3">
+          <h2 className="text-section font-semibold text-fg mb-3">
             Required Tools
           </h2>
           <ToolchainStatus />
@@ -404,11 +372,67 @@ export default function SettingsPage(): React.JSX.Element {
 
         {/* Advanced */}
         <section>
-          <h2 className="text-lg font-semibold text-fg mb-3">Advanced</h2>
+          <h2 className="text-section font-semibold text-fg mb-3">Advanced</h2>
           <div className="space-y-3">
             <UpdateStatus />
             <MetadataConverter />
             <AppVersion />
+          </div>
+        </section>
+
+        {/*
+          Destructive settings, last and visually separated.
+
+          This sat in the middle of the page, between the output settings and
+          Required Tools, marked only by red heading text — so scrolling past it
+          to reach Logs meant scrolling through it. Irreversible actions belong at
+          the end, behind a boundary you have to cross deliberately.
+        */}
+        <section aria-labelledby="danger-zone" className="pt-2">
+          <div className="border-t border-danger/40 pt-5">
+            <h2 id="danger-zone" className="text-section font-semibold text-danger mb-1">
+              Danger Zone
+            </h2>
+            <p className="text-sm text-fg-muted mb-3">
+              These actions cannot be undone.
+            </p>
+
+            <div className="p-4 rounded-lg border border-danger bg-danger-wash space-y-3">
+              <div>
+                <h3 className="text-sm font-semibold text-fg">Reset library</h3>
+                <p className="text-sm text-fg-muted mt-0.5">
+                  Removes every item from the database. Files on disk are{' '}
+                  <strong className="text-fg">not</strong> deleted, so a rescan will find them
+                  again.
+                </p>
+              </div>
+
+              <div>
+                <label htmlFor="reset-confirm" className="block text-label mb-1 text-fg-muted">
+                  Type <code className="font-mono text-fg">DELETE ALL</code> to confirm
+                </label>
+                <input
+                  id="reset-confirm"
+                  type="text"
+                  value={resetConfirm}
+                  onChange={(e) => setResetConfirm(e.target.value)}
+                  placeholder="DELETE ALL"
+                  className="w-full max-w-xs px-3 py-2 rounded-lg border border-danger bg-surface text-sm text-fg focus:ring-2 focus:ring-danger"
+                />
+              </div>
+
+              {resetError && <Notice tone="error">{resetError}</Notice>}
+              {resetSuccess && <Notice tone="success">Library reset.</Notice>}
+
+              <Button
+                role="danger"
+                icon={<Trash2 size={16} />}
+                onClick={handleResetLibrary}
+                disabled={resetConfirm !== 'DELETE ALL' || resetting}
+              >
+                {resetting ? 'Resetting…' : 'Reset library'}
+              </Button>
+            </div>
           </div>
         </section>
 
@@ -422,7 +446,9 @@ export default function SettingsPage(): React.JSX.Element {
             {saveState === 'saving' ? 'Saving...' : 'Save Settings'}
           </button>
           {saveState === 'saved' && (
-            <span className="text-sm text-success">✓ Settings saved</span>
+            <span className="text-sm text-success inline-flex items-center gap-1">
+              <Check size={14} aria-hidden="true" /> Settings saved
+            </span>
           )}
         </div>
       </div>
@@ -535,7 +561,7 @@ function MetadataConverter(): React.JSX.Element {
       {showConfirm && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
           <div className="bg-surface rounded-xl p-6 max-w-md mx-4 shadow-2xl">
-            <h3 className="text-lg font-semibold text-fg mb-2">Convert Library Metadata?</h3>
+            <h3 className="text-section font-semibold text-fg mb-2">Convert Library Metadata?</h3>
             <p className="text-sm text-fg-muted mb-4">
               This will rewrite XMP metadata on ALL files in your library using pikepdf. This may take several minutes for large libraries. Downloads and other operations will not be affected.
             </p>

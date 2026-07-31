@@ -123,61 +123,21 @@ export default function FavoritesPage(): React.JSX.Element {
     [resolveDownloadStatuses]
   )
 
-  if (pageState.status === 'loading') {
-    return (
-      <div className="flex flex-col h-full">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-fg">Favorites</h1>
-          <p className="mt-1 text-sm text-fg-muted">
-            Browse your nhentai favorites
-          </p>
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-          <LoadingSkeleton count={12} variant="card" />
-        </div>
-      </div>
-    )
-  }
+  // One header, outside the state switch.
+  //
+  // It was previously repeated in all four branches, and had already drifted:
+  // the error branch was missing the description the other three had. Rendering
+  // it once means a change lands everywhere, and the search form no longer
+  // disappears while a page loads.
+  const header = (
+    <div className="mb-4 shrink-0">
+      <h1 className="text-2xl font-bold tracking-tight text-fg">Favorites</h1>
+      <p className="mt-1 text-sm text-fg-muted">Browse your nhentai favorites</p>
+    </div>
+  )
 
-  if (pageState.status === 'empty') {
-    return (
-      <div className="flex flex-col h-full">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-fg">Favorites</h1>
-          <p className="mt-1 text-sm text-fg-muted">
-            Browse your nhentai favorites
-          </p>
-        </div>
-        <EmptyState
-          icon={Star}
-          title="No favorites found"
-          description={query ? 'No favorites match your search query.' : 'Favorite some galleries on nhentai.net to see them here.'}
-        />
-      </div>
-    )
-  }
-
-  if (pageState.status === 'error') {
-    return (
-      <div className="flex flex-col h-full">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-fg">Favorites</h1>
-        </div>
-        <ErrorState message={pageState.error} onRetry={() => fetchFavorites(page, query || undefined)} />
-      </div>
-    )
-  }
-
-  return (
-    <div className="flex flex-col h-full">
-      <div className="mb-4">
-        <h1 className="text-2xl font-bold text-fg">Favorites</h1>
-        <p className="mt-1 text-sm text-fg-muted">
-          Browse your nhentai favorites
-        </p>
-      </div>
-
-      <form onSubmit={handleSearch} className="flex gap-2 mb-4">
+  const searchForm = (
+    <form onSubmit={handleSearch} className="flex gap-2 mb-4 shrink-0">
         <input
           type="text"
           value={searchInput}
@@ -205,6 +165,48 @@ export default function FavoritesPage(): React.JSX.Element {
           </button>
         )}
       </form>
+  )
+
+  if (pageState.status === 'loading') {
+    return (
+      <div className="flex flex-col h-full">
+        {header}
+        {searchForm}
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+          <LoadingSkeleton count={12} variant="card" />
+        </div>
+      </div>
+    )
+  }
+
+  if (pageState.status === 'error') {
+    return (
+      <div className="flex flex-col h-full">
+        {header}
+        {searchForm}
+        <ErrorState message={pageState.error} onRetry={() => fetchFavorites(page, query || undefined)} />
+      </div>
+    )
+  }
+
+  if (pageState.status === 'empty') {
+    return (
+      <div className="flex flex-col h-full">
+        {header}
+        {searchForm}
+        <EmptyState
+          icon={Star}
+          title="No favorites found"
+          description={query ? 'No favorites match your search query.' : 'Favorite some galleries on nhentai.net to see them here.'}
+        />
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col h-full">
+      {header}
+      {searchForm}
 
       <div className="flex-1 overflow-y-auto">
         <GalleryGrid

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { BookOpen } from 'lucide-react'
+import { BookOpen, Star } from 'lucide-react'
 import type { GalleryListItem, DownloadStatus } from '../../types/api.types'
 import StatusBadge from '../shared/StatusBadge'
 
@@ -66,7 +66,10 @@ export default function GalleryCard({
           <div className="flex items-center gap-2 text-xs text-fg-faint flex-shrink-0">
             <span className="whitespace-nowrap">{gallery.num_pages || 0} pages</span>
             {gallery.num_favorites > 0 && (
-              <span className="whitespace-nowrap">★ {gallery.num_favorites.toLocaleString()}</span>
+              <span className="whitespace-nowrap inline-flex items-center gap-0.5">
+                <Star size={11} aria-hidden="true" />
+                <span className="tnum">{gallery.num_favorites.toLocaleString()}</span>
+              </span>
             )}
           </div>
         </div>

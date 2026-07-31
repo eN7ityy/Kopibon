@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import AutocompleteInput from '../shared/AutocompleteInput'
 import type { LibraryItemData } from './LibraryCard'
+import { FileText } from 'lucide-react'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -121,7 +122,7 @@ export default function SeriesAssignment({
       >
         {/* Header */}
         <div className="px-6 py-4 border-b border-line">
-          <h2 className="text-lg font-semibold text-fg">
+          <h2 className="text-section font-semibold text-fg">
             Assign Series
           </h2>
           <p className="text-sm text-fg-muted mt-1">
@@ -155,7 +156,7 @@ export default function SeriesAssignment({
                   key={item.id}
                   className="flex items-center gap-2 text-sm py-1 px-2 rounded hover:bg-raised"
                 >
-                  <span className="text-accent shrink-0">📄</span>
+                  <FileText size={14} className="text-accent shrink-0" aria-hidden="true" />
                   <input
                     type="text"
                     readOnly

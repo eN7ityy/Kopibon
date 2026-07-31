@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import type { PageInfo } from '../../types/api.types'
+import { BookOpen, X } from 'lucide-react'
 
 interface GalleryViewerProps {
   galleryId: number
@@ -207,7 +208,7 @@ export default function GalleryViewer({
           {pages.length === 0 ? (
             <div className="flex-1 flex items-center justify-center text-reader-muted p-6">
               <div className="text-center">
-                <span className="text-5xl block mb-4">📖</span>
+                <BookOpen size={40} strokeWidth={1.5} className="mx-auto mb-4" aria-hidden="true" />
                 <p>No pages available</p>
                 <button
                   onClick={onClose}
@@ -358,7 +359,7 @@ export default function GalleryViewer({
             onClick={exitReadingMode}
             className="text-white/70 hover:text-danger transition-colors text-sm font-medium"
           >
-            ✕ Exit
+            <X size={14} aria-hidden="true" /> Exit
           </button>
         </div>
       </div>
@@ -413,7 +414,7 @@ function ThumbnailItem({
           </>
         ) : (
           <div className="w-full h-full flex items-center justify-center text-reader-muted">
-            <span className="text-3xl">📖</span>
+            <BookOpen size={28} strokeWidth={1.5} aria-hidden="true" />
           </div>
         )}
 

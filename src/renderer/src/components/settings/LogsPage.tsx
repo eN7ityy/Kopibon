@@ -174,7 +174,7 @@ export default function LogsPage(): React.JSX.Element {
 
   return (
     <section>
-      <h2 className="text-lg font-semibold text-fg mb-3">
+      <h2 className="text-section font-semibold text-fg mb-3">
         Application Log
       </h2>
 
@@ -319,7 +319,7 @@ export default function LogsPage(): React.JSX.Element {
 
               {/* Level dot + label */}
               <span
-                className={`shrink-0 w-12 text-center rounded px-1 text-[10px] font-semibold ${LEVEL_COLORS[r.level]}`}
+                className={`shrink-0 w-12 text-center rounded px-1 text-label font-semibold ${LEVEL_COLORS[r.level]}`}
               >
                 {r.level}
               </span>

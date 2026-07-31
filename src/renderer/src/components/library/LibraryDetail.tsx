@@ -5,6 +5,7 @@ import CbzViewer from './CbzViewer'
 import type { LibraryItemData } from './LibraryCard'
 import { useCbzConversionStore, useIsConverting } from '../../stores/cbz-conversion.store'
 import ConvertToCbzDialog from './ConvertToCbzDialog'
+import { AlertTriangle, BookOpen, FileArchive, FolderOpen, ListX, Loader2, Pencil, Trash2, X } from 'lucide-react'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -278,7 +279,7 @@ export default function LibraryDetail({
         <div className="relative w-full max-w-md bg-surface shadow-2xl overflow-y-auto" onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="sticky top-0 bg-surface border-b border-line px-6 py-4 flex items-center justify-between z-10">
-          <h2 className="text-lg font-semibold text-fg truncate">{detail.customTitle || 'Item Detail'}</h2>
+          <h2 className="text-section font-semibold text-fg truncate">{detail.customTitle || 'Item Detail'}</h2>
           <button onClick={onClose} className="p-1 rounded-lg hover:bg-raised text-fg-faint hover:text-fg">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
@@ -292,7 +293,7 @@ export default function LibraryDetail({
             >
               <img src={thumbDataUrl} alt={detail.customTitle || 'Cover'} draggable={false} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
               <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
-                <span className="text-white font-medium opacity-0 group-hover:opacity-100 transition-opacity">📖 Read</span>
+                <span className="text-white font-medium opacity-0 group-hover:opacity-100 transition-opacity inline-flex items-center gap-1"><BookOpen size={14} aria-hidden="true" /> Read</span>
               </div>
             </button>
           ) : (
@@ -301,10 +302,10 @@ export default function LibraryDetail({
               className="aspect-[3/4] w-full rounded-lg overflow-hidden bg-raised group relative"
             >
               <div className="w-full h-full flex items-center justify-center text-fg-faint">
-                <span className="text-4xl">📖</span>
+                <BookOpen size={36} strokeWidth={1.5} aria-hidden="true" />
               </div>
               <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
-                <span className="text-white font-medium opacity-0 group-hover:opacity-100 transition-opacity">📖 Read</span>
+                <span className="text-white font-medium opacity-0 group-hover:opacity-100 transition-opacity inline-flex items-center gap-1"><BookOpen size={14} aria-hidden="true" /> Read</span>
               </div>
             </button>
           )}
@@ -506,14 +507,16 @@ export default function LibraryDetail({
               )}
 
               <div className="flex gap-2">
-                <button onClick={handleOpenFile} className="flex-1 px-4 py-2 rounded-lg bg-accent-fill text-white text-sm font-medium hover:bg-accent-hover">📖 Open File</button>
-                <button onClick={handleOpenFolder} className="flex-1 px-4 py-2 rounded-lg bg-raised text-sm font-medium text-fg hover:bg-raised">📂 Open Folder</button>
+                <button onClick={handleOpenFile} className="flex-1 px-4 py-2 rounded-lg bg-accent-fill text-white text-sm font-medium hover:bg-accent-hover"><BookOpen size={14} aria-hidden="true" /> Open File</button>
+                <button onClick={handleOpenFolder} className="flex-1 px-4 py-2 rounded-lg bg-raised text-sm font-medium text-fg hover:bg-raised"><FolderOpen size={14} aria-hidden="true" /> Open Folder</button>
               </div>
 
               {convertError && (
                 <div className="flex items-start justify-between gap-2 p-2.5 rounded-lg bg-danger-wash border border-danger text-xs text-danger">
-                  <span>⚠️ {convertError}</span>
-                  <button onClick={() => setConvertError(null)} className="shrink-0 hover:text-danger">✕</button>
+                  <span className="inline-flex items-center gap-1">
+                    <AlertTriangle size={12} aria-hidden="true" /> {convertError}
+                  </span>
+                  <button onClick={() => setConvertError(null)} className="shrink-0 hover:text-danger"><X size={12} aria-hidden="true" /></button>
                 </div>
               )}
 
@@ -524,7 +527,15 @@ export default function LibraryDetail({
                   disabled={isConverting || converting}
                   className="w-full px-4 py-2 rounded-lg bg-accent-fill text-white text-sm font-medium hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  {isConverting || converting ? '⟳ Converting to CBZ…' : '📦 Convert to CBZ'}
+                  {isConverting || converting ? (
+                    <>
+                      <Loader2 size={14} className="animate-spin" aria-hidden="true" /> Converting to CBZ…
+                    </>
+                  ) : (
+                    <>
+                      <FileArchive size={14} aria-hidden="true" /> Convert to CBZ
+                    </>
+                  )}
                 </button>
               )}
 
@@ -534,7 +545,7 @@ export default function LibraryDetail({
                 title={isConverting ? 'Unavailable while this file is being converted' : undefined}
                 className="w-full px-4 py-2 rounded-lg bg-info-wash text-info text-sm font-medium hover:bg-info-wash disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                ✏️ Edit Metadata
+                <Pencil size={14} aria-hidden="true" /> Edit Metadata
               </button>
 
               {/* Two delete actions */}
@@ -549,7 +560,7 @@ export default function LibraryDetail({
                   </div>
                 ) : deleteConfirm === 'deleteFile' ? (
                   <div className="space-y-2">
-                    <p className="text-xs text-danger">⚠️ This will delete the database entry AND the file from disk. This cannot be undone.</p>
+                    <p className="text-xs text-danger">This will delete the database entry AND the file from disk. This cannot be undone.</p>
                     <div className="flex gap-2">
                       <button onClick={() => handleDelete('deleteFile')} disabled={deleting} className="flex-1 px-4 py-2 rounded-lg bg-danger-fill text-white text-sm font-medium hover:bg-danger-fill disabled:opacity-50">{deleting ? 'Deleting...' : 'Confirm Delete'}</button>
                       <button onClick={() => setDeleteConfirm('none')} className="px-4 py-2 rounded-lg bg-raised text-sm font-medium">Cancel</button>
@@ -557,8 +568,8 @@ export default function LibraryDetail({
                   </div>
                 ) : (
                   <div className="flex gap-2">
-                    <button onClick={() => setDeleteConfirm('remove')} disabled={isConverting} title={isConverting ? 'Unavailable while this file is being converted' : undefined} className="flex-1 px-4 py-2 rounded-lg bg-warning-wash text-warning text-sm font-medium hover:bg-warning-wash disabled:opacity-40 disabled:cursor-not-allowed">📋 Remove from Library</button>
-                    <button onClick={() => setDeleteConfirm('deleteFile')} disabled={isConverting} title={isConverting ? 'Unavailable while this file is being converted' : undefined} className="flex-1 px-4 py-2 rounded-lg bg-danger-wash text-danger text-sm font-medium hover:bg-danger-wash disabled:opacity-40 disabled:cursor-not-allowed">🗑️ Delete File</button>
+                    <button onClick={() => setDeleteConfirm('remove')} disabled={isConverting} title={isConverting ? 'Unavailable while this file is being converted' : undefined} className="flex-1 px-4 py-2 rounded-lg bg-warning-wash text-warning text-sm font-medium hover:bg-warning-wash disabled:opacity-40 disabled:cursor-not-allowed"><ListX size={14} aria-hidden="true" /> Remove from Library</button>
+                    <button onClick={() => setDeleteConfirm('deleteFile')} disabled={isConverting} title={isConverting ? 'Unavailable while this file is being converted' : undefined} className="flex-1 px-4 py-2 rounded-lg bg-danger-wash text-danger text-sm font-medium hover:bg-danger-wash disabled:opacity-40 disabled:cursor-not-allowed"><Trash2 size={14} aria-hidden="true" /> Delete File</button>
                   </div>
                 )}
               </div>

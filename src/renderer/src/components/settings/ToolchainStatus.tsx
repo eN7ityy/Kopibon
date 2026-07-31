@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Check, X } from 'lucide-react'
 
 interface ToolStatus {
   id: string
@@ -74,8 +75,8 @@ export default function ToolchainStatus(): React.JSX.Element {
             }`}
           >
             {report.ok
-              ? '✓ All required tools found'
-              : `⚠️ ${missing.length} required tool${missing.length === 1 ? '' : 's'} missing`}
+              ? 'All required tools found'
+              : `${missing.length} required tool${missing.length === 1 ? '' : 's'} missing`}
           </span>
           <button
             onClick={() => { setTick((t) => t + 1); setCopied(false) }}
@@ -89,7 +90,7 @@ export default function ToolchainStatus(): React.JSX.Element {
           {report.tools.map((t) => (
             <li key={t.id} className="text-xs">
               <div className="flex items-start gap-2">
-                <span className={t.ok ? 'text-success' : 'text-danger'}>{t.ok ? '✓' : '✕'}</span>
+                <span className={t.ok ? 'text-success' : 'text-danger'}>{t.ok ? <Check size={14} aria-hidden="true" /> : <X size={14} aria-hidden="true" />}</span>
                 <div className="min-w-0">
                   <span className="font-medium text-fg">{t.name}</span>
                   <span className="text-fg-muted"> — {t.detail}</span>

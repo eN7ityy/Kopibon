@@ -4,6 +4,7 @@ import type {
   DownloadProgressEvent
 } from '../../types/api.types'
 import DownloadProgressBar from './DownloadProgress'
+import { BookOpen, Check, FolderOpen } from 'lucide-react'
 
 interface GalleryInfo {
   title: string
@@ -68,7 +69,7 @@ export default function DownloadItem({
               className="w-full h-full object-cover"
             />
           ) : (
-            <span className="text-2xl">📖</span>
+            <BookOpen size={22} strokeWidth={1.5} aria-hidden="true" />
           )}
         </div>
 
@@ -184,10 +185,12 @@ export default function DownloadItem({
           {/* Completed */}
           {isCompleted && (
             <div className="mt-1">
-              <p className="text-xs text-success">Download complete ✓</p>
+              <p className="text-xs text-success inline-flex items-center gap-1">
+                <Check size={12} aria-hidden="true" /> Download complete
+              </p>
               {galleryInfo?.filePath && (
                 <p className="text-xs text-fg-faint mt-0.5 truncate" title={galleryInfo.filePath}>
-                  📁 {galleryInfo.filePath}
+                  <FolderOpen size={12} aria-hidden="true" /> {galleryInfo.filePath}
                 </p>
               )}
             </div>

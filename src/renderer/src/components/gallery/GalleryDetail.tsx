@@ -6,6 +6,7 @@ import FormatSelector from '../shared/FormatSelector'
 import { useAuthStore } from '../../stores/auth.store'
 import { useSettingsStore, type OutputFormat } from '../../stores/settings.store'
 import GalleryViewer from './GalleryViewer'
+import { AlertCircle, BookOpen, Check, FolderOpen, Heart, ListX, Loader2, Trash2 } from 'lucide-react'
 
 interface GalleryDetailProps {
   galleryId: number
@@ -215,7 +216,7 @@ export default function GalleryDetailPanel({
 
         {error && !loading && (
           <div className="p-6 text-center">
-            <span className="text-5xl block mb-4">😕</span>
+            <AlertCircle size={40} strokeWidth={1.5} className="mx-auto mb-4 text-fg-faint" aria-hidden="true" />
             <p className="text-lg font-medium text-danger">{error}</p>
             <button
               onClick={fetchDetail}
@@ -246,13 +247,13 @@ export default function GalleryDetailPanel({
                   {/* Hover overlay */}
                   <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
                     <span className="text-white text-lg font-medium opacity-0 group-hover:opacity-100 transition-opacity">
-                      📖 Read
+                      <BookOpen size={16} aria-hidden="true" /> Read
                     </span>
                   </div>
                 </>
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-fg-faint">
-                  <span className="text-5xl">📖</span>
+                  <BookOpen size={40} strokeWidth={1.5} aria-hidden="true" />
                 </div>
               )}
             </button>
@@ -283,7 +284,11 @@ export default function GalleryDetailPanel({
                     }`}
                     title={isFavorited ? 'Remove from favorites' : 'Add to favorites'}
                   >
-                    {favLoading ? '...' : isFavorited ? '♥' : '♡'}
+                    {favLoading ? (
+                      <Loader2 size={14} className="animate-spin" aria-hidden="true" />
+                    ) : (
+                      <Heart size={14} fill={isFavorited ? 'currentColor' : 'none'} aria-hidden="true" />
+                    )}
                   </button>
                 )}
               </div>
@@ -370,7 +375,7 @@ export default function GalleryDetailPanel({
                           />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center text-fg-faint">
-                            <span className="text-lg">📖</span>
+                            <BookOpen size={18} strokeWidth={1.5} aria-hidden="true" />
                           </div>
                         )}
                       </div>
@@ -416,7 +421,7 @@ export default function GalleryDetailPanel({
               {isInLibrary && !showRedownloadConfirm ? (
                 <>
                   <div className="px-4 py-3 rounded-lg bg-success-wash text-success text-center font-medium">
-                    ✓ Already in Library
+                    <Check size={16} aria-hidden="true" /> Already in Library
                   </div>
                   <button
                     onClick={async () => {
@@ -443,7 +448,7 @@ export default function GalleryDetailPanel({
                     </div>
                   ) : deleteConfirm === 'deleteFile' ? (
                     <div className="space-y-2">
-                      <p className="text-xs text-danger">⚠️ This will delete the database entry AND the file from disk. This cannot be undone.</p>
+                      <p className="text-xs text-danger">This will delete the database entry AND the file from disk. This cannot be undone.</p>
                       <div className="flex gap-2">
                         <button onClick={() => handleDelete('deleteFile')} disabled={deleting} className="flex-1 px-4 py-2 rounded-lg bg-danger-fill text-white text-sm font-medium hover:bg-danger-fill disabled:opacity-50">{deleting ? 'Deleting...' : 'Confirm Delete'}</button>
                         <button onClick={() => setDeleteConfirm('none')} className="px-4 py-2 rounded-lg bg-raised text-sm font-medium">Cancel</button>
@@ -451,8 +456,8 @@ export default function GalleryDetailPanel({
                     </div>
                   ) : (
                     <div className="flex gap-2">
-                      <button onClick={() => setDeleteConfirm('remove')} className="flex-1 px-4 py-2 rounded-lg bg-warning-wash text-warning text-sm font-medium hover:bg-warning-wash">📋 Remove from Library</button>
-                      <button onClick={() => setDeleteConfirm('deleteFile')} className="flex-1 px-4 py-2 rounded-lg bg-danger-wash text-danger text-sm font-medium hover:bg-danger-wash">🗑️ Delete File</button>
+                      <button onClick={() => setDeleteConfirm('remove')} className="flex-1 px-4 py-2 rounded-lg bg-warning-wash text-warning text-sm font-medium hover:bg-warning-wash"><ListX size={14} aria-hidden="true" /> Remove from Library</button>
+                      <button onClick={() => setDeleteConfirm('deleteFile')} className="flex-1 px-4 py-2 rounded-lg bg-danger-wash text-danger text-sm font-medium hover:bg-danger-wash"><Trash2 size={14} aria-hidden="true" /> Delete File</button>
                     </div>
                   )}
                 </>
@@ -462,7 +467,7 @@ export default function GalleryDetailPanel({
                     This gallery already exists in your library.
                     {libraryPath && (
                       <span className="block mt-1 text-xs opacity-75 truncate">
-                        📁 {libraryPath}
+                        <FolderOpen size={12} aria-hidden="true" /> {libraryPath}
                       </span>
                     )}
                   </p>

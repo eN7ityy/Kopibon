@@ -3,6 +3,7 @@ import AutocompleteInput from '../shared/AutocompleteInput'
 import FormatSelector from '../shared/FormatSelector'
 import ProgressBar from '../shared/ProgressBar'
 import { useSettingsStore, type OutputFormat } from '../../stores/settings.store'
+import { BookOpen, FileText, Images } from 'lucide-react'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -248,7 +249,7 @@ export default function CustomEntryForm({
       >
         {/* Header */}
         <div className="px-6 py-4 border-b border-line sticky top-0 bg-surface z-10">
-          <h2 className="text-lg font-semibold text-fg">
+          <h2 className="text-section font-semibold text-fg">
             Add Custom Entry
           </h2>
           <p className="text-sm text-fg-muted mt-1">
@@ -423,7 +424,7 @@ export default function CustomEntryForm({
                 {coverPreview ? (
                   <img src={coverPreview} alt="Cover preview" className="w-full h-full object-cover" />
                 ) : (
-                  <span className="text-2xl text-fg-faint">📖</span>
+                  <BookOpen size={22} strokeWidth={1.5} className="text-fg-faint" aria-hidden="true" />
                 )}
               </div>
 
@@ -477,7 +478,7 @@ export default function CustomEntryForm({
                     : 'bg-raised text-fg hover:bg-raised'
                 }`}
               >
-                📄 PDF File
+                <FileText size={14} aria-hidden="true" /> PDF File
               </button>
               <button
                 onClick={handlePickImageFolder}
@@ -487,7 +488,7 @@ export default function CustomEntryForm({
                     : 'bg-raised text-fg hover:bg-raised'
                 }`}
               >
-                🖼️ Image Folder
+                <Images size={14} aria-hidden="true" /> Image Folder
               </button>
             </div>
             {sourcePath && (

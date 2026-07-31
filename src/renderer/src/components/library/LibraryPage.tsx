@@ -19,7 +19,8 @@ import { useCbzConversionStore } from '../../stores/cbz-conversion.store'
 import { useGlobalJobs, type ProgressJob } from '../../stores/job-progress'
 import { ProgressStack } from '../shared/ProgressBar'
 import Button from '../shared/Button'
-import { CheckSquare, FileArchive, Layers, Library, Pause, Play, Plus, RefreshCw, Trash2 } from 'lucide-react'
+import Notice, { NoticeRegion } from '../shared/Notice'
+import { Check, CheckSquare, FileArchive, Grid3x3, Layers, LayoutGrid, Library, List, Pause, Play, Plus, RefreshCw, SlidersHorizontal, Trash2, X } from 'lucide-react'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -220,13 +221,13 @@ function InlineEditCell({
               onClick={handleAutocompleteSubmit}
               className="text-xs px-2 py-0.5 rounded bg-accent-fill text-white hover:bg-accent-hover"
             >
-              ✓
+              <Check size={14} aria-hidden="true" />
             </button>
             <button
               onClick={cancel}
               className="text-xs px-2 py-0.5 rounded bg-raised text-fg hover:bg-raised"
             >
-              ✕
+              <X size={14} aria-hidden="true" />
             </button>
           </div>
         </div>
@@ -734,15 +735,34 @@ export default function LibraryPage(): React.JSX.Element {
 
   // ─── Loading State ─────────────────────────────────────────────────────────
 
+  const hasMore = items.length < totalCount
+
+  // One header for all three states. It was repeated in each branch, and the
+  // error branch had already lost the subtitle the other two carried.
+  const header = (
+    <div className="mb-4 shrink-0">
+      <h1 className="text-2xl font-bold tracking-tight text-fg">Library</h1>
+      <p className="mt-1 text-sm text-fg-muted">
+        {totalCount > 0 ? (
+          <>
+            <span className="tnum">{totalCount}</span> items in library
+          </>
+        ) : (
+          'Browse your downloaded doujinshi collection'
+        )}
+        {lastScan && (
+          <span className="ml-2 text-xs text-fg-faint">
+            (last scan: {formatDate(lastScan.scannedAt)})
+          </span>
+        )}
+      </p>
+    </div>
+  )
+
   if (loading && items.length === 0) {
     return (
       <div className="flex flex-col h-full">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-fg">Library</h1>
-          <p className="mt-1 text-sm text-fg-muted">
-            Loading your doujinshi collection...
-          </p>
-        </div>
+        {header}
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
           <LoadingSkeleton count={12} variant="card" />
         </div>
@@ -755,9 +775,7 @@ export default function LibraryPage(): React.JSX.Element {
   if (error && items.length === 0) {
     return (
       <div className="flex flex-col h-full">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-fg">Library</h1>
-        </div>
+        {header}
         <ErrorState message={error} onRetry={() => fetchPage(0, true)} />
       </div>
     )
@@ -765,41 +783,33 @@ export default function LibraryPage(): React.JSX.Element {
 
   // ─── Main Render ───────────────────────────────────────────────────────────
 
-  const hasMore = items.length < totalCount
-
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="mb-4">
-        <h1 className="text-2xl font-bold text-fg">Library</h1>
-        <p className="mt-1 text-sm text-fg-muted">
-          {totalCount > 0
-            ? `${totalCount} items in library`
-            : 'Browse your downloaded doujinshi collection'}
-          {lastScan && (
-            <span className="ml-2 text-xs text-fg-faint">
-              (last scan: {formatDate(lastScan.scannedAt)})
-            </span>
-          )}
-        </p>
-      </div>
+      {header}
+      {/*
+        One notification region. These were four separately styled banners with
+        their own paddings and margins; with two visible at once the grid began
+        below the fold. Now they share a container, a gap and a shape.
+
+        The storage warning is `warning`, not `error` — it previously wore the
+        same red as a genuine failure despite the app still working from cached
+        metadata.
+      */}
       <ProgressStack jobs={jobs} />
-      <ResumeConversionBanner />
-
-      {/* Error banner */}
-      {error && (
-        <div className="mb-4 p-3 rounded-lg bg-danger-wash border border-danger text-danger text-sm flex items-center justify-between">
-          <span>⚠️ {error}</span>
-          <button onClick={() => setError(null)} className="ml-2 text-danger hover:text-danger">✕</button>
-        </div>
-      )}
-
-      {/* Path inaccessible warning */}
-      {items.length > 0 && pathAccessible === false && (
-        <div className="mb-3 p-2 rounded-lg bg-danger-wash border border-danger text-danger text-xs">
-          ⚠️ Library storage is not accessible. The network drive may be disconnected. Showing cached metadata only.
-        </div>
-      )}
+      <NoticeRegion>
+        <ResumeConversionBanner />
+        {error && (
+          <Notice tone="error" onDismiss={() => setError(null)}>
+            {error}
+          </Notice>
+        )}
+        {items.length > 0 && pathAccessible === false && (
+          <Notice tone="warning">
+            Library storage is not accessible. The network drive may be disconnected, so this
+            is cached metadata only.
+          </Notice>
+        )}
+      </NoticeRegion>
 
       {/*
         Toolbar. Only view-level actions live here; batch actions moved to the
@@ -889,7 +899,7 @@ export default function LibraryPage(): React.JSX.Element {
           onClick={() => setShowFilters(!showFilters)}
           className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${showFilters || selectedArtistFilters.size > 0 || selectedSeriesFilters.size > 0 || showUnmatchedOnly ? 'bg-accent-wash text-accent' : 'bg-raised text-fg-muted hover:bg-raised'}`}
         >
-          🔍 Filters
+          <SlidersHorizontal size={16} aria-hidden="true" /> Filters
           {(selectedArtistFilters.size > 0 || selectedSeriesFilters.size > 0 || showUnmatchedOnly) && (
             <span className="ml-1 text-xs">({selectedArtistFilters.size + selectedSeriesFilters.size + (showUnmatchedOnly ? 1 : 0)})</span>
           )}
@@ -908,7 +918,13 @@ export default function LibraryPage(): React.JSX.Element {
               }`}
               title={mode === 'grid' ? 'Grid view' : mode === 'compact' ? 'Compact view' : 'List view'}
             >
-              {mode === 'grid' ? '⊞' : mode === 'compact' ? '▦' : '☰'}
+              {mode === 'grid' ? (
+                <LayoutGrid size={16} aria-hidden="true" />
+              ) : mode === 'compact' ? (
+                <Grid3x3 size={16} aria-hidden="true" />
+              ) : (
+                <List size={16} aria-hidden="true" />
+              )}
             </button>
           ))}
         </div>

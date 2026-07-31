@@ -2,8 +2,9 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import type { DownloadQueueItem, DownloadProgressEvent } from '../../types/api.types'
 import DownloadItem from './DownloadItem'
 import EmptyState from '../shared/EmptyState'
+import Button from '../shared/Button'
 import LoadingSkeleton from '../shared/LoadingSkeleton'
-import { Download } from 'lucide-react'
+import { Download, Pause, Play, Trash2 } from 'lucide-react'
 
 interface GalleryInfo {
   title: string
@@ -195,15 +196,37 @@ export default function DownloadsPage(): React.JSX.Element {
 
   const hasContent = activeDownloads.length > 0 || queuedItems.length > 0
 
+  // One header, outside the state switch, so a change lands in both branches.
+  // The queue controls adopt the shared button roles: Pause/Resume are ordinary
+  // actions, Clear Queue discards work and reads as destructive.
+  const header = (
+    <div className="mb-6 shrink-0">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-fg">Downloads</h1>
+          <p className="mt-1 text-sm text-fg-muted">Manage active and queued downloads</p>
+        </div>
+        {hasContent && (
+          <div className="flex gap-2 shrink-0">
+            <Button size="sm" icon={<Pause size={14} />} onClick={handlePauseAll}>
+              Pause All
+            </Button>
+            <Button size="sm" icon={<Play size={14} />} onClick={handleResumeAll}>
+              Resume All
+            </Button>
+            <Button size="sm" role="danger" icon={<Trash2 size={14} />} onClick={handleClearQueue}>
+              Clear Queue
+            </Button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+
   if (loading) {
     return (
       <div className="flex flex-col h-full">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-fg">Downloads</h1>
-          <p className="mt-1 text-sm text-fg-muted">
-            Manage active and queued downloads
-          </p>
-        </div>
+        {header}
         <LoadingSkeleton count={3} variant="line" />
       </div>
     )
@@ -211,39 +234,7 @@ export default function DownloadsPage(): React.JSX.Element {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header with global controls */}
-      <div className="mb-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-fg">Downloads</h1>
-            <p className="mt-1 text-sm text-fg-muted">
-              Manage active and queued downloads
-            </p>
-          </div>
-          {hasContent && (
-            <div className="flex gap-2">
-              <button
-                onClick={handlePauseAll}
-                className="px-3 py-1.5 rounded-lg text-sm bg-warning-wash text-warning hover:bg-warning-wash transition-colors"
-              >
-                Pause All
-              </button>
-              <button
-                onClick={handleResumeAll}
-                className="px-3 py-1.5 rounded-lg text-sm bg-raised text-fg-muted hover:bg-success-wash transition-colors"
-              >
-                Resume All
-              </button>
-              <button
-                onClick={handleClearQueue}
-                className="px-3 py-1.5 rounded-lg text-sm bg-danger-wash text-danger hover:bg-danger-wash transition-colors"
-              >
-                Clear Queue
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
+      {header}
 
       {!hasContent && (
         <EmptyState
@@ -258,7 +249,7 @@ export default function DownloadsPage(): React.JSX.Element {
           {/* Active Downloads */}
           {activeDownloads.length > 0 && (
             <section>
-              <h2 className="text-lg font-semibold text-fg mb-3">
+              <h2 className="text-section font-semibold text-fg mb-3">
                 Active Downloads ({activeDownloads.length})
               </h2>
               <div className="space-y-2">
@@ -281,7 +272,7 @@ export default function DownloadsPage(): React.JSX.Element {
           {/* Queued / Paused / Failed */}
           {queuedItems.length > 0 && (
             <section>
-              <h2 className="text-lg font-semibold text-fg mb-3">
+              <h2 className="text-section font-semibold text-fg mb-3">
                 Queued ({queuedItems.length})
               </h2>
               <div className="space-y-2">

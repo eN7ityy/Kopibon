@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Trash2 } from 'lucide-react'
 
 interface OriginalsInfo {
   count: number
@@ -141,7 +142,7 @@ export default function OriginalsCleanup(): React.JSX.Element {
           title={info!.count === 0 ? 'Only kept-back originals remain' : undefined}
           className="px-3 py-1.5 rounded-lg bg-danger-wash text-danger text-xs font-medium hover:bg-danger-wash disabled:opacity-50"
         >
-          🗑️ Delete archived originals
+          <Trash2 size={14} aria-hidden="true" /> Delete archived originals
         </button>
       )}
     </div>

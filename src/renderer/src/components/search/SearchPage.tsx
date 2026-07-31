@@ -314,7 +314,7 @@ export default function SearchPage(): React.JSX.Element {
   return (
     <div className="flex flex-col h-full">
       <div className="mb-4">
-        <h1 className="text-2xl font-bold text-fg">Search</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-fg">Search</h1>
         <p className="mt-1 text-sm text-fg-muted">
           Search nhentai for doujinshi to download
         </p>
@@ -393,7 +393,7 @@ export default function SearchPage(): React.JSX.Element {
         {!store.loading && !store.error && !hasResults && store.totalPages === 0 && store.query.trim() === '' && (
           <div className="flex-1 flex items-center justify-center border-2 border-dashed border-line rounded-xl">
             <div className="text-center text-fg-faint">
-              <span className="text-5xl block mb-3">🔍</span>
+              <Search size={40} strokeWidth={1.5} className="mx-auto mb-3 text-fg-faint" aria-hidden="true" />
               <p className="text-lg font-medium">Search results will appear here</p>
               <p className="text-sm mt-1">Enter a search query to find doujinshi on nhentai</p>
             </div>

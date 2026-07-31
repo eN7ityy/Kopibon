@@ -136,14 +136,14 @@ export default function Sidebar(): React.JSX.Element {
                     <span className="truncate flex items-center gap-1.5">
                       {item.label}
                       {item.to === '/downloads' && downloadCount > 0 && (
-                        <span className="tnum inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold rounded-full bg-accent-fill text-white">
+                        <span className="tnum inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-label font-bold rounded-full bg-accent-fill text-white">
                           {downloadCount}
                         </span>
                       )}
                     </span>
                   )}
                   {sidebarCollapsed && item.to === '/downloads' && downloadCount > 0 && (
-                    <span className="tnum absolute top-0.5 right-0.5 inline-flex items-center justify-center min-w-[16px] h-[16px] px-0.5 text-[9px] font-bold rounded-full bg-accent-fill text-white">
+                    <span className="tnum absolute top-0.5 right-0.5 inline-flex items-center justify-center min-w-[16px] h-[16px] px-0.5 text-label font-bold rounded-full bg-accent-fill text-white">
                       {downloadCount}
                     </span>
                   )}

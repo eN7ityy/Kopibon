@@ -176,7 +176,7 @@ export default function LibraryCard({
           </h3>
 
           {/* Artist */}
-          <p className={`${compact ? 'text-[10px]' : 'text-xs'} text-fg-muted truncate`}>
+          <p className={`${compact ? 'text-label' : 'text-xs'} text-fg-muted truncate`}>
             {artist}
           </p>
 
