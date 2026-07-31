@@ -34,10 +34,10 @@ function getLogApi(): LogApi {
 const LEVEL_NAMES: LogLevel[] = ['error', 'warn', 'info', 'debug']
 
 const LEVEL_COLORS: Record<LogLevel, string> = {
-  error: 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20',
-  warn: 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20',
-  info: 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20',
-  debug: 'text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800'
+  error: 'text-danger bg-danger-wash',
+  warn: 'text-warning bg-warning-wash',
+  info: 'text-info bg-info-wash',
+  debug: 'text-fg-muted bg-raised'
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -174,7 +174,7 @@ export default function LogsPage(): React.JSX.Element {
 
   return (
     <section>
-      <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-3">
+      <h2 className="text-lg font-semibold text-fg mb-3">
         Application Log
       </h2>
 
@@ -182,7 +182,7 @@ export default function LogsPage(): React.JSX.Element {
       <div className="flex flex-wrap items-center gap-3 mb-3">
         {/* Level selector */}
         <div className="flex items-center gap-1">
-          <label className="text-xs text-gray-500 dark:text-gray-400 mr-1">
+          <label className="text-xs text-fg-muted mr-1">
             Level:
           </label>
           <select
@@ -190,7 +190,7 @@ export default function LogsPage(): React.JSX.Element {
             onChange={(e) =>
               handleSetLevel(e.target.value as LogLevel)
             }
-            className="px-2 py-1 text-xs rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+            className="px-2 py-1 text-xs rounded border border-line bg-surface text-fg"
           >
             {LEVEL_NAMES.map((l) => (
               <option key={l} value={l}>
@@ -202,7 +202,7 @@ export default function LogsPage(): React.JSX.Element {
 
         {/* Retention */}
         <div className="flex items-center gap-1">
-          <label className="text-xs text-gray-500 dark:text-gray-400 mr-1">
+          <label className="text-xs text-fg-muted mr-1">
             Keep:
           </label>
           <select
@@ -210,7 +210,7 @@ export default function LogsPage(): React.JSX.Element {
             onChange={(e) =>
               handleSetRetention(Number(e.target.value))
             }
-            className="px-2 py-1 text-xs rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+            className="px-2 py-1 text-xs rounded border border-line bg-surface text-fg"
           >
             {[1, 3, 7, 14, 30, 60, 90, 180, 365].map((d) => (
               <option key={d} value={d}>
@@ -221,11 +221,11 @@ export default function LogsPage(): React.JSX.Element {
         </div>
 
         {/* Separator */}
-        <span className="text-gray-300 dark:text-gray-600">|</span>
+        <span className="text-fg-faint">|</span>
 
         <button
           onClick={handleOpenFolder}
-          className="px-3 py-1 text-xs rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+          className="px-3 py-1 text-xs rounded-lg border border-line bg-surface text-fg hover:bg-raised transition-colors"
         >
           Open log folder
         </button>
@@ -233,7 +233,7 @@ export default function LogsPage(): React.JSX.Element {
         <button
           onClick={handleExport}
           disabled={exporting}
-          className="px-3 py-1 text-xs rounded-lg bg-purple-600 text-white font-medium hover:bg-purple-700 disabled:opacity-50 transition-colors"
+          className="px-3 py-1 text-xs rounded-lg bg-accent-fill text-white font-medium hover:bg-accent-hover disabled:opacity-50 transition-colors"
         >
           {exporting ? 'Exporting...' : 'Export diagnostics'}
         </button>
@@ -248,7 +248,7 @@ export default function LogsPage(): React.JSX.Element {
               e.target.value as LogLevel | 'all'
             )
           }
-          className="px-2 py-1 text-xs rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+          className="px-2 py-1 text-xs rounded border border-line bg-surface text-fg"
         >
           <option value="all">All levels</option>
           {LEVEL_NAMES.map((l) => (
@@ -264,7 +264,7 @@ export default function LogsPage(): React.JSX.Element {
           onChange={(e) => setFilterScope(e.target.value)}
           placeholder="Filter scope..."
           list="scope-list"
-          className="w-40 px-2 py-1 text-xs rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400"
+          className="w-40 px-2 py-1 text-xs rounded border border-line bg-surface text-fg placeholder-fg-faint"
         />
         <datalist id="scope-list">
           {scopes.map((s) => (
@@ -277,20 +277,20 @@ export default function LogsPage(): React.JSX.Element {
           value={filterText}
           onChange={(e) => setFilterText(e.target.value)}
           placeholder="Search messages..."
-          className="flex-1 min-w-[160px] px-2 py-1 text-xs rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400"
+          className="flex-1 min-w-[160px] px-2 py-1 text-xs rounded border border-line bg-surface text-fg placeholder-fg-faint"
         />
 
-        <label className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+        <label className="flex items-center gap-1 text-xs text-fg-muted">
           <input
             type="checkbox"
             checked={autoRefresh}
             onChange={(e) => setAutoRefresh(e.target.checked)}
-            className="w-3 h-3 rounded border-gray-400 text-purple-600"
+            className="w-3 h-3 rounded border-line text-accent"
           />
           Auto
         </label>
 
-        <span className="text-xs text-gray-400 dark:text-gray-500">
+        <span className="text-xs text-fg-faint">
           {filtered.length} of {records.length} records
         </span>
       </div>
@@ -298,10 +298,10 @@ export default function LogsPage(): React.JSX.Element {
       {/* Log tail */}
       <div
         ref={scrollRef}
-        className="max-h-96 overflow-y-auto rounded-lg bg-gray-900 font-mono text-xs leading-relaxed"
+        className="max-h-96 overflow-y-auto rounded-lg bg-app font-mono text-xs leading-relaxed"
       >
         {filtered.length === 0 ? (
-          <div className="px-3 py-6 text-center text-gray-500">
+          <div className="px-3 py-6 text-center text-fg-muted">
             {records.length === 0
               ? 'No log records yet.'
               : 'No records match the current filters.'}
@@ -310,10 +310,10 @@ export default function LogsPage(): React.JSX.Element {
           filtered.map((r, i) => (
             <div
               key={`${r.ts}-${i}`}
-              className="flex items-start gap-2 px-3 py-0.5 hover:bg-gray-800/50 border-b border-gray-800 last:border-b-0"
+              className="flex items-start gap-2 px-3 py-0.5 hover:bg-raised border-b border-line last:border-b-0"
             >
               {/* Timestamp */}
-              <span className="text-gray-500 shrink-0 w-[140px]">
+              <span className="text-fg-muted shrink-0 w-[140px]">
                 {r.ts.slice(0, 19).replace('T', ' ')}
               </span>
 
@@ -325,7 +325,7 @@ export default function LogsPage(): React.JSX.Element {
               </span>
 
               {/* Scope */}
-              <span className="text-gray-400 shrink-0 max-w-[120px] truncate">
+              <span className="text-fg-faint shrink-0 max-w-[120px] truncate">
                 {r.scope}
               </span>
 
@@ -334,16 +334,16 @@ export default function LogsPage(): React.JSX.Element {
                 <span
                   className={
                     r.level === 'error'
-                      ? 'text-red-300'
+                      ? 'text-danger'
                       : r.level === 'warn'
-                        ? 'text-amber-300'
-                        : 'text-green-300'
+                        ? 'text-warning'
+                        : 'text-success'
                   }
                 >
                   {r.msg}
                 </span>
                 {r.errorId && (
-                  <span className="ml-2 text-purple-400 font-mono">
+                  <span className="ml-2 text-accent font-mono">
                     [{r.errorId}]
                   </span>
                 )}

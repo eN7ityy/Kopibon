@@ -55,6 +55,9 @@
   --c-warning-wash: rgba(138, 97, 0, 0.09);
   --c-info: #2a5f80;
   --c-info-wash: rgba(42, 95, 128, 0.09);
+
+  --c-danger: #c81e45;
+  --c-danger-wash: rgba(200, 30, 69, 0.09);
 }
 
 .dark {
@@ -81,6 +84,46 @@
   --c-warning-wash: rgba(217, 163, 60, 0.14);
   --c-info: #5697c4;
   --c-info-wash: rgba(86, 151, 196, 0.14);
+
+  --c-danger: #ed2553;
+  --c-danger-wash: rgba(237, 37, 83, 0.14);
+}
+
+/*
+ * Semantic fills, fixed across themes.
+ *
+ * These sit behind white labels, so they are chosen for contrast rather than
+ * for matching the surrounding theme — each clears 4.5:1 against white. The
+ * theme-aware `--c-success` and friends above are the *text* colours, which is
+ * a different job and needs different values.
+ *
+ * `--c-danger-fill` deliberately equals `--c-accent-fill`: the palette has one
+ * red, and destructive is distinguished from primary by outline vs fill, not by
+ * hue. Naming it separately means the code still says what it means, and if the
+ * two ever need to diverge it is a one-line change here.
+ */
+:root {
+  --c-success-fill: #17703f;
+  --c-warning-fill: #8a5a00;
+  --c-info-fill: #245c7d;
+  --c-danger-fill: #c81e45;
+}
+
+/*
+ * Reader surfaces, deliberately outside the theme.
+ *
+ * The page viewers show artwork, and a light chrome around a dark page is both
+ * distracting and a worse reading experience — so these stay dark whichever
+ * theme is active. They were already hardcoded dark; the difference is that
+ * these are named, fixed on purpose, and consistent with each other rather than
+ * five arbitrary grey steps.
+ */
+:root {
+  --c-reader-bg: #0a0a0c;
+  --c-reader-surface: #16161a;
+  --c-reader-line: #2a2a33;
+  --c-reader-text: #f2f2f4;
+  --c-reader-muted: #9a9aa8;
 }
 
 /*
@@ -107,11 +150,23 @@
   --color-accent-wash: var(--c-accent-wash);
 
   --color-success: var(--c-success);
+  --color-success-fill: var(--c-success-fill);
   --color-success-wash: var(--c-success-wash);
   --color-warning: var(--c-warning);
+  --color-warning-fill: var(--c-warning-fill);
   --color-warning-wash: var(--c-warning-wash);
   --color-info: var(--c-info);
+  --color-info-fill: var(--c-info-fill);
   --color-info-wash: var(--c-info-wash);
+  --color-danger: var(--c-danger);
+  --color-danger-fill: var(--c-danger-fill);
+  --color-danger-wash: var(--c-danger-wash);
+
+  --color-reader: var(--c-reader-bg);
+  --color-reader-surface: var(--c-reader-surface);
+  --color-reader-line: var(--c-reader-line);
+  --color-reader-fg: var(--c-reader-text);
+  --color-reader-muted: var(--c-reader-muted);
 
   /*
    * Type. The native UI face per platform, declared rather than inherited —

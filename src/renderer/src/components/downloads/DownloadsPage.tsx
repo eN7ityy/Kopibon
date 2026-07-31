@@ -198,8 +198,8 @@ export default function DownloadsPage(): React.JSX.Element {
     return (
       <div className="flex flex-col h-full">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Downloads</h1>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+          <h1 className="text-2xl font-bold text-fg">Downloads</h1>
+          <p className="mt-1 text-sm text-fg-muted">
             Manage active and queued downloads
           </p>
         </div>
@@ -214,8 +214,8 @@ export default function DownloadsPage(): React.JSX.Element {
       <div className="mb-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Downloads</h1>
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            <h1 className="text-2xl font-bold text-fg">Downloads</h1>
+            <p className="mt-1 text-sm text-fg-muted">
               Manage active and queued downloads
             </p>
           </div>
@@ -223,19 +223,19 @@ export default function DownloadsPage(): React.JSX.Element {
             <div className="flex gap-2">
               <button
                 onClick={handlePauseAll}
-                className="px-3 py-1.5 rounded-lg text-sm bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400 hover:bg-yellow-200 dark:hover:bg-yellow-900/50 transition-colors"
+                className="px-3 py-1.5 rounded-lg text-sm bg-warning-wash text-warning hover:bg-warning-wash transition-colors"
               >
                 Pause All
               </button>
               <button
                 onClick={handleResumeAll}
-                className="px-3 py-1.5 rounded-lg text-sm bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors"
+                className="px-3 py-1.5 rounded-lg text-sm bg-raised text-fg-muted hover:bg-success-wash transition-colors"
               >
                 Resume All
               </button>
               <button
                 onClick={handleClearQueue}
-                className="px-3 py-1.5 rounded-lg text-sm bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
+                className="px-3 py-1.5 rounded-lg text-sm bg-danger-wash text-danger hover:bg-danger-wash transition-colors"
               >
                 Clear Queue
               </button>
@@ -257,7 +257,7 @@ export default function DownloadsPage(): React.JSX.Element {
           {/* Active Downloads */}
           {activeDownloads.length > 0 && (
             <section>
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3">
+              <h2 className="text-lg font-semibold text-fg mb-3">
                 Active Downloads ({activeDownloads.length})
               </h2>
               <div className="space-y-2">
@@ -280,7 +280,7 @@ export default function DownloadsPage(): React.JSX.Element {
           {/* Queued / Paused / Failed */}
           {queuedItems.length > 0 && (
             <section>
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3">
+              <h2 className="text-lg font-semibold text-fg mb-3">
                 Queued ({queuedItems.length})
               </h2>
               <div className="space-y-2">

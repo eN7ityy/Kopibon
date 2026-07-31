@@ -47,9 +47,9 @@ export default function ResumeConversionBanner(): React.JSX.Element | null {
   const n = queue.outstanding
 
   return (
-    <div className="mb-4 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+    <div className="mb-4 p-3 rounded-lg bg-warning-wash border border-warning">
       <div className="flex items-start justify-between gap-3">
-        <div className="text-sm text-amber-800 dark:text-amber-300">
+        <div className="text-sm text-warning">
           <p className="font-medium">
             {n} file{n === 1 ? '' : 's'} left from an unfinished conversion
           </p>
@@ -72,7 +72,7 @@ export default function ResumeConversionBanner(): React.JSX.Element | null {
               }
             }}
             disabled={busy}
-            className="px-3 py-1.5 rounded-lg bg-amber-600 text-white text-xs font-medium hover:bg-amber-700 disabled:opacity-50"
+            className="px-3 py-1.5 rounded-lg bg-warning-fill text-white text-xs font-medium hover:bg-warning-fill disabled:opacity-50"
           >
             {busy ? 'Resuming…' : 'Resume'}
           </button>
@@ -81,7 +81,7 @@ export default function ResumeConversionBanner(): React.JSX.Element | null {
               await window.api.library.clearConversionQueue()
               setDismissed(true)
             }}
-            className="px-3 py-1.5 rounded-lg bg-white dark:bg-gray-800 border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300 text-xs font-medium hover:bg-amber-100 dark:hover:bg-amber-900/40"
+            className="px-3 py-1.5 rounded-lg bg-surface border border-warning text-warning text-xs font-medium hover:bg-warning-wash"
           >
             Discard
           </button>

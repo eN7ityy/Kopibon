@@ -18,38 +18,38 @@ const STATUS_CONFIG: Record<
   },
   in_library: {
     label: 'In Library',
-    bg: 'bg-green-100 dark:bg-green-900/30',
-    text: 'text-green-700 dark:text-green-400',
+    bg: 'bg-success-wash',
+    text: 'text-success',
     icon: '✓'
   },
   queued: {
     label: 'Queued',
-    bg: 'bg-orange-100 dark:bg-orange-900/30',
-    text: 'text-orange-700 dark:text-orange-400',
+    bg: 'bg-warning-wash',
+    text: 'text-warning',
     icon: '⏳'
   },
   downloading: {
     label: 'Downloading',
-    bg: 'bg-blue-100 dark:bg-blue-900/30',
-    text: 'text-blue-700 dark:text-blue-400',
+    bg: 'bg-info-wash',
+    text: 'text-info',
     icon: '⬇'
   },
   converting: {
     label: 'Converting',
-    bg: 'bg-purple-100 dark:bg-purple-900/30',
-    text: 'text-purple-700 dark:text-purple-400',
+    bg: 'bg-accent-wash',
+    text: 'text-accent',
     icon: '🔄'
   },
   completed: {
     label: 'Completed',
-    bg: 'bg-green-100 dark:bg-green-900/30',
-    text: 'text-green-700 dark:text-green-400',
+    bg: 'bg-success-wash',
+    text: 'text-success',
     icon: '✓'
   },
   failed: {
     label: 'Failed',
-    bg: 'bg-red-100 dark:bg-red-900/30',
-    text: 'text-red-700 dark:text-red-400',
+    bg: 'bg-danger-wash',
+    text: 'text-danger',
     icon: '✗'
   }
 }

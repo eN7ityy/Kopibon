@@ -23,13 +23,13 @@ interface RelatedGallery {
 }
 
 const TAG_COLORS: Record<string, string> = {
-  language: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-  artist: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
-  group: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-  category: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
-  parody: 'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400',
-  character: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400',
-  tag: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
+  language: 'bg-raised text-fg-muted',
+  artist: 'bg-accent-wash text-accent',
+  group: 'bg-raised text-fg-muted',
+  category: 'bg-raised text-fg-muted',
+  parody: 'bg-raised text-fg-muted',
+  character: 'bg-raised text-fg-muted',
+  tag: 'bg-raised text-fg-muted'
 }
 
 function formatDate(timestamp: number): string {
@@ -201,10 +201,10 @@ export default function GalleryDetailPanel({
     <>
       <div className="fixed inset-0 bg-black/50 z-40 transition-opacity" onClick={onClose} />
 
-      <div className="fixed right-0 top-0 h-full w-full max-w-lg bg-white dark:bg-gray-900 shadow-2xl z-50 overflow-y-auto">
+      <div className="fixed right-0 top-0 h-full w-full max-w-lg bg-surface shadow-2xl z-50 overflow-y-auto">
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 z-10 p-2 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-500 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+          className="absolute top-4 right-4 z-10 p-2 rounded-full bg-raised text-fg-muted hover:text-fg transition-colors"
         >
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -216,10 +216,10 @@ export default function GalleryDetailPanel({
         {error && !loading && (
           <div className="p-6 text-center">
             <span className="text-5xl block mb-4">😕</span>
-            <p className="text-lg font-medium text-red-500 dark:text-red-400">{error}</p>
+            <p className="text-lg font-medium text-danger">{error}</p>
             <button
               onClick={fetchDetail}
-              className="mt-4 px-4 py-2 rounded-lg bg-purple-600 text-white font-medium hover:bg-purple-700 transition-colors"
+              className="mt-4 px-4 py-2 rounded-lg bg-accent-fill text-white font-medium hover:bg-accent-hover transition-colors"
             >
               Retry
             </button>
@@ -231,7 +231,7 @@ export default function GalleryDetailPanel({
             {/* Cover image — clickable to open gallery viewer */}
             <button
               onClick={() => setShowViewer(true)}
-              className="aspect-[3/4] max-w-sm mx-auto mb-6 bg-gray-200 dark:bg-gray-800 rounded-lg overflow-hidden block w-full relative group cursor-pointer"
+              className="aspect-[3/4] max-w-sm mx-auto mb-6 bg-raised rounded-lg overflow-hidden block w-full relative group cursor-pointer"
               title="Read gallery"
             >
               {coverUrl && !imgError ? (
@@ -251,7 +251,7 @@ export default function GalleryDetailPanel({
                   </div>
                 </>
               ) : (
-                <div className="w-full h-full flex items-center justify-center text-gray-400">
+                <div className="w-full h-full flex items-center justify-center text-fg-faint">
                   <span className="text-5xl">📖</span>
                 </div>
               )}
@@ -278,8 +278,8 @@ export default function GalleryDetailPanel({
                     disabled={favLoading}
                     className={`inline-flex items-center justify-center w-8 h-8 rounded-full text-sm transition-colors disabled:opacity-50 ${
                       isFavorited
-                        ? 'bg-pink-100 dark:bg-pink-900/30 text-pink-600 dark:text-pink-400 hover:bg-pink-200 dark:hover:bg-pink-900/50'
-                        : 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700'
+                        ? 'bg-accent-wash text-accent hover:bg-accent-wash'
+                        : 'bg-raised text-fg-faint hover:bg-raised'
                     }`}
                     title={isFavorited ? 'Remove from favorites' : 'Add to favorites'}
                   >
@@ -287,17 +287,17 @@ export default function GalleryDetailPanel({
                   </button>
                 )}
               </div>
-              <span className="text-sm text-gray-500 dark:text-gray-400">{detail.num_pages} pages</span>
+              <span className="text-sm text-fg-muted">{detail.num_pages} pages</span>
             </div>
 
-            <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-2">
+            <h2 className="text-xl font-bold text-fg mb-2">
               {detail.title.pretty}
             </h2>
             {detail.title.english && detail.title.english !== detail.title.pretty && (
-              <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">{detail.title.english}</p>
+              <p className="text-sm text-fg-muted mb-1">{detail.title.english}</p>
             )}
             {detail.title.japanese && (
-              <p className="text-sm text-gray-400 dark:text-gray-500 mb-3">{detail.title.japanese}</p>
+              <p className="text-sm text-fg-faint mb-3">{detail.title.japanese}</p>
             )}
 
             {/* Artists & Groups */}
@@ -344,7 +344,7 @@ export default function GalleryDetailPanel({
             {/* Related Galleries */}
             {relatedGalleries.length > 0 && (
               <div className="mb-6">
-                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                <h3 className="text-sm font-semibold text-fg mb-2">
                   Related Galleries
                 </h3>
                 <div className="flex gap-2 overflow-x-auto pb-2">
@@ -360,7 +360,7 @@ export default function GalleryDetailPanel({
                       }}
                       className="flex-shrink-0 w-20 text-center group"
                     >
-                      <div className="w-16 h-20 mx-auto rounded bg-gray-200 dark:bg-gray-700 overflow-hidden mb-1">
+                      <div className="w-16 h-20 mx-auto rounded bg-raised overflow-hidden mb-1">
                         {rg.thumbnailUrl ? (
                           <img
                             src={rg.thumbnailUrl}
@@ -369,12 +369,12 @@ export default function GalleryDetailPanel({
                             className="w-full h-full object-cover"
                           />
                         ) : (
-                          <div className="w-full h-full flex items-center justify-center text-gray-400">
+                          <div className="w-full h-full flex items-center justify-center text-fg-faint">
                             <span className="text-lg">📖</span>
                           </div>
                         )}
                       </div>
-                      <p className="text-xs text-gray-600 dark:text-gray-400 truncate group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">
+                      <p className="text-xs text-fg-muted truncate group-hover:text-accent transition-colors">
                         {rg.title}
                       </p>
                     </button>
@@ -384,29 +384,29 @@ export default function GalleryDetailPanel({
             )}
 
             {/* Meta info */}
-            <div className="space-y-1.5 text-sm text-gray-600 dark:text-gray-400 mb-6">
+            <div className="space-y-1.5 text-sm text-fg-muted mb-6">
               <div className="flex justify-between">
                 <span>ID</span>
-                <span className="font-medium text-gray-900 dark:text-gray-100 font-mono">#{detail.id}</span>
+                <span className="font-medium text-fg font-mono">#{detail.id}</span>
               </div>
               <div className="flex justify-between">
                 <span>Pages</span>
-                <span className="font-medium text-gray-900 dark:text-gray-100">{detail.num_pages}</span>
+                <span className="font-medium text-fg">{detail.num_pages}</span>
               </div>
               <div className="flex justify-between">
                 <span>Uploaded</span>
-                <span className="font-medium text-gray-900 dark:text-gray-100">{formatDate(detail.upload_date)}</span>
+                <span className="font-medium text-fg">{formatDate(detail.upload_date)}</span>
               </div>
               <div className="flex justify-between">
                 <span>Favorites</span>
-                <span className="font-medium text-gray-900 dark:text-gray-100">
+                <span className="font-medium text-fg">
                   {detail.num_favorites.toLocaleString()}
                 </span>
               </div>
               {detail.scanlator && (
                 <div className="flex justify-between">
                   <span>Scanlator</span>
-                  <span className="font-medium text-gray-900 dark:text-gray-100">{detail.scanlator}</span>
+                  <span className="font-medium text-fg">{detail.scanlator}</span>
                 </div>
               )}
             </div>
@@ -415,7 +415,7 @@ export default function GalleryDetailPanel({
             <div className="space-y-3">
               {isInLibrary && !showRedownloadConfirm ? (
                 <>
-                  <div className="px-4 py-3 rounded-lg bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-center font-medium">
+                  <div className="px-4 py-3 rounded-lg bg-success-wash text-success text-center font-medium">
                     ✓ Already in Library
                   </div>
                   <button
@@ -427,7 +427,7 @@ export default function GalleryDetailPanel({
                       } catch { /* */ }
                       setShowRedownloadConfirm(true)
                     }}
-                    className="w-full px-4 py-2.5 rounded-lg border border-orange-300 dark:border-orange-700 bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 font-medium hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors"
+                    className="w-full px-4 py-2.5 rounded-lg border border-warning bg-warning-wash text-warning font-medium hover:bg-warning-wash transition-colors"
                   >
                     Re-download
                   </button>
@@ -435,30 +435,30 @@ export default function GalleryDetailPanel({
                   {/* Delete actions */}
                   {deleteConfirm === 'remove' ? (
                     <div className="space-y-2">
-                      <p className="text-xs text-orange-600 dark:text-orange-400">This will only remove the database entry. The file on disk will be kept.</p>
+                      <p className="text-xs text-warning">This will only remove the database entry. The file on disk will be kept.</p>
                       <div className="flex gap-2">
-                        <button onClick={() => handleDelete('remove')} disabled={deleting} className="flex-1 px-4 py-2 rounded-lg bg-orange-600 text-white text-sm font-medium hover:bg-orange-700 disabled:opacity-50">{deleting ? 'Removing...' : 'Confirm Remove'}</button>
-                        <button onClick={() => setDeleteConfirm('none')} className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-sm font-medium">Cancel</button>
+                        <button onClick={() => handleDelete('remove')} disabled={deleting} className="flex-1 px-4 py-2 rounded-lg bg-warning-fill text-white text-sm font-medium hover:bg-warning-fill disabled:opacity-50">{deleting ? 'Removing...' : 'Confirm Remove'}</button>
+                        <button onClick={() => setDeleteConfirm('none')} className="px-4 py-2 rounded-lg bg-raised text-sm font-medium">Cancel</button>
                       </div>
                     </div>
                   ) : deleteConfirm === 'deleteFile' ? (
                     <div className="space-y-2">
-                      <p className="text-xs text-red-600 dark:text-red-400">⚠️ This will delete the database entry AND the file from disk. This cannot be undone.</p>
+                      <p className="text-xs text-danger">⚠️ This will delete the database entry AND the file from disk. This cannot be undone.</p>
                       <div className="flex gap-2">
-                        <button onClick={() => handleDelete('deleteFile')} disabled={deleting} className="flex-1 px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700 disabled:opacity-50">{deleting ? 'Deleting...' : 'Confirm Delete'}</button>
-                        <button onClick={() => setDeleteConfirm('none')} className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-sm font-medium">Cancel</button>
+                        <button onClick={() => handleDelete('deleteFile')} disabled={deleting} className="flex-1 px-4 py-2 rounded-lg bg-danger-fill text-white text-sm font-medium hover:bg-danger-fill disabled:opacity-50">{deleting ? 'Deleting...' : 'Confirm Delete'}</button>
+                        <button onClick={() => setDeleteConfirm('none')} className="px-4 py-2 rounded-lg bg-raised text-sm font-medium">Cancel</button>
                       </div>
                     </div>
                   ) : (
                     <div className="flex gap-2">
-                      <button onClick={() => setDeleteConfirm('remove')} className="flex-1 px-4 py-2 rounded-lg bg-orange-100 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 text-sm font-medium hover:bg-orange-200 dark:hover:bg-orange-900/30">📋 Remove from Library</button>
-                      <button onClick={() => setDeleteConfirm('deleteFile')} className="flex-1 px-4 py-2 rounded-lg bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-sm font-medium hover:bg-red-200 dark:hover:bg-red-900/30">🗑️ Delete File</button>
+                      <button onClick={() => setDeleteConfirm('remove')} className="flex-1 px-4 py-2 rounded-lg bg-warning-wash text-warning text-sm font-medium hover:bg-warning-wash">📋 Remove from Library</button>
+                      <button onClick={() => setDeleteConfirm('deleteFile')} className="flex-1 px-4 py-2 rounded-lg bg-danger-wash text-danger text-sm font-medium hover:bg-danger-wash">🗑️ Delete File</button>
                     </div>
                   )}
                 </>
               ) : showRedownloadConfirm ? (
-                <div className="p-4 rounded-lg border border-orange-300 dark:border-orange-700 bg-orange-50 dark:bg-orange-900/20 space-y-3">
-                  <p className="text-sm text-orange-700 dark:text-orange-400">
+                <div className="p-4 rounded-lg border border-warning bg-warning-wash space-y-3">
+                  <p className="text-sm text-warning">
                     This gallery already exists in your library.
                     {libraryPath && (
                       <span className="block mt-1 text-xs opacity-75 truncate">
@@ -466,7 +466,7 @@ export default function GalleryDetailPanel({
                       </span>
                     )}
                   </p>
-                  <p className="text-xs text-orange-600 dark:text-orange-500">
+                  <p className="text-xs text-warning">
                     Re-downloading will remove the existing file and re-download it.
                   </p>
                   <div className="flex gap-2">
@@ -483,20 +483,20 @@ export default function GalleryDetailPanel({
                         setDownloadStatus('not_downloaded')
                         onDownload(galleryId, downloadFormat)
                       }}
-                      className="flex-1 px-3 py-2 rounded-lg bg-orange-600 text-white text-sm font-medium hover:bg-orange-700 transition-colors"
+                      className="flex-1 px-3 py-2 rounded-lg bg-warning-fill text-white text-sm font-medium hover:bg-warning-fill transition-colors"
                     >
                       Yes, Re-download
                     </button>
                     <button
                       onClick={() => setShowRedownloadConfirm(false)}
-                      className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                      className="flex-1 px-3 py-2 rounded-lg border border-line bg-surface text-fg text-sm font-medium hover:bg-raised transition-colors"
                     >
                       Cancel
                     </button>
                   </div>
                 </div>
               ) : isDownloading ? (
-                <div className="px-4 py-3 rounded-lg bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-center font-medium">
+                <div className="px-4 py-3 rounded-lg bg-info-wash text-info text-center font-medium">
                   ⏳ Already Downloading...
                 </div>
               ) : (
@@ -509,7 +509,7 @@ export default function GalleryDetailPanel({
                     />
                     <button
                       onClick={() => onDownload(galleryId, downloadFormat)}
-                      className="flex-1 px-4 py-3 rounded-lg bg-purple-600 text-white font-medium hover:bg-purple-700 transition-colors"
+                      className="flex-1 px-4 py-3 rounded-lg bg-accent-fill text-white font-medium hover:bg-accent-hover transition-colors"
                     >
                       Download
                     </button>
@@ -519,7 +519,7 @@ export default function GalleryDetailPanel({
 
               <button
                 onClick={() => window.api.shell.openExternal(`https://nhentai.net/g/${galleryId}`)}
-                className="w-full px-4 py-2 rounded-lg text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+                className="w-full px-4 py-2 rounded-lg text-sm text-fg-muted hover:text-fg transition-colors"
               >
                 Open in Browser ↗
               </button>

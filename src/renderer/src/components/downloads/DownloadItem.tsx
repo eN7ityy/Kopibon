@@ -27,10 +27,10 @@ interface DownloadItemProps {
 }
 
 const TAG_COLORS: Record<string, string> = {
-  artist: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
-  group: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-  language: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-  tag: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
+  artist: 'bg-accent-wash text-accent',
+  group: 'bg-raised text-fg-muted',
+  language: 'bg-raised text-fg-muted',
+  tag: 'bg-raised text-fg-muted'
 }
 
 export default function DownloadItem({
@@ -55,10 +55,10 @@ export default function DownloadItem({
   const pageCount = progress?.totalPages || galleryInfo?.pageCount || 0
 
   return (
-    <div className="p-4 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+    <div className="p-4 rounded-lg bg-surface border border-line">
       <div className="flex items-start gap-4">
         {/* Thumbnail */}
-        <div className="w-16 h-20 rounded bg-gray-200 dark:bg-gray-700 flex-shrink-0 flex items-center justify-center overflow-hidden">
+        <div className="w-16 h-20 rounded bg-raised flex-shrink-0 flex items-center justify-center overflow-hidden">
           {galleryInfo?.thumbnailUrl && !imgError ? (
             <img
               src={galleryInfo.thumbnailUrl}
@@ -75,22 +75,22 @@ export default function DownloadItem({
         {/* Info */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between mb-1">
-            <h4 className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+            <h4 className="text-sm font-medium text-fg truncate">
               {title}
             </h4>
             <span
               className={`text-xs font-medium ml-2 flex-shrink-0 px-2 py-0.5 rounded-full ${
                 isActive
-                  ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                  ? 'bg-raised text-fg-muted'
                   : isPaused
-                    ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+                    ? 'bg-warning-wash text-warning'
                     : isQueued
-                      ? 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
+                      ? 'bg-raised text-fg-muted'
                       : isFailed
-                        ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                        ? 'bg-danger-wash text-danger'
                         : isCompleted
-                          ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                          : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
+                          ? 'bg-raised text-fg-muted'
+                          : 'bg-raised text-fg-muted'
               }`}
             >
               {isActive
@@ -139,7 +139,7 @@ export default function DownloadItem({
                 </span>
               ))}
               {galleryInfo.tags.length > 6 && (
-                <span className="px-1.5 py-0.5 rounded-full text-xs text-gray-400">
+                <span className="px-1.5 py-0.5 rounded-full text-xs text-fg-faint">
                   +{galleryInfo.tags.length - 6} more
                 </span>
               )}
@@ -160,10 +160,10 @@ export default function DownloadItem({
           {/* Conversion status when no detailed progress available */}
           {item.status === 'converting' && !progress && (
             <div className="mt-1">
-              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
-                <div className="bg-purple-500 h-full rounded-full animate-pulse" style={{ width: '100%' }} />
+              <div className="w-full bg-raised rounded-full h-2 overflow-hidden">
+                <div className="bg-accent-fill h-full rounded-full animate-pulse" style={{ width: '100%' }} />
               </div>
-              <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">
+              <p className="text-xs text-accent mt-1">
                 Converting images to PDF...
               </p>
             </div>
@@ -171,12 +171,12 @@ export default function DownloadItem({
 
           {/* Failed message */}
           {isFailed && item.errorMessage && (
-            <p className="text-xs text-red-600 dark:text-red-400 mt-1">{item.errorMessage}</p>
+            <p className="text-xs text-danger mt-1">{item.errorMessage}</p>
           )}
 
           {/* Page count for queued/paused */}
           {(isQueued || isPaused) && (
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            <p className="text-xs text-fg-muted mt-1">
               {pageCount > 0 ? `${pageCount} pages · ` : ''}Waiting to start...
             </p>
           )}
@@ -184,9 +184,9 @@ export default function DownloadItem({
           {/* Completed */}
           {isCompleted && (
             <div className="mt-1">
-              <p className="text-xs text-green-600 dark:text-green-400">Download complete ✓</p>
+              <p className="text-xs text-success">Download complete ✓</p>
               {galleryInfo?.filePath && (
-                <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 truncate" title={galleryInfo.filePath}>
+                <p className="text-xs text-fg-faint mt-0.5 truncate" title={galleryInfo.filePath}>
                   📁 {galleryInfo.filePath}
                 </p>
               )}
@@ -199,7 +199,7 @@ export default function DownloadItem({
           {isActive && (
             <button
               onClick={() => onPause(item.id)}
-              className="p-1.5 rounded text-gray-400 hover:text-yellow-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              className="p-1.5 rounded text-fg-faint hover:text-warning hover:bg-raised transition-colors"
               title="Pause"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -210,7 +210,7 @@ export default function DownloadItem({
           {isPaused && (
             <button
               onClick={() => onResume(item.id)}
-              className="p-1.5 rounded text-gray-400 hover:text-green-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              className="p-1.5 rounded text-fg-faint hover:text-success hover:bg-raised transition-colors"
               title="Resume"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -222,7 +222,7 @@ export default function DownloadItem({
           {isFailed && (
             <button
               onClick={() => onRetry(item.id)}
-              className="p-1.5 rounded text-gray-400 hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              className="p-1.5 rounded text-fg-faint hover:text-info hover:bg-raised transition-colors"
               title="Retry"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -233,7 +233,7 @@ export default function DownloadItem({
           {!isCompleted && (
             <button
               onClick={() => onCancel(item.id)}
-              className="p-1.5 rounded text-gray-400 hover:text-red-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              className="p-1.5 rounded text-fg-faint hover:text-danger hover:bg-raised transition-colors"
               title={isFailed ? 'Remove' : 'Cancel'}
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">

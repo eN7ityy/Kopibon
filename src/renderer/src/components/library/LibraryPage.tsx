@@ -85,7 +85,7 @@ function SearchableFilterDropdown({
 
   return (
     <div ref={containerRef} className="min-w-[180px] max-w-[240px]">
-      <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{label}</h4>
+      <h4 className="text-sm font-medium text-fg mb-2">{label}</h4>
 
       {/* Search input */}
       <div className="relative mb-2">
@@ -95,26 +95,26 @@ function SearchableFilterDropdown({
           value={query}
           onChange={(e) => { setQuery(e.target.value); setShowDropdown(true) }}
           onFocus={() => setShowDropdown(true)}
-          className="w-full pl-7 pr-2 py-1.5 text-xs rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+          className="w-full pl-7 pr-2 py-1.5 text-xs rounded-lg border border-line bg-surface text-fg focus:ring-2 focus:ring-accent focus:border-transparent"
         />
-        <svg className="absolute left-2 top-2 h-3 w-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg className="absolute left-2 top-2 h-3 w-3 text-fg-faint" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
         </svg>
       </div>
 
       {/* Dropdown */}
       {showDropdown && filtered.length > 0 && (
-        <div className="max-h-40 overflow-y-auto rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg mb-2">
+        <div className="max-h-40 overflow-y-auto rounded-lg border border-line bg-surface shadow-lg mb-2">
           {filtered.map((item) => (
             <label
               key={item}
-              className="flex items-center gap-2 px-2 py-1.5 text-xs text-gray-600 dark:text-gray-400 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
+              className="flex items-center gap-2 px-2 py-1.5 text-xs text-fg-muted cursor-pointer hover:bg-raised"
             >
               <input
                 type="checkbox"
                 checked={selected.has(item)}
                 onChange={() => onToggle(item)}
-                className="w-3 h-3 rounded border-gray-400 text-purple-600 focus:ring-purple-500"
+                className="w-3 h-3 rounded border-line text-accent focus:ring-accent"
               />
               <span className="truncate">{item}</span>
             </label>
@@ -129,14 +129,14 @@ function SearchableFilterDropdown({
             <span
               key={item}
               onClick={() => onToggle(item)}
-              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 cursor-pointer hover:bg-purple-200 dark:hover:bg-purple-900/60 transition-colors"
+              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs bg-accent-wash text-accent cursor-pointer hover:bg-accent-wash transition-colors"
             >
               {item.length > 20 ? item.slice(0, 20) + '…' : item}
-              <span className="ml-0.5 text-purple-500">×</span>
+              <span className="ml-0.5 text-accent">×</span>
             </span>
           ))}
           {selected.size > 15 && (
-            <span className="text-xs text-gray-400 self-center">+{selected.size - 15} more</span>
+            <span className="text-xs text-fg-faint self-center">+{selected.size - 15} more</span>
           )}
         </div>
       )}
@@ -216,13 +216,13 @@ function InlineEditCell({
           <div className="flex gap-1 mt-1">
             <button
               onClick={handleAutocompleteSubmit}
-              className="text-xs px-2 py-0.5 rounded bg-purple-600 text-white hover:bg-purple-700"
+              className="text-xs px-2 py-0.5 rounded bg-accent-fill text-white hover:bg-accent-hover"
             >
               ✓
             </button>
             <button
               onClick={cancel}
-              className="text-xs px-2 py-0.5 rounded bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-400"
+              className="text-xs px-2 py-0.5 rounded bg-raised text-fg hover:bg-raised"
             >
               ✕
             </button>
@@ -244,14 +244,14 @@ function InlineEditCell({
         }}
         onBlur={() => persist(draft)}
         onClick={(e) => e.stopPropagation()}
-        className={`w-full px-1 py-0.5 text-xs rounded border border-purple-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-purple-500 focus:outline-none ${className}`}
+        className={`w-full px-1 py-0.5 text-xs rounded border border-accent bg-surface text-fg focus:ring-2 focus:ring-accent focus:outline-none ${className}`}
       />
     )
   }
 
   return (
     <p
-      className={`text-xs cursor-pointer hover:text-purple-600 dark:hover:text-purple-400 transition-colors ${className}`}
+      className={`text-xs cursor-pointer hover:text-accent transition-colors ${className}`}
       onClick={(e) => { e.stopPropagation(); setEditing(true) }}
       title="Click to edit"
     >
@@ -736,8 +736,8 @@ export default function LibraryPage(): React.JSX.Element {
     return (
       <div className="flex flex-col h-full">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Library</h1>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+          <h1 className="text-2xl font-bold text-fg">Library</h1>
+          <p className="mt-1 text-sm text-fg-muted">
             Loading your doujinshi collection...
           </p>
         </div>
@@ -754,7 +754,7 @@ export default function LibraryPage(): React.JSX.Element {
     return (
       <div className="flex flex-col h-full">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Library</h1>
+          <h1 className="text-2xl font-bold text-fg">Library</h1>
         </div>
         <ErrorState message={error} onRetry={() => fetchPage(0, true)} />
       </div>
@@ -769,13 +769,13 @@ export default function LibraryPage(): React.JSX.Element {
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="mb-4">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Library</h1>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+        <h1 className="text-2xl font-bold text-fg">Library</h1>
+        <p className="mt-1 text-sm text-fg-muted">
           {totalCount > 0
             ? `${totalCount} items in library`
             : 'Browse your downloaded doujinshi collection'}
           {lastScan && (
-            <span className="ml-2 text-xs text-gray-400">
+            <span className="ml-2 text-xs text-fg-faint">
               (last scan: {formatDate(lastScan.scannedAt)})
             </span>
           )}
@@ -786,15 +786,15 @@ export default function LibraryPage(): React.JSX.Element {
 
       {/* Error banner */}
       {error && (
-        <div className="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 text-sm flex items-center justify-between">
+        <div className="mb-4 p-3 rounded-lg bg-danger-wash border border-danger text-danger text-sm flex items-center justify-between">
           <span>⚠️ {error}</span>
-          <button onClick={() => setError(null)} className="ml-2 text-red-500 hover:text-red-700 dark:hover:text-red-300">✕</button>
+          <button onClick={() => setError(null)} className="ml-2 text-danger hover:text-danger">✕</button>
         </div>
       )}
 
       {/* Path inaccessible warning */}
       {items.length > 0 && pathAccessible === false && (
-        <div className="mb-3 p-2 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 text-xs">
+        <div className="mb-3 p-2 rounded-lg bg-danger-wash border border-danger text-danger text-xs">
           ⚠️ Library storage is not accessible. The network drive may be disconnected. Showing cached metadata only.
         </div>
       )}
@@ -807,35 +807,35 @@ export default function LibraryPage(): React.JSX.Element {
             onClick={handleRescan}
             disabled={conversionStore.running}
             title={conversionStore.running ? 'Scan disabled during metadata conversion' : 'Rescan Library'}
-            className="px-4 py-2 rounded-lg bg-purple-600 text-white font-medium text-sm hover:bg-purple-700 transition-colors flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="px-4 py-2 rounded-lg bg-accent-fill text-white font-medium text-sm hover:bg-accent-hover transition-colors flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             🔄 Rescan Library
           </button>
         )}
         {scanning && !scanPaused && (
           <>
-            <button onClick={handlePauseScan} className="px-4 py-2 rounded-lg bg-yellow-600 text-white font-medium text-sm hover:bg-yellow-700 transition-colors flex items-center gap-2">
+            <button onClick={handlePauseScan} className="px-4 py-2 rounded-lg bg-warning-fill text-white font-medium text-sm hover:bg-warning-fill transition-colors flex items-center gap-2">
               <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
               Pause Scan
             </button>
-            <button onClick={handleCancelScan} className="px-3 py-2 rounded-lg bg-red-600 text-white font-medium text-sm hover:bg-red-700 transition-colors">✕ Cancel</button>
+            <button onClick={handleCancelScan} className="px-3 py-2 rounded-lg bg-danger-fill text-white font-medium text-sm hover:bg-danger-fill transition-colors">✕ Cancel</button>
           </>
         )}
         {scanPaused && (
           <>
-            <button onClick={handleResumeScan} className="px-4 py-2 rounded-lg bg-green-600 text-white font-medium text-sm hover:bg-green-700 transition-colors flex items-center gap-2">▶ Resume Scan</button>
-            <button onClick={handleCancelScan} className="px-3 py-2 rounded-lg bg-red-600 text-white font-medium text-sm hover:bg-red-700 transition-colors">✕ Cancel</button>
+            <button onClick={handleResumeScan} className="px-4 py-2 rounded-lg bg-success-fill text-white font-medium text-sm hover:bg-success-fill transition-colors flex items-center gap-2">▶ Resume Scan</button>
+            <button onClick={handleCancelScan} className="px-3 py-2 rounded-lg bg-danger-fill text-white font-medium text-sm hover:bg-danger-fill transition-colors">✕ Cancel</button>
           </>
         )}
 
-        <button onClick={() => setShowCustomForm(true)} className="px-4 py-2 rounded-lg bg-green-600 text-white font-medium text-sm hover:bg-green-700 transition-colors">
+        <button onClick={() => setShowCustomForm(true)} className="px-4 py-2 rounded-lg bg-success-fill text-white font-medium text-sm hover:bg-success-fill transition-colors">
           + Add Custom
         </button>
 
         {items.length > 0 && (
           <button
             onClick={() => { setSelectMode(!selectMode); if (selectMode) { setSelectedIds(new Set()); setSelectionTick((t) => t + 1) } }}
-            className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${selectMode ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
+            className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${selectMode ? 'bg-info-wash text-info' : 'bg-raised text-fg-muted hover:bg-raised'}`}
           >
             {selectMode ? `Selected (${selectedIds.size})` : 'Select'}
           </button>
@@ -843,8 +843,8 @@ export default function LibraryPage(): React.JSX.Element {
 
         {selectMode && selectedIds.size > 0 && (
           <>
-            <button onClick={() => setShowSeriesModal(true)} className="px-3 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors">Assign Series</button>
-            <button onClick={handleBatchUnassignSeries} className="px-3 py-2 rounded-lg bg-gray-600 text-white text-sm font-medium hover:bg-gray-700 transition-colors">Unassign Series</button>
+            <button onClick={() => setShowSeriesModal(true)} className="px-3 py-2 rounded-lg bg-info-fill text-white text-sm font-medium hover:bg-info-fill transition-colors">Assign Series</button>
+            <button onClick={handleBatchUnassignSeries} className="px-3 py-2 rounded-lg bg-raised text-white text-sm font-medium hover:bg-raised transition-colors">Unassign Series</button>
             <button
               onClick={async () => {
                 const ids = [...selectedIds]
@@ -858,7 +858,7 @@ export default function LibraryPage(): React.JSX.Element {
                 setBatchSyncing(false)
               }}
               disabled={batchSyncing}
-              className="px-3 py-2 rounded-lg bg-green-600 text-white text-sm font-medium hover:bg-green-700 disabled:opacity-40 transition-colors"
+              className="px-3 py-2 rounded-lg bg-success-fill text-white text-sm font-medium hover:bg-success-fill disabled:opacity-40 transition-colors"
             >
               {batchSyncing ? 'Syncing...' : 'Sync with Nhentai'}
             </button>
@@ -870,12 +870,12 @@ export default function LibraryPage(): React.JSX.Element {
                   ? 'None of the selected files are PDFs'
                   : `Convert ${pdfSelectionCount} PDF${pdfSelectionCount === 1 ? '' : 's'} to CBZ`
               }
-              className="px-3 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              className="px-3 py-2 rounded-lg bg-accent-fill text-white text-sm font-medium hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               {cbzRunning ? 'Converting…' : `Convert to CBZ${pdfSelectionCount > 0 ? ` (${pdfSelectionCount})` : ''}`}
             </button>
-            <button onClick={handleBatchRemove} className="px-3 py-2 rounded-lg bg-orange-600 text-white text-sm font-medium hover:bg-orange-700 transition-colors">Remove from Library</button>
-            <button onClick={handleBatchDelete} className="px-3 py-2 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700 transition-colors">Delete Files</button>
+            <button onClick={handleBatchRemove} className="px-3 py-2 rounded-lg bg-warning-fill text-white text-sm font-medium hover:bg-warning-fill transition-colors">Remove from Library</button>
+            <button onClick={handleBatchDelete} className="px-3 py-2 rounded-lg bg-danger-fill text-white text-sm font-medium hover:bg-danger-fill transition-colors">Delete Files</button>
           </>
         )}
 
@@ -888,9 +888,9 @@ export default function LibraryPage(): React.JSX.Element {
             placeholder="Search library..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-48 md:w-56 pl-8 pr-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+            className="w-48 md:w-56 pl-8 pr-3 py-2 rounded-lg border border-line bg-surface text-sm text-fg focus:ring-2 focus:ring-accent focus:border-transparent"
           />
-          <svg className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg className="absolute left-2.5 top-2.5 h-4 w-4 text-fg-faint" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
         </div>
@@ -899,7 +899,7 @@ export default function LibraryPage(): React.JSX.Element {
         <select
           value={sortField}
           onChange={(e) => setSortField(e.target.value as SortField)}
-          className="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-purple-500"
+          className="px-3 py-2 rounded-lg border border-line bg-surface text-sm text-fg focus:ring-2 focus:ring-accent"
         >
           <option value="added">Date Added</option>
           <option value="title">Title</option>
@@ -909,7 +909,7 @@ export default function LibraryPage(): React.JSX.Element {
         {/* Filters toggle */}
         <button
           onClick={() => setShowFilters(!showFilters)}
-          className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${showFilters || selectedArtistFilters.size > 0 || selectedSeriesFilters.size > 0 || showUnmatchedOnly ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
+          className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${showFilters || selectedArtistFilters.size > 0 || selectedSeriesFilters.size > 0 || showUnmatchedOnly ? 'bg-accent-wash text-accent' : 'bg-raised text-fg-muted hover:bg-raised'}`}
         >
           🔍 Filters
           {(selectedArtistFilters.size > 0 || selectedSeriesFilters.size > 0 || showUnmatchedOnly) && (
@@ -918,15 +918,15 @@ export default function LibraryPage(): React.JSX.Element {
         </button>
 
         {/* View mode toggle */}
-        <div className="flex rounded-lg border border-gray-300 dark:border-gray-600 overflow-hidden">
+        <div className="flex rounded-lg border border-line overflow-hidden">
           {(['grid', 'compact', 'list'] as ViewMode[]).map((mode) => (
             <button
               key={mode}
               onClick={() => setViewModePersisted(mode)}
               className={`px-2.5 py-1.5 text-xs font-medium transition-colors ${
                 viewMode === mode
-                  ? 'bg-purple-600 text-white'
-                  : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                  ? 'bg-accent-fill text-white'
+                  : 'bg-surface text-fg-muted hover:bg-raised'
               }`}
               title={mode === 'grid' ? 'Grid view' : mode === 'compact' ? 'Compact view' : 'List view'}
             >
@@ -939,7 +939,7 @@ export default function LibraryPage(): React.JSX.Element {
       {/* Scan progress bar */}
       {/* Filter panel */}
       {showFilters && (
-        <div className="mb-4 p-4 rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700">
+        <div className="mb-4 p-4 rounded-lg bg-raised/50 border border-line">
           <div className="flex flex-wrap gap-6">
             {artistNames.length > 0 && (
               <SearchableFilterDropdown
@@ -972,16 +972,16 @@ export default function LibraryPage(): React.JSX.Element {
             )}
 
             <div>
-              <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Other</h4>
-              <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 cursor-pointer hover:text-gray-900 dark:hover:text-gray-200">
-                <input type="checkbox" checked={showUnmatchedOnly} onChange={() => setShowUnmatchedOnly(!showUnmatchedOnly)} className="w-3.5 h-3.5 rounded border-gray-400 text-purple-600 focus:ring-purple-500" />
+              <h4 className="text-sm font-medium text-fg mb-2">Other</h4>
+              <label className="flex items-center gap-2 text-sm text-fg-muted cursor-pointer hover:text-fg">
+                <input type="checkbox" checked={showUnmatchedOnly} onChange={() => setShowUnmatchedOnly(!showUnmatchedOnly)} className="w-3.5 h-3.5 rounded border-line text-accent focus:ring-accent" />
                 Unmatched only
               </label>
             </div>
           </div>
 
           {(selectedArtistFilters.size > 0 || selectedSeriesFilters.size > 0 || showUnmatchedOnly) && (
-            <button onClick={() => { setSelectedArtistFilters(new Set()); setSelectedSeriesFilters(new Set()); setShowUnmatchedOnly(false) }} className="mt-3 text-xs text-purple-600 dark:text-purple-400 hover:underline">
+            <button onClick={() => { setSelectedArtistFilters(new Set()); setSelectedSeriesFilters(new Set()); setShowUnmatchedOnly(false) }} className="mt-3 text-xs text-accent hover:underline">
               Clear all filters
             </button>
           )}
@@ -991,8 +991,8 @@ export default function LibraryPage(): React.JSX.Element {
       {/* Select all bar */}
       {selectMode && items.length > 0 && (
         <div className="mb-3 flex items-center gap-3">
-          <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 cursor-pointer">
-            <input type="checkbox" checked={selectedIds.size === items.length && items.length > 0} onChange={toggleSelectAll} className="w-4 h-4 rounded border-gray-400 text-purple-600 focus:ring-purple-500" />
+          <label className="flex items-center gap-2 text-sm text-fg-muted cursor-pointer">
+            <input type="checkbox" checked={selectedIds.size === items.length && items.length > 0} onChange={toggleSelectAll} className="w-4 h-4 rounded border-line text-accent focus:ring-accent" />
             Select all ({items.length})
           </label>
         </div>
@@ -1004,7 +1004,7 @@ export default function LibraryPage(): React.JSX.Element {
       ) : viewMode === 'list' ? (
         <div className="flex-1">
           {/* Column headers */}
-          <div className="flex items-center gap-3 px-4 py-2 border-b-2 border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800/80 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+          <div className="flex items-center gap-3 px-4 py-2 border-b-2 border-line bg-raised/80 text-xs font-semibold text-fg-muted uppercase tracking-wider">
             <div className="w-3.5 shrink-0" />
             <div className="flex-1 min-w-0">Title</div>
             <div className="w-32 shrink-0">Artist</div>
@@ -1024,7 +1024,7 @@ export default function LibraryPage(): React.JSX.Element {
               Footer: hasMore
                 ? () => (
                     <div className="flex justify-center py-4">
-                      <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+                      <div className="w-6 h-6 border-2 border-accent border-t-transparent rounded-full animate-spin" />
                     </div>
                   )
                 : undefined as any
@@ -1041,7 +1041,7 @@ export default function LibraryPage(): React.JSX.Element {
               const addedDate = new Date(item.addedAt).toLocaleDateString()
               return (
                 <div
-                  className={`flex items-center gap-3 px-4 py-2 border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer transition-colors ${selectedIds.has(item.id) ? 'bg-purple-50 dark:bg-purple-900/20' : ''}`}
+                  className={`flex items-center gap-3 px-4 py-2 border-b border-line hover:bg-raised cursor-pointer transition-colors ${selectedIds.has(item.id) ? 'bg-accent-wash' : ''}`}
                   onClick={() => {
                     if (selectMode) {
                       toggleSelect(item.id)
@@ -1057,7 +1057,7 @@ export default function LibraryPage(): React.JSX.Element {
                       type="checkbox"
                       checked={selectedIds.has(item.id)}
                       onChange={() => handleCheckboxToggle(item.id)}
-                      className="w-3.5 h-3.5 rounded border-gray-400 text-purple-600 focus:ring-purple-500"
+                      className="w-3.5 h-3.5 rounded border-line text-accent focus:ring-accent"
                     />
                   </div>
                   {/* Title */}
@@ -1067,7 +1067,7 @@ export default function LibraryPage(): React.JSX.Element {
                       displayValue={title}
                       itemId={item.id}
                       field="customTitle"
-                      className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate"
+                      className="text-sm font-medium text-fg truncate"
                     />
                   </div>
                   {/* Artist */}
@@ -1078,7 +1078,7 @@ export default function LibraryPage(): React.JSX.Element {
                       itemId={item.id}
                       field="primaryArtist"
                       autocompleteKind="artist"
-                      className="text-xs text-gray-500 dark:text-gray-400 truncate"
+                      className="text-xs text-fg-muted truncate"
                     />
                   </div>
                   {/* Series */}
@@ -1089,7 +1089,7 @@ export default function LibraryPage(): React.JSX.Element {
                       itemId={item.id}
                       field="seriesName"
                       autocompleteKind="series"
-                      className="text-xs text-blue-600 dark:text-blue-400 truncate"
+                      className="text-xs text-info truncate"
                     />
                   </div>
                   {/* Volume */}
@@ -1099,24 +1099,24 @@ export default function LibraryPage(): React.JSX.Element {
                       displayValue={item.seriesIndex != null ? `V${item.seriesIndex}` : '—'}
                       itemId={item.id}
                       field="seriesIndex"
-                      className="text-xs text-gray-500 dark:text-gray-400"
+                      className="text-xs text-fg-muted"
                     />
                   </div>
                   {/* Language */}
                   <div className="w-16 shrink-0">
-                    <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{item.language || item.customLanguage || '—'}</p>
+                    <p className="text-xs text-fg-muted truncate">{item.language || item.customLanguage || '—'}</p>
                   </div>
                   {/* Format */}
                   <div className="w-14 shrink-0">
-                    <span className="text-xs px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300">{item.format?.toUpperCase() || 'PDF'}</span>
+                    <span className="text-xs px-1.5 py-0.5 rounded bg-accent-wash text-accent">{item.format?.toUpperCase() || 'PDF'}</span>
                   </div>
                   {/* Size */}
                   <div className="w-20 shrink-0 text-right">
-                    <p className="text-xs text-gray-500 dark:text-gray-400">{formatSize(item.fileSize)}</p>
+                    <p className="text-xs text-fg-muted">{formatSize(item.fileSize)}</p>
                   </div>
                   {/* Date */}
                   <div className="w-24 shrink-0 text-right">
-                    <p className="text-xs text-gray-400">{addedDate}</p>
+                    <p className="text-xs text-fg-faint">{addedDate}</p>
                   </div>
                 </div>
               )
@@ -1136,7 +1136,7 @@ export default function LibraryPage(): React.JSX.Element {
               Footer: hasMore
                 ? () => (
                     <div className="flex justify-center py-4">
-                      <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+                      <div className="w-6 h-6 border-2 border-accent border-t-transparent rounded-full animate-spin" />
                     </div>
                   )
                 : undefined as any

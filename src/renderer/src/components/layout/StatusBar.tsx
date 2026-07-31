@@ -56,14 +56,14 @@ export default function StatusBar(): React.JSX.Element {
   }
 
   return (
-    <footer className="flex items-center h-8 px-4 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 text-xs text-gray-500 dark:text-gray-400 select-none">
+    <footer className="flex items-center h-8 px-4 border-t border-line bg-chrome text-xs text-fg-muted select-none">
       <span>
         ⬇️ {activeCount} active · {queuedCount} queued · {libraryCount} in library
       </span>
       <span className="ml-auto flex items-center gap-3">
         <button
           onClick={handleOpenNhentai}
-          className="hover:text-purple-600 dark:hover:text-purple-400 transition-colors cursor-pointer"
+          className="hover:text-accent transition-colors cursor-pointer"
           title="Open nhentai.net in browser"
         >
           nhentai.net ↗

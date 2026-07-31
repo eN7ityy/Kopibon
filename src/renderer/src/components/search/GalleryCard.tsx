@@ -27,10 +27,10 @@ export default function GalleryCard({
     <button
       onClick={() => onClick(gallery.id)}
       onDragStart={(e) => e.preventDefault()}
-      className="group relative rounded-lg overflow-hidden bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-purple-400 dark:hover:border-purple-500 hover:shadow-lg transition-all duration-200 text-left w-full"
+      className="group relative rounded-lg overflow-hidden bg-surface border border-line hover:border-accent hover:shadow-lg transition-all duration-200 text-left w-full"
     >
       {/* Cover image */}
-      <div className="aspect-[3/4] bg-gray-200 dark:bg-gray-700 relative overflow-hidden">
+      <div className="aspect-[3/4] bg-raised relative overflow-hidden">
         {thumbUrl && !imgError ? (
           <img
             src={thumbUrl}
@@ -41,7 +41,7 @@ export default function GalleryCard({
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-gray-400">
+          <div className="w-full h-full flex items-center justify-center text-fg-faint">
             <span className="text-3xl">📖</span>
           </div>
         )}
@@ -55,14 +55,14 @@ export default function GalleryCard({
       {/* Info section */}
       <div className="p-3 space-y-1.5">
         {/* Title */}
-        <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100 line-clamp-2 leading-snug">
+        <h3 className="text-sm font-medium text-fg line-clamp-2 leading-snug">
           {title}
         </h3>
 
         {/* Badges row */}
         <div className="flex items-center justify-between pt-1 gap-2">
           <StatusBadge status={downloadStatus} size="sm" showLabel={false} />
-          <div className="flex items-center gap-2 text-xs text-gray-400 dark:text-gray-500 flex-shrink-0">
+          <div className="flex items-center gap-2 text-xs text-fg-faint flex-shrink-0">
             <span className="whitespace-nowrap">{gallery.num_pages || 0} pages</span>
             {gallery.num_favorites > 0 && (
               <span className="whitespace-nowrap">★ {gallery.num_favorites.toLocaleString()}</span>

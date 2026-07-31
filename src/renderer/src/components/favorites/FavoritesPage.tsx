@@ -126,8 +126,8 @@ export default function FavoritesPage(): React.JSX.Element {
     return (
       <div className="flex flex-col h-full">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Favorites</h1>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+          <h1 className="text-2xl font-bold text-fg">Favorites</h1>
+          <p className="mt-1 text-sm text-fg-muted">
             Browse your nhentai favorites
           </p>
         </div>
@@ -142,8 +142,8 @@ export default function FavoritesPage(): React.JSX.Element {
     return (
       <div className="flex flex-col h-full">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Favorites</h1>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+          <h1 className="text-2xl font-bold text-fg">Favorites</h1>
+          <p className="mt-1 text-sm text-fg-muted">
             Browse your nhentai favorites
           </p>
         </div>
@@ -160,7 +160,7 @@ export default function FavoritesPage(): React.JSX.Element {
     return (
       <div className="flex flex-col h-full">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Favorites</h1>
+          <h1 className="text-2xl font-bold text-fg">Favorites</h1>
         </div>
         <ErrorState message={pageState.error} onRetry={() => fetchFavorites(page, query || undefined)} />
       </div>
@@ -170,8 +170,8 @@ export default function FavoritesPage(): React.JSX.Element {
   return (
     <div className="flex flex-col h-full">
       <div className="mb-4">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Favorites</h1>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+        <h1 className="text-2xl font-bold text-fg">Favorites</h1>
+        <p className="mt-1 text-sm text-fg-muted">
           Browse your nhentai favorites
         </p>
       </div>
@@ -182,11 +182,11 @@ export default function FavoritesPage(): React.JSX.Element {
           value={searchInput}
           onChange={(e) => setSearchInput(e.target.value)}
           placeholder="Search your favorites..."
-          className="flex-1 px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
+          className="flex-1 px-4 py-2.5 rounded-lg border border-line bg-surface text-fg placeholder-fg-faint focus:outline-none focus:ring-2 focus:ring-accent"
         />
         <button
           type="submit"
-          className="px-6 py-2.5 rounded-lg bg-purple-600 text-white font-medium hover:bg-purple-700 transition-colors"
+          className="px-6 py-2.5 rounded-lg bg-accent-fill text-white font-medium hover:bg-accent-hover transition-colors"
         >
           Search
         </button>
@@ -198,7 +198,7 @@ export default function FavoritesPage(): React.JSX.Element {
               setSearchInput('')
               setPage(1)
             }}
-            className="px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+            className="px-4 py-2.5 rounded-lg border border-line text-fg-muted hover:bg-raised transition-colors"
           >
             Clear
           </button>

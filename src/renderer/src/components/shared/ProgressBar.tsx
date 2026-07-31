@@ -11,22 +11,22 @@ import type { ProgressJob, JobTone } from '../../stores/job-progress'
 
 const TONE: Record<JobTone, { fill: string; track: string; text: string; box: string }> = {
   read: {
-    fill: 'bg-purple-600',
-    track: 'bg-purple-200/60 dark:bg-purple-950',
-    text: 'text-purple-800 dark:text-purple-300',
-    box: 'bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800'
+    fill: 'bg-accent-fill',
+    track: 'bg-accent-wash',
+    text: 'text-accent',
+    box: 'bg-accent-wash border-accent'
   },
   write: {
-    fill: 'bg-indigo-600',
-    track: 'bg-indigo-200/60 dark:bg-indigo-950',
-    text: 'text-indigo-800 dark:text-indigo-300',
-    box: 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-200 dark:border-indigo-800'
+    fill: 'bg-accent-fill',
+    track: 'bg-accent-wash',
+    text: 'text-accent',
+    box: 'bg-accent-wash border-accent'
   },
   danger: {
-    fill: 'bg-red-600',
-    track: 'bg-red-200/60 dark:bg-red-950',
-    text: 'text-red-800 dark:text-red-300',
-    box: 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+    fill: 'bg-danger-fill',
+    track: 'bg-danger-wash',
+    text: 'text-danger',
+    box: 'bg-danger-wash border-danger'
   }
 }
 
@@ -66,7 +66,7 @@ export default function ProgressBar({
   const body = (
     <>
       <div className="flex items-center justify-between gap-3 mb-1.5">
-        <div className={`flex items-center gap-2 min-w-0 ${variant === 'card' ? t.text : 'text-gray-500 dark:text-gray-400'}`}>
+        <div className={`flex items-center gap-2 min-w-0 ${variant === 'card' ? t.text : 'text-fg-muted'}`}>
           {!done && variant === 'card' && (
             <span className={`w-3.5 h-3.5 shrink-0 border-2 ${t.fill.replace('bg-', 'border-')} border-t-transparent rounded-full animate-spin`} />
           )}
@@ -77,7 +77,7 @@ export default function ProgressBar({
 
         <div className="flex items-center gap-3 shrink-0">
           {counts && (
-            <span className={`text-xs tabular-nums ${variant === 'card' ? t.text : 'text-gray-500 dark:text-gray-400'}`}>
+            <span className={`text-xs tabular-nums ${variant === 'card' ? t.text : 'text-fg-muted'}`}>
               {counts}
             </span>
           )}
@@ -87,7 +87,7 @@ export default function ProgressBar({
               // Every cancellable job in this app stops after the work in flight
               // finishes — killing a worker mid-write is how files get truncated.
               title="Stop after the work currently in progress finishes"
-              className="px-2 py-1 rounded text-xs font-medium bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+              className="px-2 py-1 rounded text-xs font-medium bg-surface border border-line text-fg hover:bg-raised"
             >
               Cancel
             </button>

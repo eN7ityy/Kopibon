@@ -17,7 +17,7 @@ export default function FormatSelector({
     <select
       value={value || defaultFormat}
       onChange={(e) => onChange(e.target.value as OutputFormat)}
-      className={`px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-purple-500 focus:border-transparent ${className}`}
+      className={`px-3 py-2 rounded-lg border border-line bg-surface text-sm text-fg focus:ring-2 focus:ring-accent focus:border-transparent ${className}`}
     >
       <option value="pdf">PDF</option>
       <option value="cbz">CBZ</option>

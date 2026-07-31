@@ -25,7 +25,7 @@ export default function FavoritesGuard({ children }: Props): React.JSX.Element {
   if (!auth.loaded) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="text-gray-400 dark:text-gray-500">Checking authentication...</div>
+        <div className="text-fg-faint">Checking authentication...</div>
       </div>
     )
   }
@@ -33,7 +33,7 @@ export default function FavoritesGuard({ children }: Props): React.JSX.Element {
   if (!auth.loggedIn) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="text-gray-400 dark:text-gray-500">Redirecting...</div>
+        <div className="text-fg-faint">Redirecting...</div>
       </div>
     )
   }

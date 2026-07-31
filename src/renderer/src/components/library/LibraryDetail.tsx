@@ -275,11 +275,11 @@ export default function LibraryDetail({
           />
         )}
 
-        <div className="relative w-full max-w-md bg-white dark:bg-gray-900 shadow-2xl overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="relative w-full max-w-md bg-surface shadow-2xl overflow-y-auto" onClick={e => e.stopPropagation()}>
         {/* Header */}
-        <div className="sticky top-0 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex items-center justify-between z-10">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 truncate">{detail.customTitle || 'Item Detail'}</h2>
-          <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+        <div className="sticky top-0 bg-surface border-b border-line px-6 py-4 flex items-center justify-between z-10">
+          <h2 className="text-lg font-semibold text-fg truncate">{detail.customTitle || 'Item Detail'}</h2>
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-raised text-fg-faint hover:text-fg">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </div>
@@ -288,7 +288,7 @@ export default function LibraryDetail({
           {thumbDataUrl ? (
             <button
               onClick={() => setShowPdfViewer(true)}
-              className="aspect-[3/4] w-full rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-700 group relative"
+              className="aspect-[3/4] w-full rounded-lg overflow-hidden bg-raised group relative"
             >
               <img src={thumbDataUrl} alt={detail.customTitle || 'Cover'} draggable={false} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
               <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
@@ -298,9 +298,9 @@ export default function LibraryDetail({
           ) : (
             <button
               onClick={() => setShowPdfViewer(true)}
-              className="aspect-[3/4] w-full rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-700 group relative"
+              className="aspect-[3/4] w-full rounded-lg overflow-hidden bg-raised group relative"
             >
-              <div className="w-full h-full flex items-center justify-center text-gray-400">
+              <div className="w-full h-full flex items-center justify-center text-fg-faint">
                 <span className="text-4xl">📖</span>
               </div>
               <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
@@ -312,20 +312,20 @@ export default function LibraryDetail({
           <div className="space-y-3">
             {/* Title */}
             {editing ? (
-              <div><label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Title</label>
-                <input type="text" value={editTitle} onChange={e => setEditTitle(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-purple-500" />
+              <div><label className="block text-xs font-medium text-fg-muted mb-1">Title</label>
+                <input type="text" value={editTitle} onChange={e => setEditTitle(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-line bg-surface text-sm text-fg focus:ring-2 focus:ring-accent" />
               </div>
             ) : (
-              <div><span className="text-xs font-medium text-gray-500 dark:text-gray-400">Title</span><p className="text-sm text-gray-900 dark:text-gray-100">{detail.customTitle || 'Untitled'}</p></div>
+              <div><span className="text-xs font-medium text-fg-muted">Title</span><p className="text-sm text-fg">{detail.customTitle || 'Untitled'}</p></div>
             )}
 
-            <div><span className="text-xs font-medium text-gray-500 dark:text-gray-400">Artist</span>
+            <div><span className="text-xs font-medium text-fg-muted">Artist</span>
               {onFilterArtist ? (
-                <button onClick={() => { onClose(); onFilterArtist(detail.primaryArtist) }} className="block text-sm text-purple-600 dark:text-purple-400 hover:underline cursor-pointer">
+                <button onClick={() => { onClose(); onFilterArtist(detail.primaryArtist) }} className="block text-sm text-accent hover:underline cursor-pointer">
                   {detail.primaryArtist || 'Unknown'}
                 </button>
               ) : (
-                <p className="text-sm text-gray-900 dark:text-gray-100">{detail.primaryArtist || 'Unknown'}</p>
+                <p className="text-sm text-fg">{detail.primaryArtist || 'Unknown'}</p>
               )}
             </div>
 
@@ -333,11 +333,11 @@ export default function LibraryDetail({
             {editing ? (
               <div className="grid grid-cols-3 gap-2">
                 <div className="col-span-2">
-                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Series</label>
+                  <label className="block text-xs font-medium text-fg-muted mb-1">Series</label>
                   <AutocompleteInput kind="series" value={editSeries} onChange={setEditSeries} placeholder="Search series..." />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Volume</label>
+                  <label className="block text-xs font-medium text-fg-muted mb-1">Volume</label>
                   <input
                     type="number"
                     step="any"
@@ -345,69 +345,69 @@ export default function LibraryDetail({
                     value={editVolume}
                     onChange={(e) => setEditVolume(e.target.value)}
                     placeholder="1"
-                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-purple-500"
+                    className="w-full px-3 py-2 rounded-lg border border-line bg-surface text-sm text-fg focus:ring-2 focus:ring-accent"
                   />
                 </div>
               </div>
             ) : detail.seriesName ? (
               <div>
-                <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Series</span>
-                <p className="text-sm text-blue-600 dark:text-blue-400">
+                <span className="text-xs font-medium text-fg-muted">Series</span>
+                <p className="text-sm text-info">
                   {detail.seriesName}
-                  {detail.seriesIndex != null && <span className="text-gray-400 ml-1">Vol. {detail.seriesIndex}</span>}
+                  {detail.seriesIndex != null && <span className="text-fg-faint ml-1">Vol. {detail.seriesIndex}</span>}
                 </p>
               </div>
             ) : null}
 
             {/* Language with dropdown + free-text */}
             {editing ? (
-              <div><label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Language</label>
+              <div><label className="block text-xs font-medium text-fg-muted mb-1">Language</label>
                 <div className="flex gap-2">
-                  <select value={editLanguage} onChange={e => setEditLanguage(e.target.value)} className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm">
+                  <select value={editLanguage} onChange={e => setEditLanguage(e.target.value)} className="flex-1 px-3 py-2 rounded-lg border border-line bg-surface text-sm">
                     <option value="">Select...</option>
                     {LANGUAGES.map(l => <option key={l} value={l}>{l}</option>)}
                   </select>
-                  <input type="text" value={editLanguage} onChange={e => setEditLanguage(e.target.value)} placeholder="Custom..." className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm" />
+                  <input type="text" value={editLanguage} onChange={e => setEditLanguage(e.target.value)} placeholder="Custom..." className="flex-1 px-3 py-2 rounded-lg border border-line bg-surface text-sm" />
                 </div>
               </div>
             ) : detail.customLanguage ? (
-              <div><span className="text-xs font-medium text-gray-500 dark:text-gray-400">Language</span><p className="text-sm text-gray-900 dark:text-gray-100">{detail.customLanguage}</p></div>
+              <div><span className="text-xs font-medium text-fg-muted">Language</span><p className="text-sm text-fg">{detail.customLanguage}</p></div>
             ) : null}
 
             {/* Publisher */}
             {editing ? (
-              <div><label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Publisher</label>
-                <input type="text" value={editPublisher} onChange={e => setEditPublisher(e.target.value)} placeholder="Publisher/Group name..." className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-purple-500" />
+              <div><label className="block text-xs font-medium text-fg-muted mb-1">Publisher</label>
+                <input type="text" value={editPublisher} onChange={e => setEditPublisher(e.target.value)} placeholder="Publisher/Group name..." className="w-full px-3 py-2 rounded-lg border border-line bg-surface text-sm text-fg focus:ring-2 focus:ring-accent" />
               </div>
             ) : detail.publisher ? (
-              <div><span className="text-xs font-medium text-gray-500 dark:text-gray-400">Publisher</span>
+              <div><span className="text-xs font-medium text-fg-muted">Publisher</span>
                 {onFilterPublisher ? (
-                  <button onClick={() => { onClose(); onFilterPublisher(detail.publisher!) }} className="block text-sm text-purple-600 dark:text-purple-400 hover:underline cursor-pointer">
+                  <button onClick={() => { onClose(); onFilterPublisher(detail.publisher!) }} className="block text-sm text-accent hover:underline cursor-pointer">
                     {detail.publisher}
                   </button>
                 ) : (
-                  <p className="text-sm text-gray-900 dark:text-gray-100">{detail.publisher}</p>
+                  <p className="text-sm text-fg">{detail.publisher}</p>
                 )}
               </div>
             ) : null}
 
             {/* Description */}
             {editing ? (
-              <div><label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Summary</label>
-                <textarea value={editDescription} onChange={e => setEditDescription(e.target.value)} placeholder="Description/summary..." rows={3} className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-purple-500 resize-none" />
+              <div><label className="block text-xs font-medium text-fg-muted mb-1">Summary</label>
+                <textarea value={editDescription} onChange={e => setEditDescription(e.target.value)} placeholder="Description/summary..." rows={3} className="w-full px-3 py-2 rounded-lg border border-line bg-surface text-sm text-fg focus:ring-2 focus:ring-accent resize-none" />
               </div>
             ) : detail.description ? (
-              <div><span className="text-xs font-medium text-gray-500 dark:text-gray-400">Summary</span><p className="text-sm text-gray-900 dark:text-gray-100 whitespace-pre-wrap">{detail.description}</p></div>
+              <div><span className="text-xs font-medium text-fg-muted">Summary</span><p className="text-sm text-fg whitespace-pre-wrap">{detail.description}</p></div>
             ) : null}
 
             {/* Tags with chip editor */}
             {editing ? (
               <div>
-                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Tags</label>
-                <div className="flex flex-wrap gap-1 p-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 min-h-[42px]">
+                <label className="block text-xs font-medium text-fg-muted mb-1">Tags</label>
+                <div className="flex flex-wrap gap-1 p-2 rounded-lg border border-line bg-surface min-h-[42px]">
                   {editTags.map(tag => (
-                    <span key={tag} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-xs font-medium">
-                      {tag}<button onClick={() => removeTag(tag)} className="hover:text-red-500">×</button>
+                    <span key={tag} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-accent-wash text-accent text-xs font-medium">
+                      {tag}<button onClick={() => removeTag(tag)} className="hover:text-danger">×</button>
                     </span>
                   ))}
                   <div className="flex-1 min-w-[80px] relative">
@@ -417,12 +417,12 @@ export default function LibraryDetail({
                       onKeyDown={handleTagKeyDown}
                       onFocus={() => { if (tagInput) fetchTagSuggestions(tagInput) }}
                       placeholder={editTags.length === 0 ? 'Type tag and press Enter...' : ''}
-                      className="w-full bg-transparent text-sm text-gray-900 dark:text-gray-100 outline-none border-none"
+                      className="w-full bg-transparent text-sm text-fg outline-none border-none"
                     />
                     {showTagSuggestions && tagSuggestions.length > 0 && (
-                      <ul className="absolute z-50 top-full left-0 mt-1 w-full max-h-32 overflow-y-auto rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg">
+                      <ul className="absolute z-50 top-full left-0 mt-1 w-full max-h-32 overflow-y-auto rounded-lg border border-line bg-surface shadow-lg">
                         {tagSuggestions.map(s => (
-                          <li key={s} onClick={() => addTag(s)} className="px-3 py-1.5 text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300">{s}</li>
+                          <li key={s} onClick={() => addTag(s)} className="px-3 py-1.5 text-sm cursor-pointer hover:bg-raised text-fg">{s}</li>
                         ))}
                       </ul>
                     )}
@@ -430,40 +430,40 @@ export default function LibraryDetail({
                 </div>
               </div>
             ) : detail.customTags ? (
-              <div><span className="text-xs font-medium text-gray-500 dark:text-gray-400">Tags</span>
+              <div><span className="text-xs font-medium text-fg-muted">Tags</span>
                 <div className="flex flex-wrap gap-1 mt-1">
                   {detail.customTags.split(',').map(tag => {
                     const trimmed = tag.trim()
                     if (!trimmed) return null
                     return onFilterTag ? (
-                      <button key={trimmed} onClick={() => { onClose(); onFilterTag(trimmed) }} className="px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-xs hover:bg-purple-200 dark:hover:bg-purple-900/50 cursor-pointer">
+                      <button key={trimmed} onClick={() => { onClose(); onFilterTag(trimmed) }} className="px-2 py-0.5 rounded-full bg-accent-wash text-accent text-xs hover:bg-accent-wash cursor-pointer">
                         {trimmed}
                       </button>
                     ) : (
-                      <span key={trimmed} className="px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-xs text-gray-600 dark:text-gray-400">{trimmed}</span>
+                      <span key={trimmed} className="px-2 py-0.5 rounded-full bg-raised text-xs text-fg-muted">{trimmed}</span>
                     )
                   })}
                 </div>
               </div>
             ) : null}
 
-            {detail.customDate && (<div><span className="text-xs font-medium text-gray-500 dark:text-gray-400">Date</span><p className="text-sm text-gray-900 dark:text-gray-100">{detail.customDate}</p></div>)}
-            <div><span className="text-xs font-medium text-gray-500 dark:text-gray-400">Added</span><p className="text-sm text-gray-900 dark:text-gray-100">{formatDate(detail.addedAt)}</p></div>
+            {detail.customDate && (<div><span className="text-xs font-medium text-fg-muted">Date</span><p className="text-sm text-fg">{detail.customDate}</p></div>)}
+            <div><span className="text-xs font-medium text-fg-muted">Added</span><p className="text-sm text-fg">{formatDate(detail.addedAt)}</p></div>
 
-            <div className="border-t border-gray-200 dark:border-gray-700 pt-3 space-y-2">
-              <div><span className="text-xs font-medium text-gray-500 dark:text-gray-400">Format</span><p className="text-sm text-gray-900 dark:text-gray-100">{detail.format?.toUpperCase() || 'PDF'}</p></div>
-              <div><span className="text-xs font-medium text-gray-500 dark:text-gray-400">File Size</span><p className="text-sm text-gray-900 dark:text-gray-100">{formatFileSize(detail.fileSize)}</p></div>
-              <div><span className="text-xs font-medium text-gray-500 dark:text-gray-400">File Path</span><p className="text-xs text-gray-500 dark:text-gray-400 break-all font-mono mt-0.5">{detail.filePath}</p></div>
+            <div className="border-t border-line pt-3 space-y-2">
+              <div><span className="text-xs font-medium text-fg-muted">Format</span><p className="text-sm text-fg">{detail.format?.toUpperCase() || 'PDF'}</p></div>
+              <div><span className="text-xs font-medium text-fg-muted">File Size</span><p className="text-sm text-fg">{formatFileSize(detail.fileSize)}</p></div>
+              <div><span className="text-xs font-medium text-fg-muted">File Path</span><p className="text-xs text-fg-muted break-all font-mono mt-0.5">{detail.filePath}</p></div>
               {detail.galleryId && (
                 <div>
-                  <span className="text-xs font-medium text-gray-500 dark:text-gray-400">nhentai ID</span>
+                  <span className="text-xs font-medium text-fg-muted">nhentai ID</span>
                   <div className="flex items-center gap-2">
                     {onOpenInSearch ? (
-                      <button onClick={() => { onClose(); onOpenInSearch(detail.galleryId!) }} className="text-sm text-purple-600 dark:text-purple-400 hover:underline cursor-pointer">
+                      <button onClick={() => { onClose(); onOpenInSearch(detail.galleryId!) }} className="text-sm text-accent hover:underline cursor-pointer">
                         #{detail.galleryId}
                       </button>
                     ) : (
-                      <p className="text-sm text-purple-600 dark:text-purple-400">#{detail.galleryId}</p>
+                      <p className="text-sm text-accent">#{detail.galleryId}</p>
                     )}
                     <button
                       onClick={async () => {
@@ -476,7 +476,7 @@ export default function LibraryDetail({
                         setDetailSyncing(false)
                       }}
                       disabled={detailSyncing}
-                      className="px-2 py-0.5 rounded text-xs border border-green-300 dark:border-green-700 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 disabled:opacity-40"
+                      className="px-2 py-0.5 rounded text-xs border border-success text-success hover:bg-success-wash disabled:opacity-40"
                     >
                       {detailSyncing ? '⟳ Syncing...' : '⟳ Sync'}
                     </button>
@@ -488,32 +488,32 @@ export default function LibraryDetail({
         </div>
 
         {/* Footer */}
-        <div className="sticky bottom-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 px-6 py-4 space-y-3">
+        <div className="sticky bottom-0 bg-surface border-t border-line px-6 py-4 space-y-3">
           {editing ? (
             <div className="flex gap-2">
-              <button onClick={handleSaveMetadata} disabled={saving} className="flex-1 px-4 py-2 rounded-lg bg-purple-600 text-white text-sm font-medium hover:bg-purple-700 disabled:opacity-50">{saving ? 'Saving...' : 'Save Changes'}</button>
-              <button onClick={() => setEditing(false)} className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700">Cancel</button>
+              <button onClick={handleSaveMetadata} disabled={saving} className="flex-1 px-4 py-2 rounded-lg bg-accent-fill text-white text-sm font-medium hover:bg-accent-hover disabled:opacity-50">{saving ? 'Saving...' : 'Save Changes'}</button>
+              <button onClick={() => setEditing(false)} className="px-4 py-2 rounded-lg bg-raised text-sm font-medium text-fg hover:bg-raised">Cancel</button>
             </div>
           ) : (
             <>
               {/* Conversion in progress — say so plainly, since the actions
                   below are disabled and that would otherwise look broken. */}
               {isConverting && (
-                <div className="flex items-center gap-2 p-2.5 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 text-xs text-indigo-700 dark:text-indigo-300">
-                  <div className="w-3.5 h-3.5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin shrink-0" />
+                <div className="flex items-center gap-2 p-2.5 rounded-lg bg-accent-wash border border-accent text-xs text-accent">
+                  <div className="w-3.5 h-3.5 border-2 border-accent border-t-transparent rounded-full animate-spin shrink-0" />
                   <span>Converting to CBZ. Editing and deleting are unavailable until this finishes.</span>
                 </div>
               )}
 
               <div className="flex gap-2">
-                <button onClick={handleOpenFile} className="flex-1 px-4 py-2 rounded-lg bg-purple-600 text-white text-sm font-medium hover:bg-purple-700">📖 Open File</button>
-                <button onClick={handleOpenFolder} className="flex-1 px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700">📂 Open Folder</button>
+                <button onClick={handleOpenFile} className="flex-1 px-4 py-2 rounded-lg bg-accent-fill text-white text-sm font-medium hover:bg-accent-hover">📖 Open File</button>
+                <button onClick={handleOpenFolder} className="flex-1 px-4 py-2 rounded-lg bg-raised text-sm font-medium text-fg hover:bg-raised">📂 Open Folder</button>
               </div>
 
               {convertError && (
-                <div className="flex items-start justify-between gap-2 p-2.5 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-xs text-red-700 dark:text-red-400">
+                <div className="flex items-start justify-between gap-2 p-2.5 rounded-lg bg-danger-wash border border-danger text-xs text-danger">
                   <span>⚠️ {convertError}</span>
-                  <button onClick={() => setConvertError(null)} className="shrink-0 hover:text-red-900 dark:hover:text-red-300">✕</button>
+                  <button onClick={() => setConvertError(null)} className="shrink-0 hover:text-danger">✕</button>
                 </div>
               )}
 
@@ -522,7 +522,7 @@ export default function LibraryDetail({
                 <button
                   onClick={() => setShowConvertDialog(true)}
                   disabled={isConverting || converting}
-                  className="w-full px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="w-full px-4 py-2 rounded-lg bg-accent-fill text-white text-sm font-medium hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {isConverting || converting ? '⟳ Converting to CBZ…' : '📦 Convert to CBZ'}
                 </button>
@@ -532,7 +532,7 @@ export default function LibraryDetail({
                 onClick={() => setEditing(true)}
                 disabled={isConverting}
                 title={isConverting ? 'Unavailable while this file is being converted' : undefined}
-                className="w-full px-4 py-2 rounded-lg bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-sm font-medium hover:bg-blue-200 dark:hover:bg-blue-900/50 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="w-full px-4 py-2 rounded-lg bg-info-wash text-info text-sm font-medium hover:bg-info-wash disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 ✏️ Edit Metadata
               </button>
@@ -541,24 +541,24 @@ export default function LibraryDetail({
               <div>
                 {deleteConfirm === 'remove' ? (
                   <div className="space-y-2">
-                    <p className="text-xs text-orange-600 dark:text-orange-400">This will only remove the database entry. The file on disk will be kept.</p>
+                    <p className="text-xs text-warning">This will only remove the database entry. The file on disk will be kept.</p>
                     <div className="flex gap-2">
-                      <button onClick={() => handleDelete('remove')} disabled={deleting} className="flex-1 px-4 py-2 rounded-lg bg-orange-600 text-white text-sm font-medium hover:bg-orange-700 disabled:opacity-50">{deleting ? 'Removing...' : 'Confirm Remove'}</button>
-                      <button onClick={() => setDeleteConfirm('none')} className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-sm font-medium">Cancel</button>
+                      <button onClick={() => handleDelete('remove')} disabled={deleting} className="flex-1 px-4 py-2 rounded-lg bg-warning-fill text-white text-sm font-medium hover:bg-warning-fill disabled:opacity-50">{deleting ? 'Removing...' : 'Confirm Remove'}</button>
+                      <button onClick={() => setDeleteConfirm('none')} className="px-4 py-2 rounded-lg bg-raised text-sm font-medium">Cancel</button>
                     </div>
                   </div>
                 ) : deleteConfirm === 'deleteFile' ? (
                   <div className="space-y-2">
-                    <p className="text-xs text-red-600 dark:text-red-400">⚠️ This will delete the database entry AND the file from disk. This cannot be undone.</p>
+                    <p className="text-xs text-danger">⚠️ This will delete the database entry AND the file from disk. This cannot be undone.</p>
                     <div className="flex gap-2">
-                      <button onClick={() => handleDelete('deleteFile')} disabled={deleting} className="flex-1 px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700 disabled:opacity-50">{deleting ? 'Deleting...' : 'Confirm Delete'}</button>
-                      <button onClick={() => setDeleteConfirm('none')} className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-sm font-medium">Cancel</button>
+                      <button onClick={() => handleDelete('deleteFile')} disabled={deleting} className="flex-1 px-4 py-2 rounded-lg bg-danger-fill text-white text-sm font-medium hover:bg-danger-fill disabled:opacity-50">{deleting ? 'Deleting...' : 'Confirm Delete'}</button>
+                      <button onClick={() => setDeleteConfirm('none')} className="px-4 py-2 rounded-lg bg-raised text-sm font-medium">Cancel</button>
                     </div>
                   </div>
                 ) : (
                   <div className="flex gap-2">
-                    <button onClick={() => setDeleteConfirm('remove')} disabled={isConverting} title={isConverting ? 'Unavailable while this file is being converted' : undefined} className="flex-1 px-4 py-2 rounded-lg bg-orange-100 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 text-sm font-medium hover:bg-orange-200 disabled:opacity-40 disabled:cursor-not-allowed">📋 Remove from Library</button>
-                    <button onClick={() => setDeleteConfirm('deleteFile')} disabled={isConverting} title={isConverting ? 'Unavailable while this file is being converted' : undefined} className="flex-1 px-4 py-2 rounded-lg bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-sm font-medium hover:bg-red-200 disabled:opacity-40 disabled:cursor-not-allowed">🗑️ Delete File</button>
+                    <button onClick={() => setDeleteConfirm('remove')} disabled={isConverting} title={isConverting ? 'Unavailable while this file is being converted' : undefined} className="flex-1 px-4 py-2 rounded-lg bg-warning-wash text-warning text-sm font-medium hover:bg-warning-wash disabled:opacity-40 disabled:cursor-not-allowed">📋 Remove from Library</button>
+                    <button onClick={() => setDeleteConfirm('deleteFile')} disabled={isConverting} title={isConverting ? 'Unavailable while this file is being converted' : undefined} className="flex-1 px-4 py-2 rounded-lg bg-danger-wash text-danger text-sm font-medium hover:bg-danger-wash disabled:opacity-40 disabled:cursor-not-allowed">🗑️ Delete File</button>
                   </div>
                 )}
               </div>

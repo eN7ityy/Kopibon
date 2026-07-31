@@ -223,7 +223,7 @@ export default function AutocompleteInput({
       return (
         <span>
           {text.slice(0, startIndex)}
-          <mark className="bg-purple-200 dark:bg-purple-800 text-purple-900 dark:text-purple-100 rounded-sm px-0.5">
+          <mark className="bg-accent-wash text-accent rounded-sm px-0.5">
             {text.slice(startIndex, endIndex)}
           </mark>
           {text.slice(endIndex)}
@@ -256,7 +256,7 @@ export default function AutocompleteInput({
           onFocus={handleFocus}
           placeholder={placeholder}
           disabled={disabled}
-          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full px-3 py-2 rounded-lg border border-line bg-surface text-sm text-fg focus:ring-2 focus:ring-accent focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
           autoComplete="off"
           role="combobox"
           aria-expanded={isOpen}
@@ -265,7 +265,7 @@ export default function AutocompleteInput({
         />
         {loading && (
           <div className="absolute right-3 top-2.5">
-            <svg className="animate-spin h-4 w-4 text-gray-400" viewBox="0 0 24 24">
+            <svg className="animate-spin h-4 w-4 text-fg-faint" viewBox="0 0 24 24">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
             </svg>
@@ -278,7 +278,7 @@ export default function AutocompleteInput({
         <ul
           id="autocomplete-list"
           role="listbox"
-          className="absolute z-50 mt-1 w-full max-h-60 overflow-y-auto rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg"
+          className="absolute z-50 mt-1 w-full max-h-60 overflow-y-auto rounded-lg border border-line bg-surface shadow-lg"
         >
           {suggestions.map((suggestion, index) => (
             <li
@@ -289,8 +289,8 @@ export default function AutocompleteInput({
               onMouseEnter={() => setHighlightIndex(index)}
               className={`px-3 py-2 text-sm cursor-pointer transition-colors ${
                 index === highlightIndex
-                  ? 'bg-purple-50 dark:bg-purple-900/30 text-purple-900 dark:text-purple-100'
-                  : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                  ? 'bg-accent-wash text-accent'
+                  : 'text-fg hover:bg-raised'
               }`}
             >
               {highlightMatch(suggestion)}
@@ -301,7 +301,7 @@ export default function AutocompleteInput({
 
       {/* No results message */}
       {isOpen && suggestions.length === 0 && !loading && value.trim() && (
-        <div className="absolute z-50 mt-1 w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg px-3 py-2 text-sm text-gray-400">
+        <div className="absolute z-50 mt-1 w-full rounded-lg border border-line bg-surface shadow-lg px-3 py-2 text-sm text-fg-faint">
           {allowFreeText
             ? 'No matches found. You can type your own value.'
             : 'No matches found.'}

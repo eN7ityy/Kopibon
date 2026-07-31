@@ -112,7 +112,7 @@ export default function LibraryCard({
 
   return (
     <div
-      className="group relative rounded-lg overflow-hidden bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:border-purple-400 dark:hover:border-purple-500 hover:shadow-lg transition-all duration-200"
+      className="group relative rounded-lg overflow-hidden bg-surface border border-line hover:border-accent hover:shadow-lg transition-all duration-200"
     >
       {/* Selection checkbox */}
       <div
@@ -122,7 +122,7 @@ export default function LibraryCard({
           type="checkbox"
           checked={selected}
           onChange={() => onToggleSelect(item.id)}
-          className="w-4 h-4 rounded border-gray-400 dark:border-gray-500 text-purple-600 focus:ring-purple-500 bg-white dark:bg-gray-700 cursor-pointer"
+          className="w-4 h-4 rounded border-line text-accent focus:ring-accent bg-surface cursor-pointer"
           onClick={(e) => e.stopPropagation()}
         />
       </div>
@@ -135,7 +135,7 @@ export default function LibraryCard({
         className="text-left w-full"
       >
         {/* Cover image */}
-        <div className={`${compact ? 'aspect-[2/3]' : 'aspect-[3/4]'} bg-gray-200 dark:bg-gray-700 relative overflow-hidden`}>
+        <div className={`${compact ? 'aspect-[2/3]' : 'aspect-[3/4]'} bg-raised relative overflow-hidden`}>
           {coverSrc ? (
             <img
               src={coverSrc}
@@ -146,7 +146,7 @@ export default function LibraryCard({
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
             />
           ) : (
-            <div className="w-full h-full flex items-center justify-center text-gray-400">
+            <div className="w-full h-full flex items-center justify-center text-fg-faint">
               <span className={compact ? 'text-xl' : 'text-3xl'}>📖</span>
             </div>
           )}
@@ -154,13 +154,13 @@ export default function LibraryCard({
           {/* Converting badge takes the format badge's place — the format is
               about to change, so showing the old one would be misleading. */}
           {converting ? (
-            <span className="absolute top-2 right-2 flex items-center gap-1 bg-indigo-600/90 text-white text-xs px-1.5 py-0.5 rounded font-medium">
+            <span className="absolute top-2 right-2 flex items-center gap-1 bg-accent-fill/90 text-white text-xs px-1.5 py-0.5 rounded font-medium">
               <span className="w-2.5 h-2.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
               {!compact && 'CBZ…'}
             </span>
           ) : (
             !compact && (
-              <span className="absolute top-2 right-2 bg-purple-600/80 text-white text-xs px-1.5 py-0.5 rounded font-medium">
+              <span className="absolute top-2 right-2 bg-accent-fill/80 text-white text-xs px-1.5 py-0.5 rounded font-medium">
                 {item.format?.toUpperCase() || 'PDF'}
               </span>
             )
@@ -170,18 +170,18 @@ export default function LibraryCard({
         {/* Info section */}
         <div className={compact ? 'p-1.5 space-y-0.5' : 'p-3 space-y-1'}>
           {/* Title */}
-          <h3 className={`${compact ? 'text-xs' : 'text-sm'} font-medium text-gray-900 dark:text-gray-100 line-clamp-2 leading-snug`}>
+          <h3 className={`${compact ? 'text-xs' : 'text-sm'} font-medium text-fg line-clamp-2 leading-snug`}>
             {title}
           </h3>
 
           {/* Artist */}
-          <p className={`${compact ? 'text-[10px]' : 'text-xs'} text-gray-500 dark:text-gray-400 truncate`}>
+          <p className={`${compact ? 'text-[10px]' : 'text-xs'} text-fg-muted truncate`}>
             {artist}
           </p>
 
           {/* Series badge — hide in compact mode */}
           {!compact && item.seriesName && (
-            <p className="text-xs text-blue-600 dark:text-blue-400 truncate">
+            <p className="text-xs text-info truncate">
               {item.seriesName}
             </p>
           )}
@@ -192,31 +192,31 @@ export default function LibraryCard({
       {contextMenu.visible && (
         <div
           ref={menuRef}
-          className="fixed z-50 w-44 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-xl py-1 text-sm"
+          className="fixed z-50 w-44 rounded-lg border border-line bg-surface shadow-xl py-1 text-sm"
           style={{ left: contextMenu.x, top: contextMenu.y }}
         >
           <button
             onClick={() => handleContextAction('open')}
-            className="w-full text-left px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 flex items-center gap-2"
+            className="w-full text-left px-3 py-2 hover:bg-raised text-fg flex items-center gap-2"
           >
             <span>📖</span> Open File
           </button>
           <button
             onClick={() => handleContextAction('folder')}
-            className="w-full text-left px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 flex items-center gap-2"
+            className="w-full text-left px-3 py-2 hover:bg-raised text-fg flex items-center gap-2"
           >
             <span>📂</span> Open Folder
           </button>
-          <div className="border-t border-gray-200 dark:border-gray-700 my-1" />
+          <div className="border-t border-line my-1" />
           <button
             onClick={() => handleContextAction('remove')}
-            className="w-full text-left px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-orange-600 dark:text-orange-400 flex items-center gap-2"
+            className="w-full text-left px-3 py-2 hover:bg-raised text-warning flex items-center gap-2"
           >
             <span>📋</span> Remove from Library
           </button>
           <button
             onClick={() => handleContextAction('deleteFile')}
-            className="w-full text-left px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-red-600 dark:text-red-400 flex items-center gap-2"
+            className="w-full text-left px-3 py-2 hover:bg-raised text-danger flex items-center gap-2"
           >
             <span>🗑️</span> Delete File
           </button>

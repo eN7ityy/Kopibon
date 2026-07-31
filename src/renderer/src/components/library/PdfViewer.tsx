@@ -249,17 +249,17 @@ export default function PdfViewer({
 
   return (
     <div
-      className="w-full max-w-lg h-full bg-white dark:bg-gray-950 shadow-2xl flex flex-col"
+      className="w-full max-w-lg h-full bg-app shadow-2xl flex flex-col"
       onClick={(e) => e.stopPropagation()}
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
-        <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate flex-1 mr-2">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-line bg-surface">
+        <h3 className="text-sm font-medium text-fg truncate flex-1 mr-2">
           {title}
         </h3>
         <button
           onClick={onClose}
-          className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-500"
+          className="p-1 rounded hover:bg-raised text-reader-muted"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-5 h-5">
             <path
@@ -275,11 +275,11 @@ export default function PdfViewer({
       {/* Page canvases (scrollable) */}
       <div
         ref={containerRef}
-        className="flex-1 overflow-y-auto px-2 py-4 flex flex-col items-stretch gap-2 bg-gray-100 dark:bg-gray-950"
+        className="flex-1 overflow-y-auto px-2 py-4 flex flex-col items-stretch gap-2 bg-app"
       >
         {/* Loading state */}
         {loading && (
-          <div className="flex flex-col items-center justify-center h-full gap-3 text-gray-500">
+          <div className="flex flex-col items-center justify-center h-full gap-3 text-reader-muted">
             <svg className="animate-spin h-8 w-8" viewBox="0 0 24 24" fill="none">
               <circle
                 className="opacity-25"
@@ -303,7 +303,7 @@ export default function PdfViewer({
 
         {/* Error state */}
         {error && !loading && (
-          <div className="flex flex-col items-center justify-center h-full gap-3 text-red-500 px-4">
+          <div className="flex flex-col items-center justify-center h-full gap-3 text-danger px-4">
             <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path
                 strokeLinecap="round"
@@ -313,10 +313,10 @@ export default function PdfViewer({
               />
             </svg>
             <p className="text-sm font-medium">Failed to load PDF</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400 text-center">{error}</p>
+            <p className="text-xs text-fg-muted text-center">{error}</p>
             <button
               onClick={() => setRetryKey((k) => k + 1)}
-              className="mt-2 px-4 py-2 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700"
+              className="mt-2 px-4 py-2 rounded-lg bg-danger-fill text-white text-sm font-medium hover:bg-danger-fill"
             >
               Retry
             </button>
@@ -339,15 +339,15 @@ export default function PdfViewer({
       {/* Bottom bar */}
       <div
         ref={bottomBarRef}
-        className="flex items-center justify-between px-4 py-2 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900"
+        className="flex items-center justify-between px-4 py-2 border-t border-line bg-surface"
       >
-        <span className="text-xs text-gray-400">PDF</span>
-        <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
+        <span className="text-xs text-reader-muted">PDF</span>
+        <span className="text-xs font-medium text-fg-muted">
           {visiblePage} / {totalPages}
         </span>
         <button
           onClick={onClose}
-          className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+          className="text-xs text-reader-muted hover:text-fg"
         >
           Close
         </button>

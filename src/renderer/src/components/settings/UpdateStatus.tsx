@@ -45,36 +45,36 @@ export default function UpdateStatus(): React.JSX.Element {
         <button
           onClick={check}
           disabled={state === 'checking' || state === 'downloading'}
-          className="px-3 py-1.5 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-50"
+          className="px-3 py-1.5 rounded-lg text-sm font-medium bg-raised text-fg hover:bg-raised disabled:opacity-50"
         >
           {state === 'checking' ? 'Checking…' : 'Check for updates'}
         </button>
 
         {state === 'current' && (
-          <span className="text-xs text-green-600 dark:text-green-400">
+          <span className="text-xs text-success">
             You are on the latest version
           </span>
         )}
         {state === 'available' && (
-          <span className="text-xs text-gray-500 dark:text-gray-400">
+          <span className="text-xs text-fg-muted">
             Version {version} found — downloading…
           </span>
         )}
         {state === 'downloading' && (
-          <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
+          <span className="text-xs text-fg-muted tabular-nums">
             Downloading {percent}%
           </span>
         )}
       </div>
 
       {state === 'ready' && (
-        <div className="p-3 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 flex items-center justify-between gap-3">
-          <span className="text-xs text-indigo-800 dark:text-indigo-300">
+        <div className="p-3 rounded-lg bg-accent-wash border border-accent flex items-center justify-between gap-3">
+          <span className="text-xs text-accent">
             Version {version} is ready. It will be applied when you restart.
           </span>
           <button
             onClick={() => void window.api.app.installUpdate()}
-            className="px-3 py-1.5 shrink-0 rounded-lg bg-indigo-600 text-white text-xs font-medium hover:bg-indigo-700"
+            className="px-3 py-1.5 shrink-0 rounded-lg bg-accent-fill text-white text-xs font-medium hover:bg-accent-hover"
           >
             Restart now
           </button>
@@ -82,7 +82,7 @@ export default function UpdateStatus(): React.JSX.Element {
       )}
 
       {state === 'error' && (
-        <p className="text-xs text-amber-700 dark:text-amber-400">
+        <p className="text-xs text-warning">
           Update check failed: {message}
           {/* Expected until the first GitHub Release is published — the feed
               does not exist yet, so there is nothing to compare against. */}

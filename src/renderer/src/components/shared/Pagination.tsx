@@ -8,8 +8,8 @@ interface PaginationProps {
 }
 
 const BTN =
-  'px-3 py-1.5 rounded text-sm font-medium border border-gray-300 dark:border-gray-700 ' +
-  'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 ' +
+  'px-3 py-1.5 rounded text-sm font-medium border border-line ' +
+  'text-fg-muted hover:bg-raised ' +
   'disabled:opacity-40 disabled:cursor-not-allowed transition-colors'
 
 /**
@@ -67,7 +67,7 @@ export default function Pagination({
         ← Prev
       </button>
 
-      <div className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400">
+      <div className="flex items-center gap-1.5 text-sm text-fg-muted">
         <span>Page</span>
         <input
           type="text"
@@ -89,7 +89,7 @@ export default function Pagination({
           }}
           disabled={disabled}
           aria-label="Page number"
-          className="w-16 px-2 py-1 text-center rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 tabular-nums focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50"
+          className="w-16 px-2 py-1 text-center rounded border border-line bg-surface text-fg tabular-nums focus:outline-none focus:ring-2 focus:ring-accent disabled:opacity-50"
         />
         <span>of {totalPages}</span>
       </div>

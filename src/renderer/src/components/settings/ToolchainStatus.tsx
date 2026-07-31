@@ -47,11 +47,11 @@ export default function ToolchainStatus(): React.JSX.Element {
   }, [tick])
 
   if (loading && !report) {
-    return <p className="text-xs text-gray-400 dark:text-gray-500">Checking required tools…</p>
+    return <p className="text-xs text-fg-faint">Checking required tools…</p>
   }
 
   if (!report) {
-    return <p className="text-xs text-red-600 dark:text-red-400">Could not check required tools.</p>
+    return <p className="text-xs text-danger">Could not check required tools.</p>
   }
 
   const missing = report.tools.filter((t) => !t.ok)
@@ -61,16 +61,16 @@ export default function ToolchainStatus(): React.JSX.Element {
       <div
         className={`p-3 rounded-lg border ${
           report.ok
-            ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
-            : 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800'
+            ? 'bg-success-wash border-success'
+            : 'bg-warning-wash border-warning'
         }`}
       >
         <div className="flex items-center justify-between gap-2 mb-2">
           <span
             className={`text-sm font-medium ${
               report.ok
-                ? 'text-green-800 dark:text-green-300'
-                : 'text-amber-800 dark:text-amber-300'
+                ? 'text-success'
+                : 'text-warning'
             }`}
           >
             {report.ok
@@ -79,7 +79,7 @@ export default function ToolchainStatus(): React.JSX.Element {
           </span>
           <button
             onClick={() => { setTick((t) => t + 1); setCopied(false) }}
-            className="px-2 py-1 rounded text-xs font-medium bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+            className="px-2 py-1 rounded text-xs font-medium bg-surface border border-line text-fg hover:bg-raised"
           >
             Re-check
           </button>
@@ -89,12 +89,12 @@ export default function ToolchainStatus(): React.JSX.Element {
           {report.tools.map((t) => (
             <li key={t.id} className="text-xs">
               <div className="flex items-start gap-2">
-                <span className={t.ok ? 'text-green-600' : 'text-red-500'}>{t.ok ? '✓' : '✕'}</span>
+                <span className={t.ok ? 'text-success' : 'text-danger'}>{t.ok ? '✓' : '✕'}</span>
                 <div className="min-w-0">
-                  <span className="font-medium text-gray-800 dark:text-gray-200">{t.name}</span>
-                  <span className="text-gray-500 dark:text-gray-400"> — {t.detail}</span>
+                  <span className="font-medium text-fg">{t.name}</span>
+                  <span className="text-fg-muted"> — {t.detail}</span>
                   {!t.ok && (
-                    <p className="text-amber-700 dark:text-amber-400 mt-0.5">{t.affects}</p>
+                    <p className="text-warning mt-0.5">{t.affects}</p>
                   )}
                 </div>
               </div>
@@ -104,18 +104,18 @@ export default function ToolchainStatus(): React.JSX.Element {
 
         {!report.ok && report.installHint && (
           <div className="mt-3">
-            <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">
+            <p className="text-xs text-fg-muted mb-1">
               Install the missing tools, then press Re-check:
             </p>
             <div className="flex items-start gap-2">
-              <code className="flex-1 p-2 rounded bg-gray-900 text-green-400 text-xs font-mono overflow-x-auto whitespace-pre">
+              <code className="flex-1 p-2 rounded bg-app text-fg text-xs font-mono overflow-x-auto whitespace-pre">
                 {report.installHint}
               </code>
               <button
                 onClick={() => {
                   void navigator.clipboard.writeText(report.installHint).then(() => setCopied(true))
                 }}
-                className="px-2 py-1 shrink-0 rounded text-xs font-medium bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                className="px-2 py-1 shrink-0 rounded text-xs font-medium bg-surface border border-line text-fg hover:bg-raised"
               >
                 {copied ? 'Copied' : 'Copy'}
               </button>

@@ -75,8 +75,8 @@ function App(): React.JSX.Element {
   // library path don't briefly act on a default value.
   if (!settingsLoaded) {
     return (
-      <div className="flex h-screen w-screen items-center justify-center bg-white dark:bg-gray-950">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-purple-500 border-t-transparent" />
+      <div className="flex h-screen w-screen items-center justify-center bg-app">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-accent border-t-transparent" />
       </div>
     )
   }

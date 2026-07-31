@@ -84,22 +84,22 @@ export default function OriginalsCleanup(): React.JSX.Element {
   }
 
   if (loading) {
-    return <p className="text-xs text-gray-400 dark:text-gray-500">Checking archived originals…</p>
+    return <p className="text-xs text-fg-faint">Checking archived originals…</p>
   }
 
   const total = (info?.count ?? 0) + (info?.lossyCount ?? 0)
   if (total === 0) {
     return (
-      <p className="text-xs text-gray-400 dark:text-gray-500">
+      <p className="text-xs text-fg-faint">
         {result || 'No archived original PDFs.'}
       </p>
     )
   }
 
   return (
-    <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 space-y-2">
-      <div className="text-xs text-gray-600 dark:text-gray-400">
-        <span className="font-medium text-gray-800 dark:text-gray-200">
+    <div className="p-3 rounded-lg bg-raised/50 border border-line space-y-2">
+      <div className="text-xs text-fg-muted">
+        <span className="font-medium text-fg">
           {info!.count} archived original{info!.count === 1 ? '' : 's'} · {formatBytes(info!.bytes)}
         </span>
         {info!.lossyCount > 0 && (
@@ -110,11 +110,11 @@ export default function OriginalsCleanup(): React.JSX.Element {
         )}
       </div>
 
-      {result && <p className="text-xs text-green-700 dark:text-green-400">{result}</p>}
+      {result && <p className="text-xs text-success">{result}</p>}
 
       {confirming ? (
         <div className="space-y-2">
-          <p className="text-xs text-red-700 dark:text-red-400">
+          <p className="text-xs text-danger">
             Permanently delete {info!.count} PDF{info!.count === 1 ? '' : 's'} and free{' '}
             {formatBytes(info!.bytes)}? Their CBZ files stay. This cannot be undone.
           </p>
@@ -122,13 +122,13 @@ export default function OriginalsCleanup(): React.JSX.Element {
             <button
               onClick={() => purge(false)}
               disabled={busy || info!.count === 0}
-              className="px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs font-medium hover:bg-red-700 disabled:opacity-50"
+              className="px-3 py-1.5 rounded-lg bg-danger-fill text-white text-xs font-medium hover:bg-danger-fill disabled:opacity-50"
             >
               {busy ? 'Deleting…' : 'Delete originals'}
             </button>
             <button
               onClick={() => setConfirming(false)}
-              className="px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-700 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+              className="px-3 py-1.5 rounded-lg bg-raised text-xs font-medium text-fg hover:bg-raised"
             >
               Cancel
             </button>
@@ -139,7 +139,7 @@ export default function OriginalsCleanup(): React.JSX.Element {
           onClick={() => setConfirming(true)}
           disabled={info!.count === 0}
           title={info!.count === 0 ? 'Only kept-back originals remain' : undefined}
-          className="px-3 py-1.5 rounded-lg bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-xs font-medium hover:bg-red-200 dark:hover:bg-red-900/40 disabled:opacity-50"
+          className="px-3 py-1.5 rounded-lg bg-danger-wash text-danger text-xs font-medium hover:bg-danger-wash disabled:opacity-50"
         >
           🗑️ Delete archived originals
         </button>

@@ -61,14 +61,14 @@ export default function Sidebar(): React.JSX.Element {
 
   return (
     <aside
-      className={`flex flex-col bg-gray-100 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 transition-all duration-200 ${
+      className={`flex flex-col bg-chrome border-r border-line transition-all duration-200 ${
         sidebarCollapsed ? 'w-16' : 'w-56'
       }`}
     >
       {/* App Title */}
-      <div className="flex items-center h-14 px-4 border-b border-gray-200 dark:border-gray-800">
+      <div className="flex items-center h-14 px-4 border-b border-line">
         {!sidebarCollapsed && (
-          <span className="text-lg font-bold text-gray-800 dark:text-gray-200 truncate">
+          <span className="text-lg font-bold text-fg truncate">
             Doujin DL
           </span>
         )}
@@ -89,8 +89,8 @@ export default function Sidebar(): React.JSX.Element {
                 // sidebar — and landed in the wrong place entirely.
                 `relative flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                   isActive
-                    ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
-                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-800'
+                    ? 'bg-accent-wash text-accent'
+                    : 'text-fg-muted hover:bg-raised'
                 }`
               }
             >
@@ -99,14 +99,14 @@ export default function Sidebar(): React.JSX.Element {
                 <span className="truncate flex items-center gap-1.5">
                   {item.label}
                   {item.to === '/downloads' && downloadCount > 0 && (
-                    <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold rounded-full bg-purple-500 text-white">
+                    <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold rounded-full bg-accent-fill text-white">
                       {downloadCount}
                     </span>
                   )}
                 </span>
               )}
               {sidebarCollapsed && item.to === '/downloads' && downloadCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 inline-flex items-center justify-center min-w-[16px] h-[16px] px-0.5 text-[9px] font-bold rounded-full bg-purple-500 text-white">
+                <span className="absolute -top-0.5 -right-0.5 inline-flex items-center justify-center min-w-[16px] h-[16px] px-0.5 text-[9px] font-bold rounded-full bg-accent-fill text-white">
                   {downloadCount}
                 </span>
               )}
@@ -115,10 +115,10 @@ export default function Sidebar(): React.JSX.Element {
       </nav>
 
       {/* Theme Toggle */}
-      <div className="p-2 border-t border-gray-200 dark:border-gray-800">
+      <div className="p-2 border-t border-line">
         <button
           onClick={cycleTheme}
-          className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors"
+          className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium text-fg-muted hover:bg-raised transition-colors"
           title={`Theme: ${themeLabel}`}
         >
           <span className="text-xl flex-shrink-0">{themeIcon}</span>

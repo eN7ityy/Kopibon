@@ -116,15 +116,15 @@ export default function SeriesAssignment({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
       <div
-        className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden"
+        className="bg-surface rounded-xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+        <div className="px-6 py-4 border-b border-line">
+          <h2 className="text-lg font-semibold text-fg">
             Assign Series
           </h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+          <p className="text-sm text-fg-muted mt-1">
             {items.length} item{items.length !== 1 ? 's' : ''} selected
           </p>
         </div>
@@ -133,7 +133,7 @@ export default function SeriesAssignment({
         <div className="px-6 py-4 space-y-4">
           {/* Series input */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-fg mb-1">
               Series Name
             </label>
             <AutocompleteInput
@@ -146,21 +146,21 @@ export default function SeriesAssignment({
 
           {/* Selected items with per-item volume */}
           <div>
-            <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <h4 className="text-sm font-medium text-fg mb-2">
               Volumes
             </h4>
-            <div className="max-h-56 overflow-y-auto space-y-2 rounded-lg border border-gray-200 dark:border-gray-700 p-2">
+            <div className="max-h-56 overflow-y-auto space-y-2 rounded-lg border border-line p-2">
               {items.map((item) => (
                 <div
                   key={item.id}
-                  className="flex items-center gap-2 text-sm py-1 px-2 rounded hover:bg-gray-50 dark:hover:bg-gray-800"
+                  className="flex items-center gap-2 text-sm py-1 px-2 rounded hover:bg-raised"
                 >
-                  <span className="text-purple-500 shrink-0">📄</span>
+                  <span className="text-accent shrink-0">📄</span>
                   <input
                     type="text"
                     readOnly
                     value={item.customTitle || item.filePath.split('/').pop() || `Item #${item.id}`}
-                    className="flex-1 min-w-0 bg-transparent border-none text-gray-600 dark:text-gray-400 text-sm cursor-text select-all focus:outline-none"
+                    className="flex-1 min-w-0 bg-transparent border-none text-fg-muted text-sm cursor-text select-all focus:outline-none"
                   />
                   <input
                     type="number"
@@ -175,7 +175,7 @@ export default function SeriesAssignment({
                       })
                     }}
                     placeholder="Vol"
-                    className="w-16 px-2 py-1 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-xs text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-purple-500 shrink-0"
+                    className="w-16 px-2 py-1 rounded border border-line bg-surface text-xs text-fg focus:ring-2 focus:ring-accent shrink-0"
                   />
                 </div>
               ))}
@@ -184,25 +184,25 @@ export default function SeriesAssignment({
 
           {/* Error */}
           {error && (
-            <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 text-sm">
+            <div className="p-3 rounded-lg bg-danger-wash border border-danger text-danger text-sm">
               {error}
             </div>
           )}
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3">
+        <div className="px-6 py-4 border-t border-line flex justify-end gap-3">
           <button
             onClick={onClose}
             disabled={applying}
-            className="px-4 py-2 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
+            className="px-4 py-2 rounded-lg text-sm font-medium text-fg bg-raised hover:bg-raised transition-colors disabled:opacity-50"
           >
             Cancel
           </button>
           <button
             onClick={handleApply}
             disabled={applying || !seriesName.trim()}
-            className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-accent-fill hover:bg-accent-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
             {applying ? (
               <>

@@ -185,19 +185,19 @@ export default function GalleryViewer({
   if (mode === 'grid') {
     return (
       <div
-          className="fixed top-0 h-full w-full max-w-lg bg-gray-950 shadow-2xl z-50 flex flex-col"
+          className="fixed top-0 h-full w-full max-w-lg bg-reader shadow-2xl z-50 flex flex-col"
           style={{ right: '32rem' }}
           role="dialog"
           aria-label="Gallery viewer"
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800 shrink-0">
-            <h2 className="text-sm font-semibold text-gray-200 truncate flex-1 mr-2">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-reader-line shrink-0">
+            <h2 className="text-sm font-semibold text-reader-fg truncate flex-1 mr-2">
               {title}
             </h2>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-white transition-colors text-sm font-medium"
+              className="text-reader-muted hover:text-white transition-colors text-sm font-medium"
             >
               Exit
             </button>
@@ -205,13 +205,13 @@ export default function GalleryViewer({
 
           {/* Grid */}
           {pages.length === 0 ? (
-            <div className="flex-1 flex items-center justify-center text-gray-400 p-6">
+            <div className="flex-1 flex items-center justify-center text-reader-muted p-6">
               <div className="text-center">
                 <span className="text-5xl block mb-4">📖</span>
                 <p>No pages available</p>
                 <button
                   onClick={onClose}
-                  className="mt-4 px-4 py-2 rounded-lg border border-gray-600 text-gray-300 hover:bg-gray-800 transition-colors"
+                  className="mt-4 px-4 py-2 rounded-lg border border-reader-line text-reader-fg hover:bg-reader-surface transition-colors"
                 >
                   Close
                 </button>
@@ -284,12 +284,12 @@ export default function GalleryViewer({
           )}
 
           {imageError ? (
-            <div className="text-center text-gray-400">
+            <div className="text-center text-reader-muted">
               <p className="mb-2">Failed to load page</p>
               {serverIndex < cdnServers.length - 1 ? (
                 <button
                   onClick={retryWithNextServer}
-                  className="px-4 py-2 rounded-lg border border-gray-500 text-gray-300 hover:bg-gray-800 transition-colors text-sm"
+                  className="px-4 py-2 rounded-lg border border-reader-line text-reader-fg hover:bg-reader-surface transition-colors text-sm"
                 >
                   Try Next Server
                 </button>
@@ -299,7 +299,7 @@ export default function GalleryViewer({
                     setImageLoading(true)
                     setImageError(false)
                   }}
-                  className="px-4 py-2 rounded-lg border border-gray-500 text-gray-300 hover:bg-gray-800 transition-colors text-sm"
+                  className="px-4 py-2 rounded-lg border border-reader-line text-reader-fg hover:bg-reader-surface transition-colors text-sm"
                 >
                   Retry
                 </button>
@@ -356,7 +356,7 @@ export default function GalleryViewer({
         <div className="flex-1 flex justify-end">
           <button
             onClick={exitReadingMode}
-            className="text-white/70 hover:text-red-400 transition-colors text-sm font-medium"
+            className="text-white/70 hover:text-danger transition-colors text-sm font-medium"
           >
             ✕ Exit
           </button>
@@ -392,12 +392,12 @@ function ThumbnailItem({
       className="group w-full text-left"
       title={`Page ${index + 1}`}
     >
-      <div className="aspect-[3/4] bg-gray-800 rounded overflow-hidden relative group-hover:ring-2 group-hover:ring-purple-500 group-hover:scale-[1.02] transition-transform focus-within:ring-2 focus-within:ring-purple-400">
+      <div className="aspect-[3/4] bg-reader-surface rounded overflow-hidden relative group-hover:ring-2 group-hover:ring-accent group-hover:scale-[1.02] transition-transform focus-within:ring-2 focus-within:ring-accent">
         {!error && thumbUrl ? (
           <>
             {/* Shimmer placeholder */}
             {!loaded && (
-              <div className="absolute inset-0 bg-gray-800 animate-pulse" />
+              <div className="absolute inset-0 bg-reader-surface animate-pulse" />
             )}
             <img
               src={thumbUrl}
@@ -412,7 +412,7 @@ function ThumbnailItem({
             />
           </>
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-gray-500">
+          <div className="w-full h-full flex items-center justify-center text-reader-muted">
             <span className="text-3xl">📖</span>
           </div>
         )}
