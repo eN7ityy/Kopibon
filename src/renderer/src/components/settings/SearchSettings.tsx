@@ -603,7 +603,8 @@ function AddBlockedValue({
                     : 'Type a value, then Enter…'
                   : ''
               }
-              className="min-w-[8rem] flex-1 bg-transparent text-sm text-fg placeholder-fg-faint focus:outline-none"
+              // The wrapper's focus-within ring is the one focus indicator here.
+              className="focus-ring-container min-w-[8rem] flex-1 bg-transparent text-sm text-fg placeholder-fg-faint"
             />
           </div>
 

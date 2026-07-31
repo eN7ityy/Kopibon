@@ -314,6 +314,20 @@ button:active {
   outline-offset: 2px;
 }
 
+/*
+ * Opt out of the ring above, for a control whose container already shows focus.
+ *
+ * A chip editor draws one ring around the whole field via `focus-within`, and the
+ * inner input adding its own produced two concentric red outlines.
+ *
+ * This has to live here rather than being `focus:outline-none` in the markup: the
+ * rule above is unlayered, and unlayered CSS beats Tailwind's layered utilities
+ * whatever their specificity, so the utility silently lost.
+ */
+.focus-ring-container:focus-visible {
+  outline: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
