@@ -20,7 +20,7 @@ import { useGlobalJobs, type ProgressJob } from '../../stores/job-progress'
 import { ProgressStack } from '../shared/ProgressBar'
 import Button from '../shared/Button'
 import Notice, { NoticeRegion } from '../shared/Notice'
-import { Check, FileArchive, Grid3x3, Layers, LayoutGrid, Library, List, Pause, Play, Plus, RefreshCw, SlidersHorizontal, Trash2, X } from 'lucide-react'
+import { Check, FileArchive, Grid3x3, Layers, LayoutGrid, Library, List, ListX, Pause, Play, Plus, RefreshCw, SlidersHorizontal, Trash2, X } from 'lucide-react'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -884,18 +884,32 @@ export default function LibraryPage(): React.JSX.Element {
           <option value="artist">Artist</option>
         </select>
 
-        {/* Filters toggle */}
+        {/*
+          Filters toggle. `inline-flex items-center` matters: the icon is an inline
+          <svg>, and without it the svg sat on the text baseline and inflated the
+          line box, making this button visibly taller than the others in the row.
+        */}
         <button
           onClick={() => setShowFilters(!showFilters)}
-          className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${showFilters || selectedArtistFilters.size > 0 || selectedSeriesFilters.size > 0 || showUnmatchedOnly ? 'bg-accent-wash text-accent' : 'bg-raised text-fg-muted hover:bg-raised'}`}
+          className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${showFilters || selectedArtistFilters.size > 0 || selectedSeriesFilters.size > 0 || showUnmatchedOnly ? 'bg-accent-wash text-accent' : 'bg-raised text-fg-muted hover:bg-raised'}`}
         >
-          <SlidersHorizontal size={16} aria-hidden="true" /> Filters
+          <SlidersHorizontal size={16} aria-hidden="true" />
+          Filters
           {(selectedArtistFilters.size > 0 || selectedSeriesFilters.size > 0 || showUnmatchedOnly) && (
-            <span className="ml-1 text-xs">({selectedArtistFilters.size + selectedSeriesFilters.size + (showUnmatchedOnly ? 1 : 0)})</span>
+            <span className="tnum text-xs">({selectedArtistFilters.size + selectedSeriesFilters.size + (showUnmatchedOnly ? 1 : 0)})</span>
           )}
         </button>
+      </div>
 
-        {/* View mode toggle */}
+      {/*
+        View mode, its own row on the left.
+
+        It used to wrap onto a second line because the toolbar was full; removing
+        the Select button freed enough width that it pulled up into the toolbar,
+        where it read as one more control in a crowded row and squeezed Filters.
+        Its own row keeps it put regardless of how wide the toolbar gets.
+      */}
+      <div className="mb-4 flex shrink-0 items-center">
         <div className="flex rounded-lg border border-line overflow-hidden">
           {(['grid', 'compact', 'list'] as ViewMode[]).map((mode) => (
             <button
@@ -988,35 +1002,50 @@ export default function LibraryPage(): React.JSX.Element {
             {cbzRunning ? 'Converting…' : 'Convert to CBZ'}
           </Button>
 
-          <span className="mx-1 h-5 w-px bg-line" />
-
-          <Button size="sm" role="ghost" onClick={handleBatchRemove}>
-            Remove from Library
-          </Button>
-          <Button size="sm" role="danger" icon={<Trash2 size={14} />} onClick={handleBatchDelete}>
-            Delete Files
-          </Button>
-
           {/*
-            Done, far right. Selection mode is entered by ticking a card's
-            checkbox, so there is no longer a Select button in the toolbar — that
-            button could not work anyway: it set selectMode with nothing selected,
-            and the effect that exits selection mode when the set is empty
-            immediately turned it back off.
+            The three exit-and-destroy actions, as one right-aligned group.
+
+            Grouped rather than each carrying its own `ml-auto`, which on a
+            wrapping row put arbitrary space in front of whichever button landed
+            last. All three are filled or outlined so none of them recedes: two
+            of these delete things and the third is how you leave selection mode,
+            so a ghost button that fades into the bar was the wrong treatment.
           */}
-          <Button
-            size="sm"
-            role="ghost"
-            icon={<Check size={14} />}
-            onClick={() => {
-              setSelectedIds(new Set())
-              setSelectMode(false)
-              setSelectionTick((tick) => tick + 1)
-            }}
-            extraClass="ml-auto"
-          >
-            Done
-          </Button>
+          <div className="ml-auto flex items-center gap-2">
+            <Button
+              size="sm"
+              role="secondary"
+              icon={<ListX size={14} />}
+              onClick={handleBatchRemove}
+            >
+              Remove from Library
+            </Button>
+            <Button size="sm" role="danger" icon={<Trash2 size={14} />} onClick={handleBatchDelete}>
+              Delete Files
+            </Button>
+
+            <span className="mx-1 h-5 w-px bg-line" />
+
+            {/*
+              Done is the primary here. Selection mode is entered by ticking a
+              card's checkbox, so there is no Select button in the toolbar — that
+              button could not work anyway: it set selectMode with nothing
+              selected, and the effect that exits selection mode when the set is
+              empty immediately turned it back off.
+            */}
+            <Button
+              size="sm"
+              role="primary"
+              icon={<Check size={14} />}
+              onClick={() => {
+                setSelectedIds(new Set())
+                setSelectMode(false)
+                setSelectionTick((tick) => tick + 1)
+              }}
+            >
+              Done
+            </Button>
+          </div>
         </div>
       )}
 
