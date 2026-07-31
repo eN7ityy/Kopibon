@@ -3,6 +3,12 @@ dist/
 out/
 .env
 *.log
+
+# Legacy Python-era config, read by nothing in src/. Kept locally for reference.
+config.json
+
+# Design docs and agent handoffs — working notes, not part of the application.
+plans/
 .eslintcache
 .DS_Store
 
