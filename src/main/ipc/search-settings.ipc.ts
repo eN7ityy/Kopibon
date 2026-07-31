@@ -4,7 +4,7 @@ import { blockedRepo } from '../db/repositories/blocked.repo'
 import { tagCacheRepo } from '../db/repositories/tag-cache.repo'
 import { resolveGalleryTags } from '../services/tag-resolver'
 import { getApiClient } from '../services/api-client'
-import { buildSearchQuery, type SearchDefaults } from '../services/search-query'
+import { buildSearchQuery, matchDimEntries, type SearchDefaults } from '../services/search-query'
 import { getLogger } from '../services/logger'
 
 const log = getLogger('search-settings')
@@ -153,6 +153,59 @@ export function registerSearchSettingsIpc(): void {
       // A Map does not survive IPC structured cloning as a Map on the other side
       // in a usable form for our stores, so send a plain object.
       return { success: true, data: Object.fromEntries(byGallery) }
+    }
+  )
+
+  /**
+   * Decide which results to mark, and why.
+   *
+   * The matching runs here rather than in the renderer so the blocked list and
+   * the rules stay together — the renderer only needs to know that a card is
+   * marked and what matched.
+   *
+   * Resolving tags is best-effort: an unresolved result is simply not marked,
+   * which is the safe direction. It shows something the user asked to
+   * de-emphasise rather than hiding something they wanted.
+   */
+  handle(
+    'search:evaluateResults',
+    async (
+      _event,
+      galleries: Array<{ id: number; title?: string | null; tag_ids?: number[]; blacklisted?: boolean }>
+    ) => {
+      if (!Array.isArray(galleries) || galleries.length === 0) {
+        return { success: true, data: {} }
+      }
+
+      const settings = readSearchSettings()
+      const dimEntries = blockedRepo.entries().filter((entry) => entry.mode === 'dim')
+
+      // Only pay for tag resolution when something actually needs tag names.
+      const tagsByGallery = dimEntries.some((entry) => entry.type !== 'text')
+        ? await resolveGalleryTags(galleries)
+        : new Map<number, Array<{ type: string; name: string }>>()
+
+      const out: Record<
+        number,
+        { matches: Array<{ type: string; value: string }>; blacklisted: boolean }
+      > = {}
+
+      for (const gallery of galleries) {
+        const matches = matchDimEntries(
+          {
+            title: gallery.title ?? null,
+            tags: tagsByGallery.get(gallery.id) ?? [],
+            blacklisted: gallery.blacklisted
+          },
+          dimEntries
+        )
+        const blacklisted = settings.respectBlacklist && gallery.blacklisted === true
+        if (matches.length > 0 || blacklisted) {
+          out[gallery.id] = { matches, blacklisted }
+        }
+      }
+
+      return { success: true, data: out }
     }
   )
 

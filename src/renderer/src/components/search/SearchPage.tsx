@@ -11,6 +11,18 @@ import ErrorState from '../shared/ErrorState'
 import Pagination from '../shared/Pagination'
 import { Search } from 'lucide-react'
 
+/**
+ * Per-result marking, keyed by gallery id.
+ *
+ * Named at module scope rather than inferred from the state via `typeof marks`:
+ * referencing the state variable inside the memoised callback below made it a
+ * dependency and broke the memoisation.
+ */
+type GalleryMarkMap = Record<
+  number,
+  { matches: Array<{ type: string; value: string }>; blacklisted: boolean }
+>
+
 interface EntityBanner {
   type: string
   name: string
@@ -32,6 +44,17 @@ export default function SearchPage(): React.JSX.Element {
   const store = useSearchStore()
   const rateLimitTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const prevSortRef = useRef(store.sort)
+
+  /**
+   * Which results are marked, and why.
+   *
+   * Kept local rather than in the store: it is derived from the blocked list
+   * plus the current page, and nothing outside this view needs it.
+   */
+  const [marks, setMarks] = useState<GalleryMarkMap>({})
+  /** Set once the stored defaults have been read, so the first load waits for them. */
+  const [defaultsReady, setDefaultsReady] = useState(false)
+  const defaultQueryRef = useRef<string>('')
   const [selectedGalleryId, setSelectedGalleryId] = useState<number | null>(null)
   const resultsContainerRef = useRef<HTMLDivElement>(null)
 
@@ -43,24 +66,103 @@ export default function SearchPage(): React.JSX.Element {
     }
   }, [store.pendingGalleryId])
 
-  // Auto-load latest uploads on mount (nhentai homepage)
+  /**
+   * Ask main which of these results match a `dim` entry.
+   *
+   * Runs after the results are shown rather than before: tag resolution can need
+   * several requests on a cold cache, and blocking the grid on it would make
+   * search feel slow to save a visual cue.
+   */
+  const evaluateMarks = useCallback(
+    async (galleries: Array<{ id: number; english_title?: string; japanese_title?: string | null; tag_ids?: number[]; blacklisted?: boolean }>) => {
+      if (galleries.length === 0) {
+        setMarks({})
+        return
+      }
+      try {
+        const r = await window.api.searchSettings.evaluateResults(
+          galleries.map((g) => ({
+            id: g.id,
+            title: g.english_title || g.japanese_title || '',
+            tag_ids: g.tag_ids,
+            blacklisted: g.blacklisted
+          }))
+        )
+        if (r.success && r.data) setMarks(r.data as GalleryMarkMap)
+      } catch {
+        /* an unmarked result is the safe fallback */
+      }
+    },
+    []
+  )
+
+  /**
+   * Read the stored search defaults before the first load.
+   *
+   * The default sort goes into the store so the sort control shows it, and the
+   * default query is remembered for the initial load below. Nothing is fetched
+   * here — this only settles what the first request should be.
+   */
   useEffect(() => {
-    const loadLatest = async () => {
+    let cancelled = false
+    window.api.searchSettings
+      .get()
+      .then((r) => {
+        if (cancelled || !r.success || !r.data) {
+          if (!cancelled) setDefaultsReady(true)
+          return
+        }
+        const settings = r.data as { sort?: string | null; defaultQuery?: string | null }
+        defaultQueryRef.current = (settings.defaultQuery ?? '').trim()
+        if (settings.sort) useSearchStore.getState().setSort(settings.sort)
+        setDefaultsReady(true)
+      })
+      .catch(() => {
+        // Without settings the tab still works, it just has no defaults.
+        if (!cancelled) setDefaultsReady(true)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  // First load: the default search if one is configured, otherwise latest uploads.
+  useEffect(() => {
+    if (!defaultsReady) return
+
+    const loadInitial = async () => {
+      const configured = defaultQueryRef.current
+      if (configured) {
+        // Seed the box so it is obvious why these results are showing, and so
+        // clearing it gets you back to plain latest uploads.
+        useSearchStore.getState().setQuery(configured)
+        await performSearch(1, configured)
+        return
+      }
+
       store.setLoading(true)
       try {
         const result = await window.api.getLatest(1)
         if (result.success && result.data) {
           const facts = await resolveLibraryFacts(result.data.result.map((r) => r.id))
           store.setResults(result.data.result, facts, 1, result.data.num_pages)
+          void evaluateMarks(result.data.result)
         }
       } catch {
         // silently ignore
       }
     }
+
     if (store.results.length === 0 && !store.query.trim()) {
-      loadLatest()
+      void loadInitial()
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+    // `defaultsReady` has to be a dependency: with an empty array this ran once
+    // while it was still false, returned early, and never ran again — leaving
+    // Search permanently empty. The other values are deliberately not
+    // dependencies, since this is a first-load effect and re-running it on every
+    // store change would refetch continuously.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [defaultsReady])
 
   useEffect(() => {
     return () => {
@@ -108,6 +210,7 @@ export default function SearchPage(): React.JSX.Element {
 
 
 
+
   const performSearch = useCallback(
     async (page: number, overrideQuery?: string) => {
       const trimmedQuery = (overrideQuery ?? store.query).trim()
@@ -117,7 +220,12 @@ export default function SearchPage(): React.JSX.Element {
       resultsContainerRef.current?.scrollTo(0, 0)
 
       try {
-        const result = await window.api.search(trimmedQuery, {
+        // Composed in main, so the search defaults and every `exclude` entry are
+        // applied without this view knowing the query syntax.
+        const composed = await window.api.searchSettings.buildQuery(trimmedQuery)
+        const effectiveQuery = composed.success && composed.data?.query ? composed.data.query : trimmedQuery
+
+        const result = await window.api.search(effectiveQuery, {
           page,
           sort: store.sort || undefined
         })
@@ -126,6 +234,7 @@ export default function SearchPage(): React.JSX.Element {
           const data = result.data
           const facts = await resolveLibraryFacts(data.result.map((r) => r.id))
           store.setResults(data.result, facts, page > 0 ? page : 0, data.num_pages)
+          void evaluateMarks(data.result)
         } else {
           const errorMsg = result.error || 'Search failed'
           if (errorMsg.includes('429') || errorMsg.toLowerCase().includes('rate')) {
@@ -138,7 +247,7 @@ export default function SearchPage(): React.JSX.Element {
         store.setError(err instanceof Error ? err.message : 'Search failed')
       }
     },
-    [store.query, store.sort, resolveLibraryFacts]
+    [store.query, store.sort, evaluateMarks]
   )
 
   const loadPage = useCallback(
@@ -158,12 +267,13 @@ export default function SearchPage(): React.JSX.Element {
           const data = result.data
           const facts = await resolveLibraryFacts(data.result.map((r) => r.id))
           store.setResults(data.result, facts, isPopular ? 1 : page, data.num_pages)
+          void evaluateMarks(data.result)
         }
       } catch {
         store.setError('Failed to load')
       }
     },
-    [store.query, store.sort, performSearch, resolveLibraryFacts]
+    [store.query, store.sort, performSearch, evaluateMarks]
   )
 
   /**
@@ -382,7 +492,8 @@ export default function SearchPage(): React.JSX.Element {
             <GalleryGrid
               galleries={store.results.map((g) => ({
                 gallery: g,
-                facts: store.libraryFacts[g.id]
+                facts: store.libraryFacts[g.id],
+                mark: marks[g.id]
               }))}
               onGalleryClick={handleGalleryClick}
             />

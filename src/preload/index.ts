@@ -383,7 +383,16 @@ const api = {
      * The query the API should receive, composed in main from the defaults and
      * the blocked list, so the renderer never assembles nhentai query syntax.
      */
-    buildQuery: (userQuery: string) => ipcRenderer.invoke('searchSettings:buildQuery', userQuery)
+    buildQuery: (userQuery: string) => ipcRenderer.invoke('searchSettings:buildQuery', userQuery),
+    /** Which results to mark, and what matched, for the `dim` entries. */
+    evaluateResults: (
+      galleries: Array<{
+        id: number
+        title?: string | null
+        tag_ids?: number[]
+        blacklisted?: boolean
+      }>
+    ) => ipcRenderer.invoke('search:evaluateResults', galleries)
   },
 
   blocked: {
