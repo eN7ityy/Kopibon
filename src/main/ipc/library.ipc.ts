@@ -2,8 +2,11 @@ import { ipcMain, BrowserWindow, app } from 'electron'
 import { Worker } from 'worker_threads'
 import { join as pathJoin } from 'path'
 import { libraryRepo } from '../db/repositories/library.repo'
+import { galleryRepo } from '../db/repositories/gallery.repo'
+import { settingsRepo } from '../db/repositories/settings.repo'
 import { getStoredApiKey } from './auth.ipc'
-import { renameSync, mkdirSync, existsSync, appendFileSync, writeFileSync, readFileSync } from 'fs'
+import { renameSync, mkdirSync, existsSync, appendFileSync, writeFileSync, readFileSync, readdirSync, statSync, unlinkSync } from 'fs'
+import { createHash } from 'crypto'
 import { dirname, join, basename } from 'path'
 import { homedir } from 'os'
 
@@ -29,6 +32,56 @@ function spawnMetadataWorker(
 
 let isScanning = false
 let scanWorker: Worker | null = null
+
+/**
+ * Items currently being converted to CBZ, and items queued for it.
+ *
+ * Module-level rather than local to the handler because the edit paths need to
+ * consult it. A conversion replaces the file on disk and rewrites `file_path`
+ * and `format`; an edit landing in that window would either write metadata into
+ * a file that is about to be replaced, or race the row update and leave the
+ * database pointing at the deleted PDF. Disabling the buttons is not enough —
+ * the guard has to be here, where the write actually happens.
+ */
+const cbzConverting = new Set<number>()
+const cbzQueued = new Set<number>()
+
+/** True when an item is mid-conversion or waiting for a runner. */
+function isConversionLocked(id: number): boolean {
+  return cbzConverting.has(id) || cbzQueued.has(id)
+}
+
+/** Standard refusal, so every guarded handler reports the same thing. */
+function conversionLockError(): { success: false; error: string } {
+  return { success: false, error: 'This file is being converted to CBZ. Try again once it finishes.' }
+}
+
+/**
+ * Move a cached thumbnail to the key its new file path hashes to.
+ *
+ * Must stay in step with `generateThumbnail`/`generateCbzThumbnail` in
+ * library-scanner.worker.ts, which name the file after
+ * `sha1(filePath).slice(0, 16)`. Returns the new path, or null when there was
+ * nothing to move — in which case the caller leaves the column alone and the
+ * next scan regenerates.
+ */
+function renameThumbnailForPath(currentCover: string | null, newFilePath: string): string | null {
+  if (!currentCover || !existsSync(currentCover)) return null
+  try {
+    const hash = createHash('sha1').update(newFilePath).digest('hex').slice(0, 16)
+    const dest = join(dirname(currentCover), `${hash}.jpg`)
+    if (dest === currentCover) return currentCover
+    // A thumbnail already at the destination is equally valid — drop ours.
+    if (existsSync(dest)) {
+      try { unlinkSync(currentCover) } catch { /* harmless leftover */ }
+      return dest
+    }
+    renameSync(currentCover, dest)
+    return dest
+  } catch {
+    return null
+  }
+}
 
 export function registerLibraryIpc(): void {
   ipcMain.handle('library:getAll', async () => {
@@ -302,6 +355,12 @@ export function registerLibraryIpc(): void {
             errors.push(`Item ${entry.id} not found`)
             continue
           }
+          // Skip rather than fail the whole batch — assigning a series embeds
+          // metadata into the file, which a conversion is about to replace.
+          if (isConversionLocked(entry.id)) {
+            errors.push(`Item ${entry.id} is being converted to CBZ`)
+            continue
+          }
 
           // The volume for THIS item, as chosen by the caller. Blank clears it.
           const volume =
@@ -502,6 +561,7 @@ export function registerLibraryIpc(): void {
   // ─── File Actions ──────────────────────────────────────────────────
 
   ipcMain.handle('library:delete', async (_event, id: number) => {
+    if (isConversionLocked(id)) return conversionLockError()
     try {
       const item = libraryRepo.findById(id)
       libraryRepo.delete(id)
@@ -517,6 +577,7 @@ export function registerLibraryIpc(): void {
   })
 
   ipcMain.handle('library:deleteFile', async (_event, id: number) => {
+    if (isConversionLocked(id)) return conversionLockError()
     try {
       const { unlinkSync, existsSync } = await import('fs')
       const item = libraryRepo.findById(id)
@@ -555,6 +616,7 @@ export function registerLibraryIpc(): void {
   })
 
   ipcMain.handle('library:updateMetadata', async (_event, id: number, metadata: Record<string, string | number | null>, libraryRoot?: string) => {
+    if (isConversionLocked(id)) return conversionLockError()
     try {
       const item = libraryRepo.findById(id)
       if (!item) {
@@ -925,6 +987,7 @@ export function registerLibraryIpc(): void {
   }
 
   ipcMain.handle('library:syncItem', async (_event, itemId: number) => {
+    if (isConversionLocked(itemId)) return conversionLockError()
     if (syncingItems.has(itemId)) return { success: false, error: 'Already syncing' }
 
     const item = libraryRepo.findById(itemId)
@@ -952,7 +1015,7 @@ export function registerLibraryIpc(): void {
 
     for (let i = 0; i < ids.length; i++) {
       const item = libraryRepo.findById(ids[i])
-      if (!item || !item.galleryId || syncingItems.has(ids[i])) {
+      if (!item || !item.galleryId || syncingItems.has(ids[i]) || isConversionLocked(ids[i])) {
         failed++
         continue
       }
@@ -1117,6 +1180,406 @@ export function registerLibraryIpc(): void {
       return { success: true, data: count }
     } catch (error) {
       return { success: false, error: String(error) }
+    }
+  })
+
+  // ─── Convert to CBZ ────────────────────────────────────────────────────────
+
+  let cbzConversionCancelled = false
+
+  ipcMain.handle('library:convertToCbz', async (
+    event,
+    ids: number[],
+    dryRun: boolean = false,
+    options?: { keepOriginal?: boolean }
+  ) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    if (!win) return { success: false, error: 'No window found' }
+
+    cbzConversionCancelled = false
+    const runners = Number(settingsRepo.get('downloadConcurrency') || '3')
+    const concurrency = Math.max(1, Math.min(runners, 8))
+    const libraryRoot = settingsRepo.get('libraryPath') || ''
+    // A per-run choice wins over the stored default, so the user can keep
+    // originals as a rule and still delete them for one batch (or vice versa)
+    // without editing settings first.
+    const keepOriginal =
+      typeof options?.keepOriginal === 'boolean'
+        ? options.keepOriginal
+        : settingsRepo.get('cbzKeepOriginal') !== 'false'
+    // The worker joins libraryRoot into '_originals/{artist}/' when preserving
+    // originals. An empty or missing root makes that a *relative* path, which
+    // would move the user's only copy of each PDF somewhere under the process
+    // working directory. Refuse the batch instead.
+    if (keepOriginal && (!libraryRoot || !existsSync(libraryRoot))) {
+      return {
+        success: false,
+        error:
+          'Library path is not set or does not exist. Set it in Settings before ' +
+          'converting, or disable "keep original".'
+      }
+    }
+    const mangaDirection = (settingsRepo.get('cbzMangaDirection') || 'YesAndRightToLeft') as 'Yes' | 'YesAndRightToLeft' | 'No'
+    const parodyAsCollection = settingsRepo.get('cbzParodyAsCollection') === 'true'
+
+    if (dryRun) {
+      const items = ids.map((id) => {
+        const item = libraryRepo.findById(id)
+        return item ? { id: item.id, title: item.customTitle, format: item.format } : null
+      }).filter(Boolean)
+      return { success: true, data: { dryRun: true, items, count: items.length } }
+    }
+
+    // Only PDFs are convertible. Filtering here rather than failing per item
+    // keeps the reported total honest: a mixed selection should show progress
+    // out of the number actually being worked on.
+    const targets = ids.filter((id) => {
+      const item = libraryRepo.findById(id)
+      return !!item && (item.format || 'pdf') === 'pdf'
+    })
+    const skipped = ids.length - targets.length
+    if (targets.length === 0) {
+      return { success: true, data: { converted: 0, failed: 0, total: 0, skipped, cancelled: false } }
+    }
+
+    // Claim every target up front so the edit guard covers items that are still
+    // waiting for a runner, not just the handful currently in workers.
+    for (const id of targets) cbzQueued.add(id)
+
+    let queueIndex = 0
+    let converted = 0
+    let failed = 0
+    // Items whose original had to be kept despite keepOriginal=false, because
+    // the lossy fallback ran. Reported back so the UI can say so explicitly
+    // rather than leaving the user to wonder why some PDFs survived.
+    let forcedKeeps = 0
+    const errors: string[] = []
+    const logLines: string[] = []
+
+    function sendProgress(running = true): void {
+      win!.webContents.send('library:convertToCbzProgress', {
+        current: converted + failed,
+        total: targets.length,
+        converted,
+        failed,
+        skipped,
+        running,
+        // Per-item state, so the library can mark individual cards busy and
+        // refuse editing on exactly the right rows.
+        activeIds: [...cbzConverting],
+        queuedIds: [...cbzQueued],
+        logLines: logLines.splice(0, logLines.length)
+      })
+    }
+
+    function spawnWorker(): Promise<void> {
+      return new Promise((resolve) => {
+        const workerPath = pathJoin(__dirname, 'services/convert-cbz.worker.js')
+        const worker = new Worker(workerPath)
+        let currentId: number | null = null
+        // Captured when the item is dispatched: the message handler needs it to
+        // re-key the thumbnail, and the row is re-read there anyway.
+        let currentCover: string | null = null
+        let stopping = false
+
+        const stop = (): void => {
+          if (stopping) return
+          stopping = true
+          worker.terminate().then(() => resolve()).catch(() => resolve())
+        }
+
+        const processNext = (): void => {
+          if (cbzConversionCancelled || queueIndex >= targets.length) {
+            stop()
+            return
+          }
+          currentId = targets[queueIndex++]
+          if (!currentId) {
+            stop()
+            return
+          }
+
+          const item = libraryRepo.findById(currentId)
+          if (!item || item.format !== 'pdf') {
+            cbzQueued.delete(currentId)
+            failed++
+            sendProgress()
+            processNext()
+            return
+          }
+
+          // Hand off from queued to active — the item is now being written to.
+          cbzQueued.delete(currentId)
+          cbzConverting.add(currentId)
+          currentCover = item.customCoverPath ?? null
+          sendProgress()
+
+          // Read real gallery row for typed tags (only 41 rows have them, but those 41 matter)
+          let uploadDate: number | null = null
+          let rawTagsJson: string | null = null
+          if (item.galleryId) {
+            const gallery = galleryRepo.findById(item.galleryId)
+            if (gallery) {
+              uploadDate = gallery.uploadDate ?? null
+              rawTagsJson = gallery.rawTagsJson ?? null
+            }
+          }
+
+          worker.postMessage({
+            type: 'convert',
+            item: {
+              id: item.id,
+              filePath: item.filePath,
+              metadata: {
+                customTitle: item.customTitle,
+                primaryArtist: item.primaryArtist,
+                seriesName: item.seriesName,
+                seriesIndex: item.seriesIndex,
+                customTags: item.customTags,
+                customLanguage: item.customLanguage || item.language,
+                publisher: item.publisher,
+                description: item.description,
+                galleryId: item.galleryId,
+                uploadDate,
+                rawTagsJson
+              },
+              options: {
+                keepOriginal,
+                libraryRoot,
+                userDataDir: app.getPath('userData'),
+                mangaDirection,
+                parodyAsCollection
+              }
+            }
+          })
+        }
+
+        worker.on('message', (msg: {
+          type: string
+          itemId?: number
+          success?: boolean
+          newPath?: string
+          fileSize?: number
+          // Real mtime of the written CBZ. Declared here rather than cast at the
+          // use site: the scanner compares this against the file on disk to
+          // decide whether to re-extract, so a wrong value costs a full rescan
+          // of every converted item.
+          fileMtime?: number
+          error?: string
+          log?: string
+          lossless?: boolean
+          originalKept?: boolean
+          forcedKeep?: boolean
+        }) => {
+          if (msg.type === 'done') {
+            if (!cbzConversionCancelled && msg.success && msg.newPath && currentId) {
+              converted++
+              if (msg.forcedKeep) forcedKeeps++
+              // Thumbnails are content-addressed by SHA-1 of the file path
+              // (library-scanner.worker.ts), so renaming .pdf to .cbz orphans
+              // the cached cover: the DB keeps working, but the next rescan
+              // computes the new hash, finds nothing and regenerates. Move it
+              // to the new key so that work — and the stale file — never happen.
+              const movedCover = renameThumbnailForPath(currentCover, msg.newPath)
+              try {
+                libraryRepo.update(currentId, {
+                  filePath: msg.newPath,
+                  format: 'cbz',
+                  fileSize: msg.fileSize ?? 0,
+                  fileMtime: msg.fileMtime ?? Date.now(),
+                  ...(movedCover ? { customCoverPath: movedCover } : {}),
+                  updatedAt: Date.now()
+                })
+              } catch { /* */ }
+            } else {
+              failed++
+              if (msg.error) errors.push(msg.error)
+            }
+            if (msg.log) {
+              logLines.push(msg.log)
+            }
+            // Release the lock only after the row has been updated, so an edit
+            // arriving the instant the bar ticks cannot see the stale path.
+            if (currentId) cbzConverting.delete(currentId)
+            sendProgress()
+            processNext()
+          }
+        })
+
+        worker.on('error', (err) => {
+          if (!stopping) {
+            failed++
+            errors.push(String(err))
+            sendProgress()
+          }
+          stop()
+        })
+        worker.on('exit', (code) => {
+          if (!stopping && code !== 0 && currentId) { failed++; sendProgress() }
+          stopping = true
+          resolve()
+        })
+
+        processNext()
+      })
+    }
+
+    try {
+      const workers = Array.from({ length: concurrency }, () => spawnWorker())
+      await Promise.all(workers)
+      // Clear anything left claimed — a cancel or a dead runner leaves items in
+      // the queued set, and a stale entry would lock those rows for the rest of
+      // the session.
+      for (const id of targets) {
+        cbzQueued.delete(id)
+        cbzConverting.delete(id)
+      }
+      sendProgress(false)
+
+      return {
+        success: true,
+        data: {
+          converted,
+          failed,
+          total: targets.length,
+          skipped,
+          keptOriginals: keepOriginal,
+          forcedKeeps,
+          cancelled: cbzConversionCancelled,
+          errors: errors.length > 0 ? errors.slice(0, 20) : undefined
+        }
+      }
+    } catch (error) {
+      // Never leave rows claimed on an unexpected throw — a stale lock would
+      // make those items permanently uneditable until the app restarts.
+      for (const id of targets) {
+        cbzQueued.delete(id)
+        cbzConverting.delete(id)
+      }
+      sendProgress(false)
+      return { success: false, error: String(error) }
+    }
+  })
+
+  ipcMain.handle('library:cancelConvertToCbz', async () => {
+    cbzConversionCancelled = true
+    return { success: true }
+  })
+
+  /**
+   * Walk `_originals`, separating the freely-deletable archive from `_lossy`.
+   *
+   * Returns counts and byte totals so the UI can state exactly what a purge
+   * would remove before the user agrees to it.
+   */
+  function scanOriginals(root: string): {
+    files: string[]
+    bytes: number
+    lossyFiles: string[]
+    lossyBytes: number
+  } {
+    const files: string[] = []
+    const lossyFiles: string[] = []
+    let bytes = 0
+    let lossyBytes = 0
+
+    const walk = (dir: string, inLossy: boolean): void => {
+      let entries: import('fs').Dirent[]
+      try {
+        entries = readdirSync(dir, { withFileTypes: true })
+      } catch {
+        return
+      }
+      for (const entry of entries) {
+        const full = join(dir, entry.name)
+        if (entry.isDirectory()) {
+          walk(full, inLossy || entry.name === '_lossy')
+        } else if (entry.isFile()) {
+          let size = 0
+          try { size = statSync(full).size } catch { /* counted as 0 */ }
+          if (inLossy) { lossyFiles.push(full); lossyBytes += size }
+          else { files.push(full); bytes += size }
+        }
+      }
+    }
+
+    walk(join(root, '_originals'), false)
+    return { files, bytes, lossyFiles, lossyBytes }
+  }
+
+  ipcMain.handle('library:getOriginalsInfo', async () => {
+    try {
+      const root = settingsRepo.get('libraryPath') || ''
+      if (!root || !existsSync(join(root, '_originals'))) {
+        return { success: true, data: { count: 0, bytes: 0, lossyCount: 0, lossyBytes: 0 } }
+      }
+      const s = scanOriginals(root)
+      return {
+        success: true,
+        data: {
+          count: s.files.length,
+          bytes: s.bytes,
+          lossyCount: s.lossyFiles.length,
+          lossyBytes: s.lossyBytes
+        }
+      }
+    } catch (error) {
+      return { success: false, error: String(error) }
+    }
+  })
+
+  /**
+   * Delete archived original PDFs.
+   *
+   * Irreversible, so it is never implicit: `includeLossy` must be passed
+   * explicitly to touch the `_lossy` subtree, whose files are the only
+   * full-quality copies of pages that went through the re-rasterising fallback.
+   */
+  ipcMain.handle('library:purgeOriginals', async (_event, includeLossy: boolean = false) => {
+    try {
+      const root = settingsRepo.get('libraryPath') || ''
+      if (!root || !existsSync(join(root, '_originals'))) {
+        return { success: true, data: { deleted: 0, bytes: 0, failed: 0 } }
+      }
+
+      const { unlinkSync, rmSync } = await import('fs')
+      const s = scanOriginals(root)
+      const doomed = includeLossy ? [...s.files, ...s.lossyFiles] : s.files
+      const bytes = includeLossy ? s.bytes + s.lossyBytes : s.bytes
+
+      let deleted = 0
+      let failed = 0
+      for (const f of doomed) {
+        try { unlinkSync(f); deleted++ } catch { failed++ }
+      }
+
+      // Drop the now-empty directory tree, but only when nothing was spared —
+      // otherwise the _lossy files would lose their parent directories.
+      if (includeLossy && failed === 0) {
+        try { rmSync(join(root, '_originals'), { recursive: true, force: true }) } catch { /* */ }
+      }
+
+      return { success: true, data: { deleted, bytes, failed } }
+    } catch (error) {
+      return { success: false, error: String(error) }
+    }
+  })
+
+  /**
+   * Current conversion state, for a renderer that mounted mid-run.
+   *
+   * Progress arrives as events, so a page that opens after a batch started
+   * would otherwise show nothing busy and offer an Edit button the main process
+   * will refuse.
+   */
+  ipcMain.handle('library:getCbzConversionState', async () => {
+    return {
+      success: true,
+      data: {
+        running: cbzConverting.size > 0 || cbzQueued.size > 0,
+        activeIds: [...cbzConverting],
+        queuedIds: [...cbzQueued]
+      }
     }
   })
 }

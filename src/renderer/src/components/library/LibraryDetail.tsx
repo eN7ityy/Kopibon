@@ -3,6 +3,8 @@ import AutocompleteInput from '../shared/AutocompleteInput'
 import PdfViewer from './PdfViewer'
 import CbzViewer from './CbzViewer'
 import type { LibraryItemData } from './LibraryCard'
+import { useCbzConversionStore, useIsConverting } from '../../stores/cbz-conversion.store'
+import ConvertToCbzDialog from './ConvertToCbzDialog'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -41,7 +43,7 @@ export default function LibraryDetail({
   item, onClose, onDeleted, onUpdated, libraryRoot,
   onFilterArtist, onFilterPublisher, onFilterTag, onOpenInSearch
 }: LibraryDetailProps): React.JSX.Element | null {
-  const [editing, setEditing] = useState(false)
+  const [editingRaw, setEditing] = useState(false)
   const [editTitle, setEditTitle] = useState('')
   const [editSeries, setEditSeries] = useState('')
   const [editVolume, setEditVolume] = useState('')
@@ -51,12 +53,28 @@ export default function LibraryDetail({
   const [editPublisher, setEditPublisher] = useState('')
   const [editDescription, setEditDescription] = useState('')
   const [saving, setSaving] = useState(false)
-  const [deleteConfirm, setDeleteConfirm] = useState<'none' | 'remove' | 'deleteFile'>('none')
+  const [deleteConfirmRaw, setDeleteConfirm] = useState<'none' | 'remove' | 'deleteFile'>('none')
   const [deleting, setDeleting] = useState(false)
   const [detailSyncing, setDetailSyncing] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
   const [thumbDataUrl, setThumbDataUrl] = useState<string | null>(null)
   const [showPdfViewer, setShowPdfViewer] = useState(false)
+  const [converting, setConverting] = useState(false)
+  const [convertError, setConvertError] = useState<string | null>(null)
+  const [showConvertDialog, setShowConvertDialog] = useState(false)
+
+  // True while THIS item is being converted (or is queued for it). The main
+  // process refuses edits, deletes, series changes and sync on such an item, so
+  // the panel must not offer them.
+  const isConverting = useIsConverting(item?.id)
+
+  // A batch conversion can start while this panel is open in edit mode, and the
+  // main process will refuse the save. Rather than reset the state in an effect
+  // (which cascades a render and can flash the form), the locked state simply
+  // wins when read: the form and the delete confirmations collapse for as long
+  // as the item is converting, and reappear untouched if it fails.
+  const editing = editingRaw && !isConverting
+  const deleteConfirm = isConverting ? 'none' : deleteConfirmRaw
 
   // Autocomplete suggestions for tags
   const [tagSuggestions, setTagSuggestions] = useState<string[]>([])
@@ -149,6 +167,42 @@ export default function LibraryDetail({
     } catch { /* */ }
   }
 
+  /**
+   * Convert this single file to CBZ.
+   *
+   * `begin(1)` primes the shared progress store so the bar on the library page
+   * appears immediately, rather than only once the first progress event lands —
+   * extraction of a large PDF can take a while before anything is reported.
+   */
+  const handleConvertToCbz = async (keepOriginal: boolean): Promise<void> => {
+    if (!detail) return
+    setConverting(true)
+    useCbzConversionStore.getState().begin(1)
+    try {
+      const r = await window.api.library.convertToCbz([detail.id], false, { keepOriginal })
+      if (!r?.success) {
+        setConvertError(r?.error || 'Conversion failed')
+      } else if (r.data && r.data.failed > 0) {
+        setConvertError(r.data.errors?.[0] || 'Conversion failed')
+      } else if (r.data?.forcedKeeps > 0) {
+        // Not an error, but the user asked for a deletion that did not happen.
+        setConvertError(
+          'Converted, but the original PDF was kept: this file needed the fallback converter, ' +
+          'so the PDF is the better copy. It is in _originals/_lossy/.'
+        )
+        onUpdated()
+      } else {
+        onUpdated()
+      }
+    } catch (e) {
+      setConvertError(String(e))
+    } finally {
+      useCbzConversionStore.getState().finish()
+      setConverting(false)
+      setRefreshKey((k) => k + 1)
+    }
+  }
+
   const handleSaveMetadata = async () => {
     setSaving(true)
     try {
@@ -207,6 +261,17 @@ export default function LibraryDetail({
             filePath={detail.filePath}
             title={detail.customTitle || 'Untitled'}
             onClose={() => setShowPdfViewer(false)}
+          />
+        )}
+
+        {showConvertDialog && (
+          <ConvertToCbzDialog
+            count={1}
+            onCancel={() => setShowConvertDialog(false)}
+            onConfirm={(keepOriginal) => {
+              setShowConvertDialog(false)
+              void handleConvertToCbz(keepOriginal)
+            }}
           />
         )}
 
@@ -431,11 +496,46 @@ export default function LibraryDetail({
             </div>
           ) : (
             <>
+              {/* Conversion in progress — say so plainly, since the actions
+                  below are disabled and that would otherwise look broken. */}
+              {isConverting && (
+                <div className="flex items-center gap-2 p-2.5 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 text-xs text-indigo-700 dark:text-indigo-300">
+                  <div className="w-3.5 h-3.5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin shrink-0" />
+                  <span>Converting to CBZ. Editing and deleting are unavailable until this finishes.</span>
+                </div>
+              )}
+
               <div className="flex gap-2">
                 <button onClick={handleOpenFile} className="flex-1 px-4 py-2 rounded-lg bg-purple-600 text-white text-sm font-medium hover:bg-purple-700">📖 Open File</button>
                 <button onClick={handleOpenFolder} className="flex-1 px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700">📂 Open Folder</button>
               </div>
-              <button onClick={() => setEditing(true)} className="w-full px-4 py-2 rounded-lg bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-sm font-medium hover:bg-blue-200 dark:hover:bg-blue-900/50">✏️ Edit Metadata</button>
+
+              {convertError && (
+                <div className="flex items-start justify-between gap-2 p-2.5 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-xs text-red-700 dark:text-red-400">
+                  <span>⚠️ {convertError}</span>
+                  <button onClick={() => setConvertError(null)} className="shrink-0 hover:text-red-900 dark:hover:text-red-300">✕</button>
+                </div>
+              )}
+
+              {/* Convert to CBZ — only for PDFs; a CBZ has nowhere to go. */}
+              {(detail.format || 'pdf') === 'pdf' && (
+                <button
+                  onClick={() => setShowConvertDialog(true)}
+                  disabled={isConverting || converting}
+                  className="w-full px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {isConverting || converting ? '⟳ Converting to CBZ…' : '📦 Convert to CBZ'}
+                </button>
+              )}
+
+              <button
+                onClick={() => setEditing(true)}
+                disabled={isConverting}
+                title={isConverting ? 'Unavailable while this file is being converted' : undefined}
+                className="w-full px-4 py-2 rounded-lg bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-sm font-medium hover:bg-blue-200 dark:hover:bg-blue-900/50 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                ✏️ Edit Metadata
+              </button>
 
               {/* Two delete actions */}
               <div>
@@ -457,8 +557,8 @@ export default function LibraryDetail({
                   </div>
                 ) : (
                   <div className="flex gap-2">
-                    <button onClick={() => setDeleteConfirm('remove')} className="flex-1 px-4 py-2 rounded-lg bg-orange-100 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 text-sm font-medium hover:bg-orange-200">📋 Remove from Library</button>
-                    <button onClick={() => setDeleteConfirm('deleteFile')} className="flex-1 px-4 py-2 rounded-lg bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-sm font-medium hover:bg-red-200">🗑️ Delete File</button>
+                    <button onClick={() => setDeleteConfirm('remove')} disabled={isConverting} title={isConverting ? 'Unavailable while this file is being converted' : undefined} className="flex-1 px-4 py-2 rounded-lg bg-orange-100 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 text-sm font-medium hover:bg-orange-200 disabled:opacity-40 disabled:cursor-not-allowed">📋 Remove from Library</button>
+                    <button onClick={() => setDeleteConfirm('deleteFile')} disabled={isConverting} title={isConverting ? 'Unavailable while this file is being converted' : undefined} className="flex-1 px-4 py-2 rounded-lg bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-sm font-medium hover:bg-red-200 disabled:opacity-40 disabled:cursor-not-allowed">🗑️ Delete File</button>
                   </div>
                 )}
               </div>

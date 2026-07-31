@@ -3,6 +3,26 @@ import { electronAPI } from '@electron-toolkit/preload'
 
 // ─── Typed API exposed to renderer ───────────────────────────────────────────
 
+/**
+ * PDF → CBZ conversion progress.
+ *
+ * `activeIds` and `queuedIds` are what let the library mark individual rows
+ * busy: the main process refuses edits on those items, so the UI has to know
+ * which ones rather than merely that *something* is converting.
+ */
+export interface CbzConvertProgress {
+  current: number
+  total: number
+  converted: number
+  failed: number
+  /** Selected items that were not PDFs and so were never queued. */
+  skipped?: number
+  running?: boolean
+  activeIds?: number[]
+  queuedIds?: number[]
+  logLines?: string[]
+}
+
 const api = {
   // Search & Gallery
   search: (query: string, options?: { page?: number; sort?: string }) =>
@@ -101,6 +121,13 @@ const api = {
     isPathAccessible: (dirPath: string) => ipcRenderer.invoke('library:isPathAccessible', dirPath),
     convertAllMetadata: (runners?: number) => ipcRenderer.invoke('library:convertAllMetadata', runners),
     cancelConversion: () => ipcRenderer.invoke('library:cancelConversion'),
+    convertToCbz: (ids: number[], dryRun?: boolean, options?: { keepOriginal?: boolean }) =>
+      ipcRenderer.invoke('library:convertToCbz', ids, dryRun, options),
+    getOriginalsInfo: () => ipcRenderer.invoke('library:getOriginalsInfo'),
+    purgeOriginals: (includeLossy?: boolean) =>
+      ipcRenderer.invoke('library:purgeOriginals', includeLossy),
+    cancelConvertToCbz: () => ipcRenderer.invoke('library:cancelConvertToCbz'),
+    getCbzConversionState: () => ipcRenderer.invoke('library:getCbzConversionState'),
     syncItem: (itemId: number) => ipcRenderer.invoke('library:syncItem', itemId),
     syncBatch: (ids: number[]) => ipcRenderer.invoke('library:syncBatch', ids),
     isSyncing: (itemId: number) => ipcRenderer.invoke('library:isSyncing', itemId)
@@ -174,6 +201,33 @@ const api = {
     ipcRenderer.on('library:convertProgress', handler)
     return () => ipcRenderer.removeListener('library:convertProgress', handler)
   },
+  /**
+   * Updater state changes.
+   *
+   * `ready` means an update has downloaded and will apply on restart — the
+   * previous implementation only raised a native notification, so a staged
+   * update was invisible and applied without the user knowing why the app
+   * changed.
+   */
+  onUpdateStatus: (
+    callback: (status: {
+      state: 'available' | 'current' | 'downloading' | 'ready' | 'error'
+      version?: string
+      percent?: number
+      message?: string
+    }) => void
+  ) => {
+    const handler = (_event: Electron.IpcRendererEvent, status: Parameters<typeof callback>[0]): void =>
+      callback(status)
+    ipcRenderer.on('app:updateStatus', handler)
+    return () => ipcRenderer.removeListener('app:updateStatus', handler)
+  },
+  onConvertToCbzProgress: (callback: (progress: CbzConvertProgress) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, progress: CbzConvertProgress): void =>
+      callback(progress)
+    ipcRenderer.on('library:convertToCbzProgress', handler)
+    return () => ipcRenderer.removeListener('library:convertToCbzProgress', handler)
+  },
   onLibraryScanPaused: (callback: () => void) => {
     const handler = () => callback()
     ipcRenderer.on('library:scanPaused', handler)
@@ -188,7 +242,11 @@ const api = {
   // App
   app: {
     checkForUpdates: () => ipcRenderer.invoke('app:checkForUpdates'),
-    getVersion: () => ipcRenderer.invoke('app:getVersion')
+    /** Apply a staged update and relaunch. No-op until one has downloaded. */
+    installUpdate: () => ipcRenderer.invoke('app:installUpdate'),
+    getVersion: () => ipcRenderer.invoke('app:getVersion'),
+    /** Probe Python/pikepdf and poppler. `force` re-checks after installing. */
+    checkToolchain: (force?: boolean) => ipcRenderer.invoke('app:checkToolchain', force)
   },
 
   // Settings

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { useIsConverting } from '../../stores/cbz-conversion.store'
 
 // ─── Types matching library_item DB schema ──────────────────────────────────
 
@@ -48,6 +49,10 @@ export default function LibraryCard({
   onContextMenu,
   compact = false
 }: LibraryCardProps): React.JSX.Element {
+  // Read from the store rather than taking a prop: the grid and the list view
+  // render cards from different call sites, and threading this through both
+  // would leave one of them silently missing the indicator.
+  const converting = useIsConverting(item.id)
   const [imgError, setImgError] = useState(false)
   const [thumbDataUrl, setThumbDataUrl] = useState<string | null>(null)
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({ visible: false, x: 0, y: 0 })
@@ -147,11 +152,19 @@ export default function LibraryCard({
             </div>
           )}
 
-          {/* Format badge — hide in compact mode */}
-          {!compact && (
-            <span className="absolute top-2 right-2 bg-purple-600/80 text-white text-xs px-1.5 py-0.5 rounded font-medium">
-              {item.format?.toUpperCase() || 'PDF'}
+          {/* Converting badge takes the format badge's place — the format is
+              about to change, so showing the old one would be misleading. */}
+          {converting ? (
+            <span className="absolute top-2 right-2 flex items-center gap-1 bg-indigo-600/90 text-white text-xs px-1.5 py-0.5 rounded font-medium">
+              <span className="w-2.5 h-2.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              {!compact && 'CBZ…'}
             </span>
+          ) : (
+            !compact && (
+              <span className="absolute top-2 right-2 bg-purple-600/80 text-white text-xs px-1.5 py-0.5 rounded font-medium">
+                {item.format?.toUpperCase() || 'PDF'}
+              </span>
+            )
           )}
         </div>
 
