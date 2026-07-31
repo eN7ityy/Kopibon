@@ -18,6 +18,7 @@ import { generatePdf } from './pdf-generator'
 import { applyXmpWithPikepdf, type XmpMetadata } from './xmp-inject'
 import type { PdfOptions } from './pdf-generator'
 import type { GalleryMetadata } from './metadata-writer'
+import { resolveLanguageName } from './xml-utils'
 
 interface GenerateCommand {
   type: 'generate'
@@ -34,8 +35,11 @@ function convertMetadata(meta: GalleryMetadata, language: string | null): XmpMet
   const tagNames = meta.tags.map((t) => t.name)
   const artistNames = meta.tags.filter((t) => t.type === 'artist').map((t) => t.name)
   const groupNames = meta.tags.filter((t) => t.type === 'group').map((t) => t.name)
-  const langTag = meta.tags.find((t) => t.type === 'language')
-  const langCode = language || langTag?.name || null
+  // Every language-type tag is a candidate. The first is commonly 'translated',
+  // which is not a language — see resolveLanguageName(). The result is a
+  // canonical name ('English'); xmp-inject converts it to an ISO code on write.
+  const langCode =
+    language || resolveLanguageName(meta.tags.filter((t) => t.type === 'language').map((t) => t.name))
 
   // Artist/group/publisher logic:
   // - No artist + group → group is artist AND publisher

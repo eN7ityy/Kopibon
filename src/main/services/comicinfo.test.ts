@@ -135,6 +135,17 @@ describe('buildComicInfoXml — language', () => {
   it('omits LanguageISO when absent', () => {
     expect(buildComicInfoXml(meta())).not.toContain('<LanguageISO>')
   })
+
+  it('omits LanguageISO rather than emitting an unmappable value', () => {
+    // Regression: the emitter used `toIsoLanguage(v) || v`, so a value the
+    // mapper deliberately rejected was written out raw. A real conversion
+    // produced <LanguageISO>translated</LanguageISO> — 'translated' is an
+    // nhentai language-*type* tag, not a language. toIsoLanguage returning null
+    // means "omit", and the emitter has to honour that.
+    for (const bad of ['translated', 'rewrite', 'speechless', 'nonsense']) {
+      expect(buildComicInfoXml(meta({ languageIso: bad }))).not.toContain('<LanguageISO>')
+    }
+  })
 })
 
 describe('parseComicInfoXml — round trip', () => {

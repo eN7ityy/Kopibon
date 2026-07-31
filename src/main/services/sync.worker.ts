@@ -13,6 +13,7 @@
 import { parentPort } from 'worker_threads'
 import { applyXmpWithPikepdf, type XmpMetadata } from './xmp-inject'
 import { applyMetadata, type MetadataPayload } from './apply-metadata'
+import { resolveLanguageName } from './xml-utils'
 
 interface SyncCommand {
   type: 'sync'
@@ -69,8 +70,15 @@ parentPort?.on('message', async (cmd: SyncCommand) => {
     const artistTags = tags.filter((t: any) => t.type === 'artist').map((t: any) => t.name)
     const groupTags = tags.filter((t: any) => t.type === 'group').map((t: any) => t.name)
     const allTags = tags.map((t: any) => t.name)
-    const langTag = tags.find((t: any) => t.type === 'language')
-    const language = langTag?.name || null
+    // All language-type tags are candidates, in order. Taking only the first
+    // picks 'translated' — an nhentai language-*type* tag that is not a
+    // language — for most galleries, and this value is both embedded in the file
+    // and stored in library_item.language below.
+    const language = resolveLanguageName(
+      (tags as { type: string; name: string }[])
+        .filter((t) => t.type === 'language')
+        .map((t) => t.name)
+    )
 
     const hasArtist = artistTags.length > 0
     const hasGroup = groupTags.length > 0

@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { escapeXml, decodeXmlEntities, toIsoLanguage } from './xml-utils'
+import {
+  escapeXml,
+  decodeXmlEntities,
+  toIsoLanguage,
+  resolveLanguageName,
+  CANONICAL_LANGUAGES
+} from './xml-utils'
 
 /**
  * Regression cover for the escaping bug that shipped TWICE in this project:
@@ -115,6 +121,21 @@ describe('toIsoLanguage', () => {
     expect(toIsoLanguage('en')).toBe('en')
   })
 
+  it.each([
+    ['eng', 'en'],
+    ['jpn', 'ja'],
+    ['zho', 'zh'],
+    ['chi', 'zh'],
+    ['KOR', 'ko'],
+    ['ger', 'de'],
+    ['deu', 'de']
+  ])('maps the ISO 639-2 code %s to %s', (input, expected) => {
+    // These are what the scanner actually reads out of existing PDF XMP, and
+    // they are the majority of the library: 2,390 rows read 'eng', 398 'jpn',
+    // 221 'zho'. Unmapped, they produced files with no language at all.
+    expect(toIsoLanguage(input)).toBe(expected)
+  })
+
   it('returns null rather than fabricating a code for a non-language', () => {
     // 'translated' is an nhentai tag, not a language, and really does appear in
     // the library's language column. A wrong ISO code is worse than none.
@@ -127,5 +148,71 @@ describe('toIsoLanguage', () => {
     expect(toIsoLanguage('   ')).toBeNull()
     expect(toIsoLanguage(null)).toBeNull()
     expect(toIsoLanguage(undefined)).toBeNull()
+  })
+})
+
+describe('resolveLanguageName', () => {
+  // The four combinations the API actually returns for this library, with their
+  // observed frequencies. 'translated' always comes FIRST when present, which is
+  // why taking the first language tag mislabelled most downloads.
+  it.each([
+    [['translated', 'english'], 'English', 18],
+    [['japanese'], 'Japanese', 15],
+    [['translated', 'chinese'], 'Chinese', 9],
+    [['english'], 'English', 2]
+  ])('resolves %j to %s (seen %i times)', (tags, expected) => {
+    expect(resolveLanguageName(tags as string[])).toBe(expected)
+  })
+
+  it('never returns a non-language, whatever the order', () => {
+    expect(resolveLanguageName(['translated'])).toBeNull()
+    expect(resolveLanguageName(['translated', 'rewrite', 'speechless'])).toBeNull()
+    expect(resolveLanguageName(['english', 'translated'])).toBe('English')
+  })
+
+  it('prefers the readable language over the original', () => {
+    // A translated Japanese work: the text a reader sees is English.
+    expect(resolveLanguageName(['japanese', 'translated', 'english'])).toBe('English')
+  })
+
+  it('accepts ISO 639-1 and 639-2 spellings, and is case-insensitive', () => {
+    expect(resolveLanguageName(['en'])).toBe('English')
+    expect(resolveLanguageName(['eng'])).toBe('English')
+    expect(resolveLanguageName(['ENGLISH'])).toBe('English')
+    expect(resolveLanguageName(['jpn'])).toBe('Japanese')
+    expect(resolveLanguageName(['ja'])).toBe('Japanese')
+    expect(resolveLanguageName(['zho'])).toBe('Chinese')
+    expect(resolveLanguageName(['chi'])).toBe('Chinese')
+    expect(resolveLanguageName(['  Chinese  '])).toBe('Chinese')
+  })
+
+  it('reduces a locale tag to its primary subtag', () => {
+    expect(resolveLanguageName(['en-US'])).toBe('English')
+    expect(resolveLanguageName(['zh_Hans'])).toBe('Chinese')
+  })
+
+  it('only ever returns one of the three canonical names, or null', () => {
+    const inputs = [
+      'english', 'japanese', 'chinese', 'translated', 'rewrite', 'korean',
+      'en', 'jpn', 'zho', '', '   ', 'nonsense'
+    ]
+    for (const a of inputs) {
+      for (const b of inputs) {
+        const out = resolveLanguageName([a, b])
+        expect(out === null || CANONICAL_LANGUAGES.includes(out)).toBe(true)
+      }
+    }
+  })
+
+  it('returns null for empty input rather than guessing', () => {
+    expect(resolveLanguageName([])).toBeNull()
+    expect(resolveLanguageName([null, undefined, ''])).toBeNull()
+  })
+
+  it('feeds toIsoLanguage cleanly, so emitted files get a real ISO code', () => {
+    // The canonical name is what gets stored; the emitters convert on write.
+    expect(toIsoLanguage(resolveLanguageName(['translated', 'english']))).toBe('en')
+    expect(toIsoLanguage(resolveLanguageName(['japanese']))).toBe('ja')
+    expect(toIsoLanguage(resolveLanguageName(['translated', 'chinese']))).toBe('zh')
   })
 })

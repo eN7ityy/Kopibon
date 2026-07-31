@@ -113,9 +113,14 @@ export function buildComicInfoXml(meta: ComicInfoMetadata): string {
   // PageCount
   lines.push(`  <PageCount>${meta.pageCount}</PageCount>`)
 
-  // LanguageISO — only if the value is a recognised ISO code (§4.2, §C.5)
-  if (meta.languageIso) {
-    const iso = toIsoLanguage(meta.languageIso) || meta.languageIso
+  // LanguageISO — only if the value is a recognised ISO code (§4.2, §C.5).
+  // No raw-value fallback: nhentai's language-type tags include 'translated'
+  // and 'rewrite', which are not languages. Emitting one produced
+  // <LanguageISO>translated</LanguageISO> on a real conversion. An absent
+  // language is better than a wrong one, which is what toIsoLanguage()
+  // returning null is telling us.
+  const iso = toIsoLanguage(meta.languageIso)
+  if (iso) {
     lines.push(`  <LanguageISO>${escapeXml(iso)}</LanguageISO>`)
   }
 
