@@ -5,14 +5,41 @@ import { join } from 'path'
 import { homedir } from 'os'
 import * as schema from './schema'
 
-const DB_DIR = join(homedir(), '.config', 'doujin-downloader')
-const DB_PATH = join(DB_DIR, 'db.sqlite')
+let _dbDir: string | null = null
+let _dbPath: string | null = null
+
+function resolveDbDir(): string {
+  if (_dbDir) return _dbDir
+  // Use app.getPath('userData') when available (main process), fall back to
+  // homedir() for worker threads where Electron is not importable.
+  try {
+    // A static import would break worker threads, where electron is not
+    // resolvable at all; this has to stay a guarded runtime require.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { app } = require('electron')
+    if (app?.getPath) {
+      _dbDir = join(app.getPath('userData'))
+      _dbPath = join(_dbDir, 'db.sqlite')
+      return _dbDir
+    }
+  } catch {
+    /* not in Electron context */
+  }
+  _dbDir = join(homedir(), '.config', 'doujin-downloader')
+  _dbPath = join(_dbDir, 'db.sqlite')
+  return _dbDir
+}
+
+function resolveDbPath(): string {
+  if (!_dbPath) resolveDbDir()
+  return _dbPath!
+}
 
 let db: ReturnType<typeof drizzle> | null = null
 let sqlite: Database.Database | null = null
 
 export function getDbPath(): string {
-  return DB_PATH
+  return resolveDbPath()
 }
 
 export function getRawDatabase(): Database.Database {
@@ -23,18 +50,19 @@ export function getRawDatabase(): Database.Database {
 }
 
 export function getDbDir(): string {
-  return DB_DIR
+  return resolveDbDir()
 }
 
 export function initDatabase(): ReturnType<typeof drizzle> {
   if (db) return db
 
+  const dbDir = resolveDbDir()
   // Ensure directory exists
-  if (!existsSync(DB_DIR)) {
-    mkdirSync(DB_DIR, { recursive: true })
+  if (!existsSync(dbDir)) {
+    mkdirSync(dbDir, { recursive: true })
   }
 
-  sqlite = new Database(DB_PATH)
+  sqlite = new Database(resolveDbPath())
   sqlite.pragma('encoding = "UTF-8"')
   sqlite.pragma('journal_mode = WAL')
   sqlite.pragma('foreign_keys = ON')
@@ -279,7 +307,7 @@ function runMigrations(sqlite: Database.Database): void {
  * use raw better-sqlite3 with their own connection.
  */
 export function openWorkerConnection(): Database.Database {
-  const workerDb = new Database(DB_PATH)
+  const workerDb = new Database(resolveDbPath())
   workerDb.pragma('encoding = "UTF-8"')
   workerDb.pragma('journal_mode = WAL')
   workerDb.pragma('foreign_keys = ON')

@@ -1,7 +1,8 @@
-import { ipcMain, dialog, BrowserWindow, safeStorage } from 'electron'
+import { dialog, BrowserWindow, safeStorage } from 'electron'
 import { shell } from 'electron'
 import { getApiClient } from '../services/api-client'
 import { settingsRepo } from '../db/repositories/settings.repo'
+import { handle } from './handle'
 
 // ─── Auth State (main-process-only) ─────────────────────────────────────────
 
@@ -79,29 +80,27 @@ export function registerAuthIpc(): void {
    * Validate an API key by calling GET /api/v2/user.
    * If valid, saves the key to settings DB and configures the rate limiter.
    */
-  ipcMain.handle('auth:validateKey', async (_event, key: string) => {
+  handle('auth:validateKey', async (_event, key: string) => {
+    // Temporarily set the key to test it — this also raises the rate limits
+    client.setApiKey(key)
     try {
-      // Temporarily set the key to test it — this also raises the rate limits
-      client.setApiKey(key)
       const user = await client.getUser()
-
       // Key is valid — persist it encrypted
       settingsRepo.set('nhentai_api_key', encryptKey(key))
       loggedIn = true
       username = user.username
-
       return { success: true, data: { username: user.username } }
     } catch {
       // Key is invalid — remove it from client (drops back to anon limits)
       client.setApiKey(null)
-      return { success: false, error: 'Invalid API key' }
+      throw new Error('Invalid API key')
     }
   })
 
   /**
    * Get the current authentication status.
    */
-  ipcMain.handle('auth:getAuthStatus', async () => {
+  handle('auth:getAuthStatus', async () => {
     return { success: true, data: { loggedIn, username } }
   })
 
@@ -109,7 +108,7 @@ export function registerAuthIpc(): void {
    * Set the API key on the client without validation (e.g., when restoring
    * a previously validated key from the DB during startup).
    */
-  ipcMain.handle('auth:setKey', async (_event, key: string) => {
+  handle('auth:setKey', async (_event, key: string) => {
     client.setApiKey(key)
     return { success: true }
   })
@@ -118,7 +117,7 @@ export function registerAuthIpc(): void {
    * Clear the API key — removes it from client, settings DB, and resets
    * the rate limiter to the anonymous default (30 req/min).
    */
-  ipcMain.handle('auth:clearKey', async () => {
+  handle('auth:clearKey', async () => {
     // setApiKey(null) reverts the limiter to the anonymous per-endpoint limits
     client.setApiKey(null)
     settingsRepo.delete('nhentai_api_key')
@@ -130,7 +129,7 @@ export function registerAuthIpc(): void {
   /**
    * Diagnostics: current rate limiter state per endpoint group.
    */
-  ipcMain.handle('auth:getRateLimits', async () => {
+  handle('auth:getRateLimits', async () => {
     return {
       success: true,
       data: { authenticated: loggedIn, buckets: client.getRateLimitSnapshot() }
@@ -140,33 +139,44 @@ export function registerAuthIpc(): void {
   /**
    * Open an external URL in the system browser.
    */
-  ipcMain.handle('shell:openExternal', async (_event, url: string) => {
+  handle('shell:openExternal', async (_event, url: string) => {
     await shell.openExternal(url)
   })
 
-  ipcMain.handle('shell:openPath', async (_event, path: string) => {
+  handle('shell:openPath', async (_event, path: string) => {
     await shell.openPath(path)
   })
 
-  ipcMain.handle('shell:showItemInFolder', async (_event, path: string) => {
+  handle('shell:showItemInFolder', async (_event, path: string) => {
     shell.showItemInFolder(path)
   })
 
   // ─── File Dialogs ──────────────────────────────────────────────────
 
-  ipcMain.handle('dialog:openFile', async (event, options?: { filters?: Array<{ name: string; extensions: string[] }> }) => {
-    const win = BrowserWindow.fromWebContents(event.sender)
-    if (!win) return { success: false, error: 'No window found' }
+  handle(
+    'dialog:openFile',
+    async (
+      event,
+      options?: { filters?: Array<{ name: string; extensions: string[] }> }
+    ) => {
+      const win = BrowserWindow.fromWebContents(event.sender)
+      if (!win) return { success: false, error: 'No window found' }
 
-    const result = await dialog.showOpenDialog(win, {
-      properties: ['openFile'],
-      filters: options?.filters || [{ name: 'PDF Files', extensions: ['pdf'] }]
-    })
+      const result = await dialog.showOpenDialog(win, {
+        properties: ['openFile'],
+        filters: options?.filters || [
+          { name: 'PDF Files', extensions: ['pdf'] }
+        ]
+      })
 
-    return { success: true, data: result.canceled ? null : result.filePaths[0] }
-  })
+      return {
+        success: true,
+        data: result.canceled ? null : result.filePaths[0]
+      }
+    }
+  )
 
-  ipcMain.handle('dialog:openDirectory', async (event) => {
+  handle('dialog:openDirectory', async (event) => {
     const win = BrowserWindow.fromWebContents(event.sender)
     if (!win) return { success: false, error: 'No window found' }
 
@@ -174,6 +184,9 @@ export function registerAuthIpc(): void {
       properties: ['openDirectory']
     })
 
-    return { success: true, data: result.canceled ? null : result.filePaths[0] }
+    return {
+      success: true,
+      data: result.canceled ? null : result.filePaths[0]
+    }
   })
 }

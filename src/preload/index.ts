@@ -264,6 +264,10 @@ const api = {
     return () => ipcRenderer.removeListener('library:scanCancelled', handler)
   },
 
+  // Logging (§1.6 — renderer console output is invisible in a packaged build)
+  log: (level: string, scope: string, msg: string, fields?: Record<string, unknown>) =>
+    ipcRenderer.invoke('log:write', level, scope, msg, fields),
+
   // App
   app: {
     checkForUpdates: () => ipcRenderer.invoke('app:checkForUpdates'),

@@ -25,6 +25,7 @@
  */
 
 import { getRawDatabase } from '../db/connection'
+import { getLogger } from './logger'
 
 export interface MaintenanceResult {
   downloadPagesCleared: number
@@ -95,7 +96,9 @@ export function runStartupMaintenance(options: MaintenanceOptions = {}): Mainten
     sweep()
   } catch (err) {
     // Maintenance is best-effort — never block startup over it.
-    console.error('[startup] maintenance failed:', err)
+    getLogger('startup').error('Maintenance sweep failed', {
+      err: err instanceof Error ? err : new Error(String(err))
+    })
     return result
   }
 
@@ -105,12 +108,12 @@ export function runStartupMaintenance(options: MaintenanceOptions = {}): Mainten
     result.completedDownloadsPruned +
     result.orphanedArtistsRemoved
   if (total > 0) {
-    console.log(
-      `[startup] maintenance: cleared ${result.downloadPagesCleared} page row(s), ` +
-        `${result.scanQueueCleared} scan queue row(s), ` +
-        `pruned ${result.completedDownloadsPruned} completed download(s), ` +
-        `removed ${result.orphanedArtistsRemoved} orphaned artist row(s)`
-    )
+    getLogger('startup').info('Maintenance sweep', {
+      downloadPagesCleared: result.downloadPagesCleared,
+      scanQueueCleared: result.scanQueueCleared,
+      completedDownloadsPruned: result.completedDownloadsPruned,
+      orphanedArtistsRemoved: result.orphanedArtistsRemoved
+    })
   }
 
   return result

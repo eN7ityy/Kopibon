@@ -1,6 +1,6 @@
-import { ipcMain } from 'electron'
 import { settingsRepo } from '../db/repositories/settings.repo'
 import { getDownloadManager } from '../services/download-manager'
+import { handle } from './handle'
 
 /** Settings that need to be pushed into a running service when they change. */
 const LIVE_SETTINGS = new Set(['downloadConcurrency'])
@@ -15,50 +15,30 @@ function applyLiveSettings(keys: string[]): void {
 }
 
 export function registerSettingsIpc(): void {
-  ipcMain.handle('settings:get', async (_event, key: string) => {
-    try {
-      const value = settingsRepo.get(key)
-      return { success: true, data: value }
-    } catch (error) {
-      return { success: false, error: String(error) }
-    }
+  handle('settings:get', async (_event, key: string) => {
+    const value = settingsRepo.get(key)
+    return { success: true, data: value }
   })
 
-  ipcMain.handle('settings:getAll', async () => {
-    try {
-      const all = settingsRepo.getAll()
-      return { success: true, data: all }
-    } catch (error) {
-      return { success: false, error: String(error) }
-    }
+  handle('settings:getAll', async () => {
+    const all = settingsRepo.getAll()
+    return { success: true, data: all }
   })
 
-  ipcMain.handle('settings:set', async (_event, key: string, value: string) => {
-    try {
-      settingsRepo.set(key, value)
-      applyLiveSettings([key])
-      return { success: true }
-    } catch (error) {
-      return { success: false, error: String(error) }
-    }
+  handle('settings:set', async (_event, key: string, value: string) => {
+    settingsRepo.set(key, value)
+    applyLiveSettings([key])
+    return { success: true }
   })
 
-  ipcMain.handle('settings:setAll', async (_event, settings: Record<string, string>) => {
-    try {
-      settingsRepo.setAll(settings)
-      applyLiveSettings(Object.keys(settings))
-      return { success: true }
-    } catch (error) {
-      return { success: false, error: String(error) }
-    }
+  handle('settings:setAll', async (_event, settings: Record<string, string>) => {
+    settingsRepo.setAll(settings)
+    applyLiveSettings(Object.keys(settings))
+    return { success: true }
   })
 
-  ipcMain.handle('settings:delete', async (_event, key: string) => {
-    try {
-      settingsRepo.delete(key)
-      return { success: true }
-    } catch (error) {
-      return { success: false, error: String(error) }
-    }
+  handle('settings:delete', async (_event, key: string) => {
+    settingsRepo.delete(key)
+    return { success: true }
   })
 }

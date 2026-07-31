@@ -2,16 +2,6 @@ import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { autoUpdater } from 'electron-updater'
-
-// Debug: log process context per Gemini's recommended diagnosis
-console.log(
-  '[main] Process Type:',
-  process.type,
-  '| Run As Node:',
-  process.env.ELECTRON_RUN_AS_NODE,
-  '| electron.app:',
-  typeof app
-)
 import icon from '../../resources/icon.png?asset'
 import { initDatabase, closeDatabase } from './db/connection'
 import { registerApiIpc } from './ipc/api.ipc'
@@ -22,6 +12,8 @@ import { registerAuthIpc, restoreAuthFromDb } from './ipc/auth.ipc'
 import { getDownloadManager } from './services/download-manager'
 import { checkToolchain } from './services/toolchain'
 import { runStartupMaintenance } from './services/startup-maintenance'
+import { createLogger } from './services/logger'
+import { handle } from './ipc/handle'
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -60,12 +52,65 @@ function createWindow(): void {
 app.whenReady().then(async () => {
   electronApp.setAppUserModelId('com.en7ity.doujin-downloader')
 
+  // ─── Logger ──────────────────────────────────────────────────────────
+
+  const logDir = join(app.getPath('userData'), 'logs')
+  const logger = createLogger({ logDir })
+
+  logger.info('App starting', {
+    version: app.getVersion(),
+    electron: process.versions.electron,
+    chrome: process.versions.chrome,
+    node: process.versions.node,
+    platform: process.platform,
+    arch: process.arch
+  })
+
+  // ─── Crash handlers (§1.7) ───────────────────────────────────────────
+
+  process.on('uncaughtException', (error) => {
+    logger.error('Uncaught exception', {
+      err: error,
+      origin: 'uncaughtException'
+    })
+  })
+
+  process.on('unhandledRejection', (reason) => {
+    const err =
+      reason instanceof Error
+        ? reason
+        : new Error(String(reason))
+    logger.error('Unhandled rejection', {
+      err,
+      origin: 'unhandledRejection'
+    })
+  })
+
+  app.on('render-process-gone', (_event, _webContents, details) => {
+    logger.error('Render process gone', {
+      reason: details.reason,
+      exitCode: details.exitCode
+    })
+  })
+
+  app.on('child-process-gone', (_event, details) => {
+    logger.error('Child process gone', {
+      type: details.type,
+      reason: details.reason,
+      exitCode: details.exitCode,
+      serviceName: details.serviceName
+    })
+  })
+
+  // ─── Main window ─────────────────────────────────────────────────────
+
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
   })
 
   // Initialize database
   initDatabase()
+  logger.info('Database initialised')
 
   // Register IPC handlers
   registerApiIpc()
@@ -77,90 +122,142 @@ app.whenReady().then(async () => {
   // Restore any previously-validated API key from the DB
   restoreAuthFromDb()
 
-  // Sweep transient bookkeeping tables (page rows, scan queue, completed
-  // history). Must run before reconcileInterrupted(), which rebuilds the
-  // page rows it needs for the downloads it re-queues.
-  runStartupMaintenance()
+  // Sweep transient bookkeeping tables
+  const maintenance = runStartupMaintenance()
+  if (
+    maintenance.downloadPagesCleared +
+      maintenance.scanQueueCleared +
+      maintenance.completedDownloadsPruned +
+      maintenance.orphanedArtistsRemoved >
+    0
+  ) {
+    logger.info('Startup maintenance', {
+      downloadPagesCleared: maintenance.downloadPagesCleared,
+      scanQueueCleared: maintenance.scanQueueCleared,
+      completedDownloadsPruned: maintenance.completedDownloadsPruned,
+      orphanedArtistsRemoved: maintenance.orphanedArtistsRemoved
+    })
+  }
 
   // Re-queue downloads that were interrupted by a crash/quit, then resume
   const dm = getDownloadManager()
   dm.applyConcurrencyFromSettings()
-  dm.reconcileInterrupted()
+  const requeued = dm.reconcileInterrupted()
+  if (requeued > 0) {
+    logger.info('Re-queued interrupted downloads', { count: requeued })
+  }
   dm.processQueue()
 
-  // Probe the external toolchain (Python/pikepdf, poppler). Neither is bundled,
-  // and without them PDFs get no metadata and conversion cannot run — so the
-  // result is also exposed over IPC and shown in Settings, because a console
-  // message is invisible in a packaged build.
+  // Probe the external toolchain (Python/pikepdf, poppler)
   checkToolchain()
     .then((report) => {
       if (report.ok) {
-        console.log('[startup] external toolchain OK')
+        logger.info('External toolchain OK')
       } else {
-        const missing = report.tools.filter((t) => !t.ok).map((t) => t.name)
-        console.error(`[startup] MISSING TOOLS: ${missing.join(', ')} — ${report.installHint}`)
+        const missing = report.tools
+          .filter((t) => !t.ok)
+          .map((t) => t.name)
+        logger.error('Missing external tools', {
+          missing: missing.join(', '),
+          installHint: report.installHint
+        })
       }
     })
-    .catch(() => {
-      /* probe failure is non-fatal */
+    .catch((err) => {
+      logger.warn('Toolchain probe failed (non-fatal)', {
+        err: err instanceof Error ? err : new Error(String(err))
+      })
     })
 
-  ipcMain.handle('app:checkToolchain', async (_event, force = false) => {
-    try {
-      return { success: true, data: await checkToolchain(force) }
-    } catch (error) {
-      return { success: false, error: String(error) }
-    }
+  // ─── IPC handlers defined in main (not in a separate module) ──────────
+
+  handle('app:checkToolchain', async (_event, force = false) => {
+    return { success: true, data: await checkToolchain(force) }
   })
 
-  // ─── Auto-update ───────────────────────────────────────────────────────────
+  // ─── Auto-update ─────────────────────────────────────────────────────
 
   /** Broadcast updater state so the renderer can show it instead of guessing. */
-  const sendUpdateStatus = (payload: Record<string, unknown>): void => {
+  const sendUpdateStatus = (
+    payload: Record<string, unknown>
+  ): void => {
     for (const win of BrowserWindow.getAllWindows()) {
       win.webContents.send('app:updateStatus', payload)
     }
   }
 
-  // Errors were previously swallowed at both call sites, so a permanently broken
-  // update feed was invisible to everyone including the developer.
   autoUpdater.on('error', (err) => {
-    console.error('[updater] error:', err?.message || err)
-    sendUpdateStatus({ state: 'error', message: String(err?.message || err) })
+    logger.error('Auto-updater error', {
+      err: err instanceof Error ? err : new Error(String((err as Error)?.message || err))
+    })
+    sendUpdateStatus({
+      state: 'error',
+      message: String(err?.message || err)
+    })
   })
   autoUpdater.on('update-available', (info) => {
-    sendUpdateStatus({ state: 'available', version: info?.version })
+    logger.info('Update available', { version: info?.version })
+    sendUpdateStatus({
+      state: 'available',
+      version: info?.version
+    })
   })
   autoUpdater.on('update-not-available', () => {
     sendUpdateStatus({ state: 'current' })
   })
   autoUpdater.on('download-progress', (p) => {
-    sendUpdateStatus({ state: 'downloading', percent: Math.round(p?.percent ?? 0) })
+    sendUpdateStatus({
+      state: 'downloading',
+      percent: Math.round(p?.percent ?? 0)
+    })
   })
-  // The update is staged but NOT applied until the app restarts. Without this
-  // event reaching the UI the user had no idea a restart would change anything.
   autoUpdater.on('update-downloaded', (info) => {
-    sendUpdateStatus({ state: 'ready', version: info?.version })
+    logger.info('Update downloaded', { version: info?.version })
+    sendUpdateStatus({
+      state: 'ready',
+      version: info?.version
+    })
   })
 
-  ipcMain.handle('app:checkForUpdates', async () => {
-    try {
-      const result = await autoUpdater.checkForUpdates()
-      return { success: true, data: result ? { version: result.updateInfo?.version } : null }
-    } catch (error) {
-      return { success: false, error: String(error) }
+  // ─── Renderer log forwarding (§1.6) ─────────────────────────────────
+
+  ipcMain.handle(
+    'log:write',
+    async (
+      _event,
+      level: string,
+      scope: string,
+      msg: string,
+      fields?: Record<string, unknown>
+    ) => {
+      // Validate level to prevent injection
+      const validLevels = ['error', 'warn', 'info', 'debug']
+      if (!validLevels.includes(level)) return
+      const logFn = logger[level as 'error' | 'warn' | 'info' | 'debug']
+      if (typeof logFn === 'function') {
+        ;(logFn as (msg: string, fields?: Record<string, unknown>) => void)(
+          msg,
+          { scope, ...fields }
+        )
+      }
+    }
+  )
+
+  handle('app:checkForUpdates', async () => {
+    const result = await autoUpdater.checkForUpdates()
+    return {
+      success: true,
+      data: result
+        ? { version: result.updateInfo?.version }
+        : null
     }
   })
 
   /** Apply a staged update now. No-op unless 'update-downloaded' has fired. */
-  ipcMain.handle('app:installUpdate', async () => {
-    try {
-      // isSilent=false, isForceRunAfter=true — reopen the app after updating.
-      autoUpdater.quitAndInstall(false, true)
-      return { success: true }
-    } catch (error) {
-      return { success: false, error: String(error) }
-    }
+  handle('app:installUpdate', async () => {
+    // isSilent=false, isForceRunAfter=true — reopen the app after updating.
+    autoUpdater.quitAndInstall(false, true)
+    return { success: true }
   })
 
   // Startup check. Rejections are handled by the 'error' listener above; this
@@ -170,7 +267,7 @@ app.whenReady().then(async () => {
   })
 
   // App version for Settings display
-  ipcMain.handle('app:getVersion', async () => {
+  handle('app:getVersion', async () => {
     return { success: true, data: app.getVersion() }
   })
 

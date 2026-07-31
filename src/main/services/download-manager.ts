@@ -2,6 +2,7 @@ import { join } from 'path'
 import { mkdirSync, existsSync, statSync, rmSync } from 'fs'
 import { Worker } from 'worker_threads'
 import { app, Notification } from 'electron'
+import { getLogger } from './logger'
 import { downloadRepo } from '../db/repositories/download.repo'
 import { galleryRepo } from '../db/repositories/gallery.repo'
 import { settingsRepo } from '../db/repositories/settings.repo'
@@ -84,7 +85,7 @@ export class DownloadManager {
     if (next === this.maxConcurrent) return
     const raised = next > this.maxConcurrent
     this.maxConcurrent = next
-    console.log(`[downloads] concurrency set to ${next}`)
+    getLogger('downloads').info(`Concurrency set to ${next}`)
     // Fill the newly available slots rather than waiting for the next event.
     if (raised) this.processQueue()
   }
@@ -208,7 +209,7 @@ export class DownloadManager {
       }
     }
     if (requeued > 0) {
-      console.log(`[downloads] re-queued ${requeued} interrupted download(s)`)
+      getLogger('downloads').info(`Re-queued ${requeued} interrupted download(s)`)
     }
     return requeued
   }
@@ -685,9 +686,9 @@ export class DownloadManager {
         return filePath
       } catch (err) {
         if (attempt === maxRetries - 1) {
-          console.error(
-            `Failed to download page ${pageNumber} after ${maxRetries} attempts:`,
-            err
+          getLogger('downloads').warn(
+            `Page ${pageNumber} download failed after ${maxRetries} attempts`,
+            { err: err instanceof Error ? err : new Error(String(err)) }
           )
           return null
         }
