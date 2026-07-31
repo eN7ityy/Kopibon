@@ -8,6 +8,7 @@ import { registerApiIpc } from './ipc/api.ipc'
 import { registerDownloadIpc } from './ipc/download.ipc'
 import { registerLibraryIpc } from './ipc/library.ipc'
 import { registerSettingsIpc } from './ipc/settings.ipc'
+import { registerSearchSettingsIpc } from './ipc/search-settings.ipc'
 import { registerAuthIpc, restoreAuthFromDb } from './ipc/auth.ipc'
 import { getDownloadManager } from './services/download-manager'
 import { checkToolchain } from './services/toolchain'
@@ -117,6 +118,7 @@ app.whenReady().then(async () => {
   registerDownloadIpc()
   registerLibraryIpc()
   registerSettingsIpc()
+  registerSearchSettingsIpc()
   registerAuthIpc()
 
   // Restore any previously-validated API key from the DB

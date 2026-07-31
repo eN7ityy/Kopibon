@@ -177,8 +177,7 @@ export class ApiClient {
     }
     if (options?.body) {
       fetchOptions.body = JSON.stringify(options.body)
-      ;(fetchOptions.headers as Record<string, string>)['Content-Type'] =
-        'application/json'
+      ;(fetchOptions.headers as Record<string, string>)['Content-Type'] = 'application/json'
     }
 
     const doFetch = (): Promise<Response> => fetch(url, fetchOptions)
@@ -263,6 +262,48 @@ export class ApiClient {
     return this.request<SearchResponse>('related', `/galleries/${id}/related`)
   }
 
+  /**
+   * Resolve tag ids to names, 100 at a time.
+   *
+   * Search results carry `tag_ids` and no names, so this is the only way to tell
+   * whether a result holds a blocked tag. The 100-id cap is the documented
+   * maximum; the caller is responsible for batching and for caching what comes
+   * back, since this endpoint is only 15/min.
+   */
+  async getTagsByIds(ids: readonly number[]): Promise<TagResponse[]> {
+    const unique = [...new Set(ids)].filter((id) => Number.isInteger(id) && id > 0)
+    if (unique.length === 0) return []
+    if (unique.length > 100) {
+      throw new Error(`getTagsByIds accepts at most 100 ids, got ${unique.length}`)
+    }
+    return this.request<TagResponse[]>('tagsIds', `/tags/ids?ids=${unique.join(',')}`)
+  }
+
+  /**
+   * Tag autocomplete by name prefix, for the blocked-value input.
+   *
+   * Picking from real tags matters here: a blocked value typed by hand that does
+   * not correspond to an actual tag becomes a query negation that silently
+   * matches nothing.
+   */
+  async searchTags(
+    query: string,
+    options: { type?: string | null; limit?: number } = {}
+  ): Promise<TagResponse[]> {
+    const trimmed = query.trim()
+    if (!trimmed) return []
+    return this.request<TagResponse[]>('tagsSearch', '/tags/search', {
+      method: 'POST',
+      body: {
+        query: trimmed,
+        // Omitting type searches every tag type, which is what the picker wants
+        // when no type has been chosen yet.
+        type: options.type || null,
+        limit: Math.min(Math.max(options.limit ?? 10, 1), 50)
+      }
+    })
+  }
+
   async checkFavorite(galleryId: number): Promise<boolean> {
     try {
       const result = await this.request<FavoriteResponse>(
@@ -286,11 +327,7 @@ export class ApiClient {
   /**
    * Build the image URL for a given gallery page using the first image server.
    */
-  async getImageUrl(
-    mediaId: string,
-    pageNumber: number,
-    pagePath: string
-  ): Promise<string> {
+  async getImageUrl(mediaId: string, pageNumber: number, pagePath: string): Promise<string> {
     const cdn = await this.getCdnConfig()
     const server = cdn.image_servers[0]
     // pagePath is like "1234.jpg" but we use the page number + extension from path

@@ -148,6 +148,8 @@ export type EndpointKey =
   | 'favorites'
   | 'user'
   | 'meta'
+  | 'tagsIds'
+  | 'tagsSearch'
 
 const ENDPOINT_LIMITS: Record<EndpointKey, { anon: number; auth: number }> = {
   search: { anon: 10, auth: 20 }, // GET /search
@@ -158,7 +160,12 @@ const ENDPOINT_LIMITS: Record<EndpointKey, { anon: number; auth: number }> = {
   favorite: { anon: 15, auth: 15 }, // GET|POST|DELETE /galleries/{id}/favorite
   favorites: { anon: 15, auth: 15 }, // GET /favorites
   user: { anon: 45, auth: 45 }, // GET /user
-  meta: { anon: 30, auth: 30 } // GET /cdn, GET /config — no documented limit
+  meta: { anon: 30, auth: 30 }, // GET /cdn, GET /config — no documented limit
+  // Both are public endpoints with a flat documented limit, so anon and auth
+  // match. tagsIds is the tighter of the two and is the one dim mode leans on,
+  // which is why resolution is batched 100 ids at a time and cached.
+  tagsIds: { anon: 15, auth: 15 }, // GET /tags/ids
+  tagsSearch: { anon: 30, auth: 30 } // POST /tags/search
 }
 
 /**

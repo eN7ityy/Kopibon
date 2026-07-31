@@ -75,7 +75,17 @@ export const SAFE_SETTING_KEYS = [
   'cbzMangaDirection',
   'cbzParodyAsCollection',
   'cbzKeepOriginal',
-  'completedRetentionDays'
+  'completedRetentionDays',
+  // Search defaults. `searchDefaultQuery` is deliberately absent: it is a query
+  // the user chose, which can say a great deal about them, and it has no
+  // diagnostic value. The blocked-value list is not here either — it lives in its
+  // own table rather than app_settings, so it is never in scope for this export.
+  'searchDefaultSort',
+  'searchDefaultLanguage',
+  'searchMinPages',
+  'searchMinFavorites',
+  'searchUploadedWithinDays',
+  'searchRespectBlacklist'
 ] as const
 
 const REDACTED = '[REDACTED]'
@@ -89,7 +99,11 @@ const REDACTED = '[REDACTED]'
  * library paths often say more about a person than the bug does. Structure is
  * preserved so the report stays diagnosable.
  */
-function redactPaths(text: string, homeDir: string | undefined, libraryPath: string | undefined): string {
+function redactPaths(
+  text: string,
+  homeDir: string | undefined,
+  libraryPath: string | undefined
+): string {
   let out = text
   // Longest first: a library path under the home directory must not be
   // half-replaced by the home rule.
@@ -148,10 +162,7 @@ export function buildDiagnostics(input: DiagnosticsInput): DiagnosticsBundle {
  * covers every field, including log-record messages and stack traces, and it
  * cannot be defeated by a shape nobody anticipated.
  */
-export function serializeDiagnostics(
-  input: DiagnosticsInput,
-  homeDir?: string
-): string {
+export function serializeDiagnostics(input: DiagnosticsInput, homeDir?: string): string {
   const bundle = buildDiagnostics(input)
   let text = JSON.stringify(bundle, null, 2)
 

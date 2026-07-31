@@ -68,8 +68,7 @@ const api = {
     getAll: () => ipcRenderer.invoke('download:getAll'),
     getById: (id: number) => ipcRenderer.invoke('download:getById', id),
     getByStatus: (status: string) => ipcRenderer.invoke('download:getByStatus', status),
-    getByGalleryId: (galleryId: number) =>
-      ipcRenderer.invoke('download:getByGalleryId', galleryId),
+    getByGalleryId: (galleryId: number) => ipcRenderer.invoke('download:getByGalleryId', galleryId),
     addToQueue: (galleryId: number, outputFormat?: string, outputDirectory?: string) =>
       ipcRenderer.invoke('download:addToQueue', galleryId, outputFormat, outputDirectory),
     remove: (id: number) => ipcRenderer.invoke('download:remove', id),
@@ -87,8 +86,13 @@ const api = {
     getAll: () => ipcRenderer.invoke('library:getAll'),
     getById: (id: number) => ipcRenderer.invoke('library:getById', id),
     getPaginated: (params: {
-      offset: number; limit: number; sortField?: string; searchQuery?: string
-      artistFilters?: string[]; seriesFilters?: string[]; tagFilters?: string[]
+      offset: number
+      limit: number
+      sortField?: string
+      searchQuery?: string
+      artistFilters?: string[]
+      seriesFilters?: string[]
+      tagFilters?: string[]
       showUnmatchedOnly?: boolean
     }) => ipcRenderer.invoke('library:getPaginated', params),
     getByGalleryId: (galleryId: number) => ipcRenderer.invoke('library:getByGalleryId', galleryId),
@@ -101,8 +105,7 @@ const api = {
       showUnmatchedOnly?: boolean
     }) => ipcRenderer.invoke('library:getAllIds', params),
     /** Typed tags from the cached gallery row; empty when only flat tags exist. */
-    getGalleryTags: (galleryId: number) =>
-      ipcRenderer.invoke('library:getGalleryTags', galleryId),
+    getGalleryTags: (galleryId: number) => ipcRenderer.invoke('library:getGalleryTags', galleryId),
     search: (query: string) => ipcRenderer.invoke('library:search', query),
     getArtists: (libraryItemId: number) => ipcRenderer.invoke('library:getArtists', libraryItemId),
     getAllArtistNames: () => ipcRenderer.invoke('library:getAllArtistNames'),
@@ -115,7 +118,8 @@ const api = {
     cancelScan: () => ipcRenderer.invoke('library:cancelScan'),
     getScanStatus: () => ipcRenderer.invoke('library:getScanStatus'),
     reset: () => ipcRenderer.invoke('library:reset'),
-    autocompleteArtists: (query: string) => ipcRenderer.invoke('library:autocompleteArtists', query),
+    autocompleteArtists: (query: string) =>
+      ipcRenderer.invoke('library:autocompleteArtists', query),
     autocompleteSeries: (query: string) => ipcRenderer.invoke('library:autocompleteSeries', query),
     autocompleteTags: (query: string) => ipcRenderer.invoke('library:autocompleteTags', query),
     assignSeries: (
@@ -125,12 +129,16 @@ const api = {
     delete: (id: number) => ipcRenderer.invoke('library:delete', id),
     deleteFile: (id: number) => ipcRenderer.invoke('library:deleteFile', id),
     getThumbnail: (id: number) => ipcRenderer.invoke('library:getThumbnail', id),
-    updateMetadata: (id: number, metadata: Record<string, string | number | null>, libraryRoot?: string) =>
-      ipcRenderer.invoke('library:updateMetadata', id, metadata, libraryRoot),
+    updateMetadata: (
+      id: number,
+      metadata: Record<string, string | number | null>,
+      libraryRoot?: string
+    ) => ipcRenderer.invoke('library:updateMetadata', id, metadata, libraryRoot),
     addCustom: (metadata: Record<string, unknown>, libraryRoot: string) =>
       ipcRenderer.invoke('library:addCustom', metadata, libraryRoot),
     isPathAccessible: (dirPath: string) => ipcRenderer.invoke('library:isPathAccessible', dirPath),
-    convertAllMetadata: (runners?: number) => ipcRenderer.invoke('library:convertAllMetadata', runners),
+    convertAllMetadata: (runners?: number) =>
+      ipcRenderer.invoke('library:convertAllMetadata', runners),
     cancelConversion: () => ipcRenderer.invoke('library:cancelConversion'),
     convertToCbz: (
       ids: number[],
@@ -159,35 +167,60 @@ const api = {
   // CBZ reader
   cbz: {
     getPageCount: (filePath: string) => ipcRenderer.invoke('cbz:getPageCount', filePath),
-    readPage: (filePath: string, pageIndex: number) => ipcRenderer.invoke('cbz:readPage', filePath, pageIndex)
+    readPage: (filePath: string, pageIndex: number) =>
+      ipcRenderer.invoke('cbz:readPage', filePath, pageIndex)
   },
 
   // Events
-  onDownloadProgress: (callback: (progress: {
-    queueId: number
-    galleryId: number
-    title: string
-    status: string
-    totalPages: number
-    completedPages: number
-    percentage: number
-    speedKBps: number
-    etaSeconds: number
-    errorMessage?: string
-  }) => void) => {
+  onDownloadProgress: (
+    callback: (progress: {
+      queueId: number
+      galleryId: number
+      title: string
+      status: string
+      totalPages: number
+      completedPages: number
+      percentage: number
+      speedKBps: number
+      etaSeconds: number
+      errorMessage?: string
+    }) => void
+  ) => {
     const handler = (_event: Electron.IpcRendererEvent, progress: any) => callback(progress)
     ipcRenderer.on('download:progress', handler)
-    return () => { ipcRenderer.removeListener('download:progress', handler) }
+    return () => {
+      ipcRenderer.removeListener('download:progress', handler)
+    }
   },
-  onLibraryScanProgress: (callback: (progress: { current: number; total: number; status: string }) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, progress: { current: number; total: number; status: string }) =>
-      callback(progress)
+  onLibraryScanProgress: (
+    callback: (progress: { current: number; total: number; status: string }) => void
+  ) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      progress: { current: number; total: number; status: string }
+    ) => callback(progress)
     ipcRenderer.on('library:scanProgress', handler)
     return () => ipcRenderer.removeListener('library:scanProgress', handler)
   },
-  onLibraryScanComplete: (callback: (result: { total: number; newItems: number; removedItems: number; errors: string[]; removalSkippedReason?: string | null }) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, result: { total: number; newItems: number; removedItems: number; errors: string[]; removalSkippedReason?: string | null }) =>
-      callback(result)
+  onLibraryScanComplete: (
+    callback: (result: {
+      total: number
+      newItems: number
+      removedItems: number
+      errors: string[]
+      removalSkippedReason?: string | null
+    }) => void
+  ) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      result: {
+        total: number
+        newItems: number
+        removedItems: number
+        errors: string[]
+        removalSkippedReason?: string | null
+      }
+    ) => callback(result)
     ipcRenderer.on('library:scanComplete', handler)
     return () => ipcRenderer.removeListener('library:scanComplete', handler)
   },
@@ -197,27 +230,60 @@ const api = {
     return () => ipcRenderer.removeListener('library:scanError', handler)
   },
   onLibraryNewItem: (callback: (item: { id: number; title: string; artist: string }) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, item: { id: number; title: string; artist: string }) => callback(item)
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      item: { id: number; title: string; artist: string }
+    ) => callback(item)
     ipcRenderer.on('library:newItem', handler)
     return () => ipcRenderer.removeListener('library:newItem', handler)
   },
-  onLibraryNewItems: (callback: (items: Array<{ id: number; title: string; artist: string }>) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, items: Array<{ id: number; title: string; artist: string }>) => callback(items)
+  onLibraryNewItems: (
+    callback: (items: Array<{ id: number; title: string; artist: string }>) => void
+  ) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      items: Array<{ id: number; title: string; artist: string }>
+    ) => callback(items)
     ipcRenderer.on('library:newItems', handler)
     return () => ipcRenderer.removeListener('library:newItems', handler)
   },
-  onSyncProgress: (callback: (progress: { current: number; total: number; title: string; etaSeconds: number | null }) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, progress: { current: number; total: number; title: string; etaSeconds: number | null }) => callback(progress)
+  onSyncProgress: (
+    callback: (progress: {
+      current: number
+      total: number
+      title: string
+      etaSeconds: number | null
+    }) => void
+  ) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      progress: { current: number; total: number; title: string; etaSeconds: number | null }
+    ) => callback(progress)
     ipcRenderer.on('library:syncProgress', handler)
     return () => ipcRenderer.removeListener('library:syncProgress', handler)
   },
-  onSyncComplete: (callback: (data: { succeeded: number; failed: number; total: number }) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, data: { succeeded: number; failed: number; total: number }) => callback(data)
+  onSyncComplete: (
+    callback: (data: { succeeded: number; failed: number; total: number }) => void
+  ) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      data: { succeeded: number; failed: number; total: number }
+    ) => callback(data)
     ipcRenderer.on('library:syncComplete', handler)
     return () => ipcRenderer.removeListener('library:syncComplete', handler)
   },
-  onConvertProgress: (callback: (progress: { current: number; total: number; converted: number; failed: number }) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, progress: { current: number; total: number; converted: number; failed: number }) => callback(progress)
+  onConvertProgress: (
+    callback: (progress: {
+      current: number
+      total: number
+      converted: number
+      failed: number
+    }) => void
+  ) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      progress: { current: number; total: number; converted: number; failed: number }
+    ) => callback(progress)
     ipcRenderer.on('library:convertProgress', handler)
     return () => ipcRenderer.removeListener('library:convertProgress', handler)
   },
@@ -237,8 +303,10 @@ const api = {
       message?: string
     }) => void
   ) => {
-    const handler = (_event: Electron.IpcRendererEvent, status: Parameters<typeof callback>[0]): void =>
-      callback(status)
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      status: Parameters<typeof callback>[0]
+    ): void => callback(status)
     ipcRenderer.on('app:updateStatus', handler)
     return () => ipcRenderer.removeListener('app:updateStatus', handler)
   },
@@ -305,6 +373,34 @@ const api = {
     set: (key: string, value: string) => ipcRenderer.invoke('settings:set', key, value),
     setAll: (settings: Record<string, string>) => ipcRenderer.invoke('settings:setAll', settings),
     delete: (key: string) => ipcRenderer.invoke('settings:delete', key)
+  },
+
+  /** Search defaults and the blocked-value list. */
+  searchSettings: {
+    get: () => ipcRenderer.invoke('searchSettings:get'),
+    set: (patch: Record<string, unknown>) => ipcRenderer.invoke('searchSettings:set', patch),
+    /**
+     * The query the API should receive, composed in main from the defaults and
+     * the blocked list, so the renderer never assembles nhentai query syntax.
+     */
+    buildQuery: (userQuery: string) => ipcRenderer.invoke('searchSettings:buildQuery', userQuery)
+  },
+
+  blocked: {
+    list: () => ipcRenderer.invoke('blocked:list'),
+    add: (entries: Array<{ type: string; value: string; mode: string }>) =>
+      ipcRenderer.invoke('blocked:add', entries),
+    setMode: (id: number, mode: string) => ipcRenderer.invoke('blocked:setMode', id, mode),
+    remove: (id: number) => ipcRenderer.invoke('blocked:remove', id)
+  },
+
+  tags: {
+    /** Tag names per gallery id, for marking results that match a dim entry. */
+    resolveForGalleries: (galleries: Array<{ id: number; tag_ids?: number[] }>) =>
+      ipcRenderer.invoke('tags:resolveForGalleries', galleries),
+    autocomplete: (query: string, type?: string | null) =>
+      ipcRenderer.invoke('tags:autocomplete', query, type),
+    cacheStats: () => ipcRenderer.invoke('tags:cacheStats')
   }
 }
 
