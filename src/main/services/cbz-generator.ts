@@ -39,7 +39,7 @@ export async function generateCbz(
   imagePaths: string[],
   outputPath: string,
   metadata: ComicInfoMetadata,
-  options: CbzOptions,
+  _options: CbzOptions,
   onProgress?: (current: number, total: number) => void
 ): Promise<string> {
   const partPath = outputPath + '.part'
@@ -66,17 +66,9 @@ export async function generateCbz(
       const paddedName = String(pageNum).padStart(4, '0')
       const ext = (basename(imagePaths[i]).split('.').pop() || 'jpg').toLowerCase()
 
-      if (options.quality === null && options.maxDimension === null) {
-        // Lossless mode — embed source bytes as-is
-        zipfile.addFile(imagePaths[i], `${paddedName}.${ext}`, { compress: false })
-      } else {
-        // Transform mode — use sharp (async, handled differently)
-        // For now, addFile with compress: false since sharp transforms
-        // would need a streaming pipeline. The quality/maxDimension
-        // options are mainly for PDF generation; for CBZ the lossless
-        // path (quality: null) is the primary mode.
-        zipfile.addFile(imagePaths[i], `${paddedName}.${ext}`, { compress: false })
-      }
+      // Always store — JPEGs don't deflate meaningfully and lossless
+      // mode (quality: null) is the only mode used by all current callers.
+      zipfile.addFile(imagePaths[i], `${paddedName}.${ext}`, { compress: false })
 
       if (onProgress) {
         onProgress(pageNum, imagePaths.length)

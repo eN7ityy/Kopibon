@@ -14,6 +14,7 @@ export default defineConfig({
           'services/download-cbz.worker': resolve('src/main/services/download-cbz.worker.ts'),
           'services/metadata.worker': resolve('src/main/services/metadata.worker.ts'),
           'services/convert.worker': resolve('src/main/services/convert.worker.ts'),
+          'services/convert-cbz.worker': resolve('src/main/services/convert-cbz.worker.ts'),
           'services/sync.worker': resolve('src/main/services/sync.worker.ts')
         }
       }

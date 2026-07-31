@@ -57,6 +57,14 @@ export function runStartupMaintenance(options: MaintenanceOptions = {}): Mainten
 
     result.scanQueueCleared = db.prepare('DELETE FROM scan_queue').run().changes
 
+    // Reset stale conversion_queue rows so the crash-restarted conversion
+    // pool can pick them up. Do NOT wipe the table — resumability is the
+    // point of having a queue. Only 'converting' rows (mid-crash) go back
+    // to 'pending'; 'completed' and 'failed' rows are history.
+    db.prepare(
+      "UPDATE conversion_queue SET status = 'pending' WHERE status = 'converting'"
+    ).run()
+
     if (retentionDays === 0) {
       result.completedDownloadsPruned = db
         .prepare("DELETE FROM download_queue WHERE status = 'completed'")

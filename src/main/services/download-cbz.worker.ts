@@ -16,6 +16,7 @@ import { parentPort } from 'worker_threads'
 import { generateCbz } from './cbz-generator'
 import type { ComicInfoMetadata } from './comicinfo'
 import type { GalleryMetadata } from './metadata-writer'
+import { resolveLanguageName } from './xml-utils'
 
 interface GenerateCommand {
   type: 'generate'
@@ -25,6 +26,12 @@ interface GenerateCommand {
   firstImagePath?: string
   thumbnailDir?: string
   galleryId?: number
+  /**
+   * Reading direction from the `cbzMangaDirection` setting. Sent by the caller
+   * because a worker has no business opening its own settings connection — and
+   * this was previously hardcoded, so the setting had no effect on downloads.
+   */
+  mangaDirection?: 'Yes' | 'YesAndRightToLeft' | 'No'
 }
 
 /**
@@ -40,7 +47,10 @@ function convertToComicInfoMeta(
 ): ComicInfoMetadata {
   const artistNames = meta.tags.filter((t) => t.type === 'artist').map((t) => t.name)
   const groupNames = meta.tags.filter((t) => t.type === 'group').map((t) => t.name)
-  const langTag = meta.tags.find((t) => t.type === 'language')
+  // Every language-type tag is a candidate; the first is commonly 'translated'.
+  // buildComicInfoXml converts the canonical name to an ISO code for the
+  // LanguageISO field.
+  const languageIso = resolveLanguageName(meta.tags.filter((t) => t.type === 'language').map((t) => t.name))
   const categoryTags = meta.tags.filter((t) => t.type === 'category').map((t) => t.name)
   const characterTags = meta.tags.filter((t) => t.type === 'character').map((t) => t.name)
   const tagTags = meta.tags.filter((t) => t.type === 'tag').map((t) => t.name)
@@ -73,7 +83,7 @@ function convertToComicInfoMeta(
     webUrl: `https://nhentai.net/g/${meta.id}`,
     notes: `Tagged by Doujin Downloader -- nhentai gallery ${meta.id}`,
     pageCount,
-    languageIso: langTag?.name || null,
+    languageIso,
     releaseDate: meta.uploadDate ? new Date(meta.uploadDate * 1000) : undefined,
     ageRating: 'Adults Only 18+',
     manga: mangaDirection,
@@ -88,7 +98,7 @@ parentPort?.on('message', async (cmd: GenerateCommand) => {
     const pageCount = cmd.imagePaths.length
 
     // Step 1: Build ComicInfo metadata
-    const mangaDirection: 'YesAndRightToLeft' | 'Yes' | 'No' = 'YesAndRightToLeft'
+    const mangaDirection = cmd.mangaDirection ?? 'YesAndRightToLeft'
     let ciMeta: ComicInfoMetadata
 
     if (cmd.metadata) {
