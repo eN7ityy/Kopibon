@@ -130,6 +130,9 @@ const api = {
     getConversionQueue: () => ipcRenderer.invoke('library:getConversionQueue'),
     clearConversionQueue: () => ipcRenderer.invoke('library:clearConversionQueue'),
     getOriginalsInfo: () => ipcRenderer.invoke('library:getOriginalsInfo'),
+    /** Base64 JPEG preview of a source's first page, for the add-entry form. */
+    previewSource: (sourcePath: string, sourceType: 'pdf' | 'images') =>
+      ipcRenderer.invoke('library:previewSource', sourcePath, sourceType),
     purgeOriginals: (includeLossy?: boolean) =>
       ipcRenderer.invoke('library:purgeOriginals', includeLossy),
     cancelConvertToCbz: () => ipcRenderer.invoke('library:cancelConvertToCbz'),

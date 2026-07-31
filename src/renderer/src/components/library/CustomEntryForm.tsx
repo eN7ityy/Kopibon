@@ -30,9 +30,14 @@ export default function CustomEntryForm({
   const [tags, setTags] = useState<string[]>([])
   const [tagInput, setTagInput] = useState('')
   const [language, setLanguage] = useState('')
-  const [date, setDate] = useState('')
+  // Prefilled with today rather than left blank: an entry added now is almost
+  // always dated now, and a visible default is clearer than a silent fallback.
+  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [description, setDescription] = useState('')
   const [coverPath, setCoverPath] = useState<string | null>(null)
+  /** data: URL for the cover thumbnail, from the picked file or the source. */
+  const [coverPreview, setCoverPreview] = useState<string | null>(null)
+  const [previewFromSource, setPreviewFromSource] = useState(false)
   const [sourcePath, setSourcePath] = useState<string | null>(null)
   const [sourceType, setSourceType] = useState<'pdf' | 'images'>('pdf')
   // Output format for the entry being created. Defaults to the same setting
@@ -40,6 +45,19 @@ export default function CustomEntryForm({
   const [outputFormat, setOutputFormat] = useState<OutputFormat>(
     useSettingsStore.getState().outputFormat
   )
+
+  // Compression. On by default for CBZ, off for PDF: a folder of images stored
+  // verbatim produced an archive exactly as large as the folder, whereas PDF
+  // pages are usually compressed already and re-encoding them just loses
+  // quality for little gain.
+  const [showAdvanced, setShowAdvanced] = useState(false)
+  const [compressEnabled, setCompressEnabled] = useState(
+    () => useSettingsStore.getState().outputFormat === 'cbz'
+  )
+  const [quality, setQuality] = useState(80)
+  const [maxDimension, setMaxDimension] = useState<number | null>(null)
+  const [pdfPageSize, setPdfPageSize] = useState<'dynamic' | 'fit' | 'letter' | 'a4'>('fit')
+  const [blackBackground, setBlackBackground] = useState(false)
 
   // UI state
   const [submitting, setSubmitting] = useState(false)
@@ -50,8 +68,8 @@ export default function CustomEntryForm({
 
   // ─── Artist Chip Handlers ──────────────────────────────────────────────────
 
-  const addArtist = () => {
-    const name = artistInput.trim()
+  const addArtist = (raw?: string) => {
+    const name = (raw ?? artistInput).trim()
     if (!name) return
     if (artists.includes(name)) {
       setArtistInput('')
@@ -67,8 +85,8 @@ export default function CustomEntryForm({
 
   // ─── Tag Chip Handlers ────────────────────────────────────────────────────
 
-  const addTag = () => {
-    const name = tagInput.trim()
+  const addTag = (raw?: string) => {
+    const name = (raw ?? tagInput).trim()
     if (!name) return
     if (tags.includes(name)) {
       setTagInput('')
@@ -82,16 +100,6 @@ export default function CustomEntryForm({
     setTags(tags.filter((t) => t !== name))
   }
 
-  const handleTagKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      addTag()
-    }
-    if (e.key === 'Backspace' && !tagInput && tags.length > 0) {
-      removeTag(tags[tags.length - 1])
-    }
-  }
-
   // ─── File Pickers ─────────────────────────────────────────────────────────
 
   const handlePickPdf = async () => {
@@ -102,6 +110,7 @@ export default function CustomEntryForm({
       if (result.success && result.data) {
         setSourcePath(result.data)
         setSourceType('pdf')
+        void loadSourcePreview(result.data, 'pdf')
       }
     } catch {
       // ignore
@@ -114,6 +123,7 @@ export default function CustomEntryForm({
       if (result.success && result.data) {
         setSourcePath(result.data)
         setSourceType('images')
+        void loadSourcePreview(result.data, 'images')
       }
     } catch {
       // ignore
@@ -127,9 +137,34 @@ export default function CustomEntryForm({
       })
       if (result.success && result.data) {
         setCoverPath(result.data)
+        setPreviewFromSource(false)
+        // Read it back for the thumbnail. A failure here is cosmetic, so the
+        // cover is still accepted with no preview shown.
+        const file = await window.api.readFile(result.data)
+        setCoverPreview(file?.success && file.data ? `data:image/*;base64,${file.data}` : null)
       }
     } catch {
       // ignore
+    }
+  }
+
+  /**
+   * Show the first page of the source when no cover has been chosen.
+   *
+   * Saves picking a cover by hand in the common case, where the first page is
+   * the cover anyway. Marked as coming from the source so choosing a real cover
+   * later replaces it rather than being ignored.
+   */
+  const loadSourcePreview = async (path: string, type: 'pdf' | 'images') => {
+    if (coverPath) return
+    try {
+      const r = await window.api.library.previewSource(path, type)
+      if (r?.success && r.data) {
+        setCoverPreview(`data:image/jpeg;base64,${r.data}`)
+        setPreviewFromSource(true)
+      }
+    } catch {
+      // A missing preview must never block adding an entry.
     }
   }
 
@@ -160,12 +195,20 @@ export default function CustomEntryForm({
           series: series.trim() || undefined,
           tags: tags.length > 0 ? tags.join(', ') : undefined,
           language: language || undefined,
-          date: date || undefined,
+          // Cleared by hand still means today rather than nothing.
+          date: date || new Date().toISOString().slice(0, 10),
           description: description.trim() || undefined,
           coverPath,
           sourcePath,
           sourceType,
-          format: outputFormat
+          format: outputFormat,
+          compression: {
+            enabled: compressEnabled,
+            quality,
+            maxDimension,
+            pageSize: pdfPageSize,
+            blackBackground
+          }
         },
         libraryRoot
       )
@@ -249,22 +292,17 @@ export default function CustomEntryForm({
                   kind="artist"
                   value={artistInput}
                   onChange={setArtistInput}
+                  onSubmit={addArtist}
+                  onEmptyBackspace={() => artists.length > 0 && removeArtist(artists[artists.length - 1])}
                   placeholder="Search or type artist name..."
                 />
               </div>
-              <button
-                onClick={addArtist}
-                disabled={!artistInput.trim()}
-                className="px-2 py-1 rounded bg-purple-600 text-white text-xs font-medium hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Add
-              </button>
             </div>
             {fieldErrors.artists && (
               <p className="mt-1 text-xs text-red-500">{fieldErrors.artists}</p>
             )}
             <p className="mt-1 text-xs text-gray-400">
-              Type Enter to add, Backspace to remove last
+              Press Enter to add, Backspace to remove the last one
             </p>
           </div>
 
@@ -301,15 +339,20 @@ export default function CustomEntryForm({
                   </button>
                 </span>
               ))}
-              <input
-                type="text"
-                value={tagInput}
-                onChange={(e) => setTagInput(e.target.value)}
-                onKeyDown={handleTagKeyDown}
-                placeholder={tags.length === 0 ? 'Type tag and press Enter...' : ''}
-                className="flex-1 min-w-[100px] bg-transparent text-sm text-gray-900 dark:text-gray-100 outline-none border-none"
-              />
+              <div className="flex-1 min-w-[120px]">
+                <AutocompleteInput
+                  kind="tag"
+                  value={tagInput}
+                  onChange={setTagInput}
+                  onSubmit={addTag}
+                  onEmptyBackspace={() => tags.length > 0 && removeTag(tags[tags.length - 1])}
+                  placeholder={tags.length === 0 ? 'Search or type a tag...' : ''}
+                />
+              </div>
             </div>
+            <p className="mt-1 text-xs text-gray-400">
+              Press Enter to add, Backspace to remove the last one
+            </p>
           </div>
 
           {/* Language & Date row */}
@@ -361,26 +404,50 @@ export default function CustomEntryForm({
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Cover Image
             </label>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={handlePickCover}
-                className="px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-              >
-                Choose Image...
-              </button>
-              {coverPath && (
-                <span className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-[200px]">
-                  {coverPath.split('/').pop() || coverPath}
-                </span>
-              )}
-              {coverPath && (
-                <button
-                  onClick={() => setCoverPath(null)}
-                  className="text-xs text-red-500 hover:text-red-700"
-                >
-                  Remove
-                </button>
-              )}
+            <div className="flex items-start gap-3">
+              {/* Preview: the chosen cover, or the source's first page as a
+                  stand-in so the entry is never a blank card. */}
+              <div className="w-[90px] h-[120px] shrink-0 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 overflow-hidden flex items-center justify-center">
+                {coverPreview ? (
+                  <img src={coverPreview} alt="Cover preview" className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-2xl text-gray-300 dark:text-gray-600">📖</span>
+                )}
+              </div>
+
+              <div className="min-w-0 space-y-2">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handlePickCover}
+                    className="px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                  >
+                    Choose Image...
+                  </button>
+                  {coverPath && (
+                    <button
+                      onClick={() => {
+                        setCoverPath(null)
+                        setCoverPreview(null)
+                        setPreviewFromSource(false)
+                        // Fall back to the source's first page again.
+                        if (sourcePath) void loadSourcePreview(sourcePath, sourceType)
+                      }}
+                      className="text-xs text-red-500 hover:text-red-700"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+                {coverPath ? (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 break-all">{coverPath}</p>
+                ) : (
+                  <p className="text-xs text-gray-400">
+                    {previewFromSource
+                      ? 'Using the first page of the source.'
+                      : 'Optional. The first page of the source is used when empty.'}
+                  </p>
+                )}
+              </div>
             </div>
           </div>
 
@@ -410,12 +477,14 @@ export default function CustomEntryForm({
               >
                 🖼️ Image Folder
               </button>
-              {sourcePath && (
-                <span className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-[200px]">
-                  {sourcePath.split('/').pop() || sourcePath}
-                </span>
-              )}
             </div>
+            {sourcePath && (
+              // Full path, not just the basename: several folders of images are
+              // usually named alike, and the leaf alone does not identify which.
+              <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400 break-all">
+                {sourcePath}
+              </p>
+            )}
             {fieldErrors.source && (
               <p className="mt-1 text-xs text-red-500">{fieldErrors.source}</p>
             )}
@@ -427,7 +496,15 @@ export default function CustomEntryForm({
               Save as
             </label>
             <div className="flex items-center gap-3">
-              <FormatSelector value={outputFormat} onChange={setOutputFormat} />
+              <FormatSelector
+                value={outputFormat}
+                onChange={(f) => {
+                  setOutputFormat(f)
+                  // CBZ on, PDF off: storing images verbatim in an archive wastes
+                  // space, whereas PDF pages are usually already compressed.
+                  setCompressEnabled(f === 'cbz')
+                }}
+              />
               <span className="text-xs text-gray-500 dark:text-gray-400">
                 {outputFormat === 'cbz'
                   ? sourceType === 'pdf'
@@ -436,6 +513,131 @@ export default function CustomEntryForm({
                   : 'Metadata is embedded as XMP.'}
               </span>
             </div>
+          </div>
+
+          {/* Advanced: compression */}
+          <div className="border-t border-gray-200 dark:border-gray-700 pt-3">
+            <button
+              onClick={() => setShowAdvanced(!showAdvanced)}
+              className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100"
+            >
+              <span className="text-xs">{showAdvanced ? '\u25BC' : '\u25B6'}</span>
+              Advanced
+              <span className="text-xs font-normal text-gray-400">
+                {compressEnabled
+                  ? `compressing at quality ${quality}${maxDimension ? `, max ${maxDimension}px` : ''}`
+                  : 'no compression'}
+              </span>
+            </button>
+
+            {showAdvanced && (
+              <div className="mt-3 space-y-3 pl-4 border-l-2 border-gray-200 dark:border-gray-700">
+                <div className="flex items-start gap-3">
+                  <input
+                    type="checkbox"
+                    checked={compressEnabled}
+                    onChange={(e) => setCompressEnabled(e.target.checked)}
+                    className="mt-0.5 w-4 h-4 rounded border-gray-400 text-purple-600 focus:ring-purple-500"
+                  />
+                  <div>
+                    <label className="text-sm text-gray-700 dark:text-gray-300">
+                      Re-encode pages
+                    </label>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {outputFormat === 'cbz'
+                        ? 'Off means pages are stored exactly as they are, so the archive ends up as large as the source.'
+                        : 'Off means the source images are embedded untouched.'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* PDF sources are usually compressed already, so re-encoding
+                    them mostly costs quality. Worth saying out loud. */}
+                {compressEnabled && sourceType === 'pdf' && (
+                  <div className="p-2.5 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+                    <p className="text-xs text-amber-800 dark:text-amber-300">
+                      This source is a PDF, and its pages are most likely compressed already.
+                      Re-encoding them loses a little quality each time for a small size gain. Leave
+                      this off unless the file is unusually large.
+                    </p>
+                  </div>
+                )}
+
+                {compressEnabled && (
+                  <>
+                    <div>
+                      <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">
+                        JPEG quality: <span className="tabular-nums">{quality}</span>
+                      </label>
+                      <input
+                        type="range"
+                        min={40}
+                        max={95}
+                        value={quality}
+                        onChange={(e) => setQuality(Number(e.target.value))}
+                        className="w-full accent-purple-600"
+                      />
+                      <div className="flex justify-between text-xs text-gray-400">
+                        <span>40, smaller</span>
+                        <span>95, better</span>
+                      </div>
+                    </div>
+
+                    {outputFormat === 'cbz' ? (
+                      <div>
+                        <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">
+                          Maximum page size
+                        </label>
+                        <select
+                          value={maxDimension ?? 0}
+                          onChange={(e) =>
+                            setMaxDimension(Number(e.target.value) || null)
+                          }
+                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100"
+                        >
+                          <option value={0}>Original size</option>
+                          <option value={1600}>1600 px longest edge</option>
+                          <option value={2000}>2000 px longest edge</option>
+                          <option value={2400}>2400 px longest edge</option>
+                        </select>
+                        <p className="text-xs text-gray-400 mt-1">
+                          Pages smaller than the cap are left alone rather than upscaled.
+                        </p>
+                      </div>
+                    ) : (
+                      <>
+                        <div>
+                          <label className="block text-sm text-gray-700 dark:text-gray-300 mb-1">
+                            Page size
+                          </label>
+                          <select
+                            value={pdfPageSize}
+                            onChange={(e) =>
+                              setPdfPageSize(e.target.value as 'dynamic' | 'fit' | 'letter' | 'a4')
+                            }
+                            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100"
+                          >
+                            <option value="fit">Fit to image</option>
+                            <option value="dynamic">Dynamic</option>
+                            <option value="letter">Letter</option>
+                            <option value="a4">A4</option>
+                          </select>
+                        </div>
+                        <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                          <input
+                            type="checkbox"
+                            checked={blackBackground}
+                            onChange={(e) => setBlackBackground(e.target.checked)}
+                            className="w-4 h-4 rounded border-gray-400 text-purple-600 focus:ring-purple-500"
+                          />
+                          Black page background
+                        </label>
+                      </>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Error */}

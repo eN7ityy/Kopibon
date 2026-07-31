@@ -448,6 +448,22 @@ export function registerLibraryIpc(): void {
     sourceType: 'pdf' | 'images'
     /** Output format. Falls back to the same rule downloads use. */
     format?: string
+    /**
+     * Re-encoding settings. Omitted means "leave the pages alone", which is the
+     * right default for a PDF source (already compressed) and the wrong one for
+     * a folder of images, where storing verbatim produced a CBZ exactly as large
+     * as the folder.
+     */
+    compression?: {
+      enabled: boolean
+      /** JPEG quality 1-95. */
+      quality: number
+      /** Longest-edge cap in px, or null to keep the original size. CBZ only. */
+      maxDimension: number | null
+      /** PDF only. */
+      pageSize?: 'dynamic' | 'fit' | 'letter' | 'a4'
+      blackBackground?: boolean
+    }
   }, libraryRoot: string) => {
     try {
       const { readdirSync, copyFileSync, mkdirSync, existsSync } = await import('fs')
@@ -525,7 +541,15 @@ export function registerLibraryIpc(): void {
             imageFiles = (await extractPdfImages(metadata.sourcePath, scratch)).imagePaths
           }
 
-          await generateCbz(imageFiles, destPath, ciMeta, { quality: null, maxDimension: null })
+          const compress = metadata.compression?.enabled === true
+          await generateCbz(imageFiles, destPath, ciMeta, {
+            quality: compress ? metadata.compression!.quality : null,
+            maxDimension: compress ? metadata.compression!.maxDimension : null,
+            // Transform scratch under userData, not beside the library file.
+            scratchDir: compress
+              ? join(app.getPath('userData'), 'add-custom-pages', String(Date.now()))
+              : undefined
+          })
           finalPath = destPath
         } finally {
           if (scratch) {
@@ -545,10 +569,13 @@ export function registerLibraryIpc(): void {
             return { success: false, error: 'No image files found in selected folder' }
           }
 
+          // quality >= 100 makes pdf-generator embed the source bytes untouched,
+          // which is what "compression off" has to mean for a PDF.
+          const compress = metadata.compression?.enabled === true
           await generatePdf(imageFiles, destPath, {
-            pageSize: 'fit',
-            quality: 90,
-            blackBackground: false
+            pageSize: metadata.compression?.pageSize ?? 'fit',
+            quality: compress ? metadata.compression!.quality : 100,
+            blackBackground: metadata.compression?.blackBackground ?? false
           })
         } else {
           copyFileSync(metadata.sourcePath, destPath)
@@ -1134,6 +1161,61 @@ export function registerLibraryIpc(): void {
   })
 
   // ─── File Read ─────────────────────────────────────────────────────────
+
+  /**
+   * Small preview of what a custom entry's first page will look like.
+   *
+   * Lets the add-entry form show a cover without the user having to pick one:
+   * for a folder that is the first image, for a PDF it is page one rendered with
+   * poppler. Returns a base64 JPEG, or a failure the form can quietly ignore —
+   * a missing preview should never block adding an entry.
+   */
+  ipcMain.handle(
+    'library:previewSource',
+    async (_event, sourcePath: string, sourceType: 'pdf' | 'images') => {
+      try {
+        const sharp = (await import('sharp')).default
+        const toThumb = async (input: string | Buffer): Promise<string> =>
+          (
+            await sharp(input, { failOn: 'none' })
+              .resize(360, 480, { fit: 'inside', withoutEnlargement: true })
+              .jpeg({ quality: 78 })
+              .toBuffer()
+          ).toString('base64')
+
+        if (sourceType === 'images') {
+          const first = readdirSync(sourcePath)
+            .filter((f) => /\.(jpg|jpeg|png|webp|gif|bmp|avif)$/i.test(f))
+            .sort()[0]
+          if (!first) return { success: false, error: 'No images in folder' }
+          return { success: true, data: await toThumb(join(sourcePath, first)) }
+        }
+
+        // Render page 1 only. Scratch under userData, cleaned up either way.
+        const { execFile } = await import('child_process')
+        const { rmSync } = await import('fs')
+        const dir = join(app.getPath('userData'), 'preview', String(Date.now()))
+        mkdirSync(dir, { recursive: true })
+        try {
+          await new Promise<void>((resolve, reject) => {
+            execFile(
+              'pdftoppm',
+              ['-f', '1', '-l', '1', '-r', '50', '-jpeg', sourcePath, join(dir, 'p')],
+              { timeout: 20_000 },
+              (err) => (err ? reject(err) : resolve())
+            )
+          })
+          const rendered = readdirSync(dir).find((f) => f.startsWith('p'))
+          if (!rendered) return { success: false, error: 'Could not render the first page' }
+          return { success: true, data: await toThumb(join(dir, rendered)) }
+        } finally {
+          try { rmSync(dir, { recursive: true, force: true }) } catch { /* */ }
+        }
+      } catch (error) {
+        return { success: false, error: String(error) }
+      }
+    }
+  )
 
   ipcMain.handle('file:read', async (_event, filePath: string) => {
     try {

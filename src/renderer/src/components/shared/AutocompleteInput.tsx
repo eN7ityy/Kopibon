@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-export type AutocompleteKind = 'artist' | 'series'
+export type AutocompleteKind = 'artist' | 'series' | 'tag'
 
 export interface AutocompleteInputProps {
   /** Which kind of autocomplete to query */
@@ -19,6 +19,16 @@ export interface AutocompleteInputProps {
   allowFreeText?: boolean
   /** If true, input is disabled */
   disabled?: boolean
+  /**
+   * Called when the user commits a value with Enter, with the committed text.
+   *
+   * Without this the component swallowed Enter entirely (preventDefault, close
+   * the dropdown), so a chip field using it could never be filled by keyboard
+   * even where the UI said "press Enter to add".
+   */
+  onSubmit?: (value: string) => void
+  /** Called on Backspace in an empty input, for "remove the last chip". */
+  onEmptyBackspace?: () => void
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -30,7 +40,9 @@ export default function AutocompleteInput({
   placeholder = 'Type to search...',
   className = '',
   allowFreeText = true,
-  disabled = false
+  disabled = false,
+  onSubmit,
+  onEmptyBackspace
 }: AutocompleteInputProps): React.JSX.Element {
   const [suggestions, setSuggestions] = useState<string[]>([])
   const [isOpen, setIsOpen] = useState(false)
@@ -56,6 +68,8 @@ export default function AutocompleteInput({
         let result
         if (kind === 'artist') {
           result = await window.api.library.autocompleteArtists(query)
+        } else if (kind === 'tag') {
+          result = await window.api.library.autocompleteTags(query)
         } else {
           result = await window.api.library.autocompleteSeries(query)
         }
@@ -123,9 +137,23 @@ export default function AutocompleteInput({
   // ─── Keyboard Navigation ──────────────────────────────────────────────────
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // Backspace on an empty input means "remove the last chip", and it must work
+    // whether or not a dropdown happens to be open.
+    if (e.key === 'Backspace' && value === '' && onEmptyBackspace) {
+      e.preventDefault()
+      onEmptyBackspace()
+      return
+    }
+
+    // Handled before the early return below: with no suggestions there is no
+    // dropdown, which is exactly the case when typing a name that does not exist
+    // yet — and that still has to commit on Enter.
     if (!isOpen || suggestions.length === 0) {
       if (e.key === 'Escape') {
         setIsOpen(false)
+      } else if (e.key === 'Enter') {
+        e.preventDefault()
+        if (allowFreeText) onSubmit?.(value)
       }
       return
     }
@@ -145,15 +173,23 @@ export default function AutocompleteInput({
         )
         break
 
-      case 'Enter':
+      case 'Enter': {
         e.preventDefault()
-        if (highlightIndex >= 0 && highlightIndex < suggestions.length) {
-          selectSuggestion(suggestions[highlightIndex])
+        const highlighted =
+          highlightIndex >= 0 && highlightIndex < suggestions.length
+            ? suggestions[highlightIndex]
+            : null
+        if (highlighted) {
+          selectSuggestion(highlighted)
+          // Pass the suggestion directly: onChange has not been applied to the
+          // parent's state yet, so reading `value` here would give the old text.
+          onSubmit?.(highlighted)
         } else if (allowFreeText) {
-          // Just close the dropdown, the user has typed their own value
           setIsOpen(false)
+          onSubmit?.(value)
         }
         break
+      }
 
       case 'Escape':
         e.preventDefault()
