@@ -1878,7 +1878,7 @@ export function registerLibraryIpc(): void {
         return { success: true, data: { deleted: 0, bytes: 0, failed: 0 } }
       }
 
-      const { unlinkSync, rmSync } = await import('fs')
+      const { unlinkSync, rmdirSync } = await import('fs')
       const s = scanOriginals(root)
       const doomed = includeLossy ? [...s.files, ...s.lossyFiles] : s.files
       const bytes = includeLossy ? s.bytes + s.lossyBytes : s.bytes
@@ -1889,13 +1889,44 @@ export function registerLibraryIpc(): void {
         try { unlinkSync(f); deleted++ } catch { failed++ }
       }
 
-      // Drop the now-empty directory tree, but only when nothing was spared —
-      // otherwise the _lossy files would lose their parent directories.
-      if (includeLossy && failed === 0) {
-        try { rmSync(join(root, '_originals'), { recursive: true, force: true }) } catch { /* */ }
+      // Deleting the files left the whole artist directory tree behind, since
+      // only the include-lossy branch removed anything. Prune what is now empty
+      // instead: recursion first, so a directory whose children all disappear is
+      // itself considered empty on the way back up. Anything still holding a
+      // spared _lossy file, or a file we failed to delete, survives because it is
+      // not empty — no special-casing needed.
+      const originalsRoot = join(root, '_originals')
+      let removedDirs = 0
+      const pruneEmpty = (dir: string): boolean => {
+        let entries: import('fs').Dirent[]
+        try {
+          entries = readdirSync(dir, { withFileTypes: true })
+        } catch {
+          return false
+        }
+        let remaining = 0
+        for (const entry of entries) {
+          if (entry.isDirectory()) {
+            if (!pruneEmpty(join(dir, entry.name))) remaining++
+          } else {
+            remaining++
+          }
+        }
+        if (remaining > 0) return false
+        try {
+          // rmdirSync, not rmSync: rmSync without `recursive: true` throws
+          // ERR_FS_EISDIR on a directory, and the catch here would have
+          // swallowed it, leaving every folder in place with no error reported.
+          rmdirSync(dir)
+          removedDirs++
+          return true
+        } catch {
+          return false
+        }
       }
+      pruneEmpty(originalsRoot)
 
-      return { success: true, data: { deleted, bytes, failed } }
+      return { success: true, data: { deleted, bytes, failed, removedDirs } }
     } catch (error) {
       return { success: false, error: String(error) }
     }

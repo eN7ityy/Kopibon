@@ -59,9 +59,17 @@ export default function OriginalsCleanup(): React.JSX.Element {
     try {
       const r = await window.api.library.purgeOriginals(includeLossy)
       if (r?.success) {
-        const d = r.data as { deleted: number; bytes: number; failed: number }
+        const d = r.data as {
+          deleted: number
+          bytes: number
+          failed: number
+          removedDirs?: number
+        }
         setResult(
           `Deleted ${d.deleted} file${d.deleted === 1 ? '' : 's'}, freed ${formatBytes(d.bytes)}` +
+            // Worth stating: the folders used to be left behind, so seeing them
+            // counted confirms the tree was actually tidied up.
+            (d.removedDirs ? `, removed ${d.removedDirs} empty folder${d.removedDirs === 1 ? '' : 's'}` : '') +
             (d.failed > 0 ? ` · ${d.failed} could not be removed` : '')
         )
       } else {
