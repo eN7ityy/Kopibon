@@ -10,6 +10,7 @@ import ProgressBar from '../shared/ProgressBar'
 import ToolchainStatus from './ToolchainStatus'
 import UpdateStatus from './UpdateStatus'
 import LogsPage from './LogsPage'
+import SearchSettings from './SearchSettings'
 import {
   Check,
   Trash2,
@@ -17,6 +18,7 @@ import {
   FolderTree,
   KeyRound,
   Download,
+  Search,
   Monitor,
   Wrench,
   ScrollText,
@@ -38,6 +40,7 @@ type PaneKey =
   | 'library'
   | 'account'
   | 'downloads'
+  | 'search'
   | 'interface'
   | 'tools'
   | 'logs'
@@ -53,6 +56,9 @@ const SETTINGS_PANES: Array<{
   { key: 'library', label: 'Library', Icon: FolderTree, savable: true },
   { key: 'account', label: 'Account', Icon: KeyRound },
   { key: 'downloads', label: 'Downloads', Icon: Download, savable: true },
+  // Not savable: this pane writes each change immediately, since its controls
+  // are individually meaningful rather than one form.
+  { key: 'search', label: 'Search', Icon: Search, savable: false },
   { key: 'interface', label: 'Interface', Icon: Monitor, savable: true },
   { key: 'tools', label: 'Required Tools', Icon: Wrench },
   { key: 'logs', label: 'Logs', Icon: ScrollText },
@@ -199,295 +205,269 @@ export default function SettingsPage(): React.JSX.Element {
         */}
         <div className="flex-1 min-w-0 overflow-y-auto px-1.5">
           <div className="max-w-2xl space-y-6 pb-6">
-        {/* Library */}
-        {pane === 'library' && (
-        <section>
-          <h2 className="text-section font-semibold text-fg mb-3">Library</h2>
-          <div className="space-y-3">
-            <div>
-              <label className="block text-sm font-medium text-fg mb-1">
-                Library Path
-              </label>
-              <input
-                type="text"
-                value={settings.libraryPath}
-                onChange={(e) => settings.setLibraryPath(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-line bg-surface text-fg focus:outline-none focus:ring-2 focus:ring-accent"
-              />
-              <p className="mt-1 text-xs text-fg-faint">
-                Directory where doujinshi PDFs are stored
-              </p>
-            </div>
-          </div>
-        </section>
-        )}
-
-        {/* Nhentai Account */}
-        {pane === 'account' && (
-        <section>
-          <h2 className="text-section font-semibold text-fg mb-3">
-            Nhentai Account
-          </h2>
-          <div className="space-y-3">
-            <div>
-              <label className="block text-sm font-medium text-fg mb-1">
-                API Key
-              </label>
-
-              {validation.status !== 'valid' ? (
-                <div className="flex gap-2">
-                  <input
-                    type="password"
-                    value={keyInput}
-                    onChange={(e) => {
-                      setKeyInput(e.target.value)
-                      if (validation.status !== 'idle') setValidation({ status: 'idle' })
-                    }}
-                    placeholder="Enter your nhentai API key"
-                    className="flex-1 px-3 py-2 rounded-lg border border-line bg-surface text-fg focus:outline-none focus:ring-2 focus:ring-accent"
-                  />
-                  <button
-                    onClick={handleValidateAndSave}
-                    disabled={validation.status === 'validating' || !keyInput.trim()}
-                    className="px-4 py-2 rounded-lg bg-accent-fill text-white font-medium hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    {validation.status === 'validating' ? 'Validating...' : 'Validate & Save'}
-                  </button>
+            {/* Library */}
+            {pane === 'library' && (
+              <section>
+                <h2 className="text-section font-semibold text-fg mb-3">Library</h2>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-fg mb-1">Library Path</label>
+                    <input
+                      type="text"
+                      value={settings.libraryPath}
+                      onChange={(e) => settings.setLibraryPath(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg border border-line bg-surface text-fg focus:outline-none focus:ring-2 focus:ring-accent"
+                    />
+                    <p className="mt-1 text-xs text-fg-faint">
+                      Directory where doujinshi PDFs are stored
+                    </p>
+                  </div>
                 </div>
-              ) : (
-                <div className="px-4 py-3 rounded-lg bg-success-wash border border-success flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Check size={18} className="text-success" aria-hidden="true" />
-                    <div>
-                      <p className="text-sm font-medium text-success">
-                        API Key Configured
+              </section>
+            )}
+
+            {/* Nhentai Account */}
+            {pane === 'account' && (
+              <section>
+                <h2 className="text-section font-semibold text-fg mb-3">Nhentai Account</h2>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-fg mb-1">API Key</label>
+
+                    {validation.status !== 'valid' ? (
+                      <div className="flex gap-2">
+                        <input
+                          type="password"
+                          value={keyInput}
+                          onChange={(e) => {
+                            setKeyInput(e.target.value)
+                            if (validation.status !== 'idle') setValidation({ status: 'idle' })
+                          }}
+                          placeholder="Enter your nhentai API key"
+                          className="flex-1 px-3 py-2 rounded-lg border border-line bg-surface text-fg focus:outline-none focus:ring-2 focus:ring-accent"
+                        />
+                        <button
+                          onClick={handleValidateAndSave}
+                          disabled={validation.status === 'validating' || !keyInput.trim()}
+                          className="px-4 py-2 rounded-lg bg-accent-fill text-white font-medium hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          {validation.status === 'validating' ? 'Validating...' : 'Validate & Save'}
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="px-4 py-3 rounded-lg bg-success-wash border border-success flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Check size={18} className="text-success" aria-hidden="true" />
+                          <div>
+                            <p className="text-sm font-medium text-success">API Key Configured</p>
+                            <p className="text-xs text-success">
+                              Connected as {validation.username}
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={handleClearKey}
+                          className="px-3 py-1.5 rounded-md text-xs font-medium bg-danger-wash text-danger hover:bg-danger-wash transition-colors"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Validation error */}
+                    {validation.status === 'invalid' && (
+                      <p className="mt-2 text-sm text-danger flex items-center gap-1">
+                        <X size={14} aria-hidden="true" />
+                        <span>{validation.error}</span>
                       </p>
-                      <p className="text-xs text-success">
-                        Connected as {validation.username}
+                    )}
+
+                    <p className="mt-1 text-xs text-fg-faint">
+                      Login is optional. Provides access to favorites and higher rate limits.
+                    </p>
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {/* Downloads */}
+            {pane === 'downloads' && (
+              <section>
+                <h2 className="text-section font-semibold text-fg mb-3">Downloads</h2>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-fg mb-1">
+                      Concurrency: {settings.downloadConcurrency}
+                    </label>
+                    <input
+                      type="range"
+                      min="1"
+                      max="8"
+                      value={settings.downloadConcurrency}
+                      onChange={(e) => settings.setDownloadConcurrency(Number(e.target.value))}
+                      className="w-full accent-accent"
+                    />
+                    <p className="mt-1 text-xs text-fg-faint">
+                      Number of simultaneous downloads (1-8)
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-fg mb-1">Output Format</label>
+                    <select
+                      value={settings.outputFormat}
+                      onChange={(e) => settings.setOutputFormat(e.target.value as OutputFormat)}
+                      className="w-full px-3 py-2 rounded-lg border border-line bg-surface text-fg focus:outline-none focus:ring-2 focus:ring-accent"
+                    >
+                      <option value="pdf">PDF</option>
+                      <option value="cbz">CBZ</option>
+                    </select>
+                    <p className="mt-1 text-xs text-fg-faint">
+                      Default for new downloads. Each download can override it.
+                    </p>
+                  </div>
+
+                  <div className="border-t border-line pt-3">
+                    <h3 className="text-sm font-semibold text-fg mb-3">PDF → CBZ Conversion</h3>
+
+                    <div className="flex items-start gap-3 mb-3">
+                      <input
+                        type="checkbox"
+                        checked={settings.cbzKeepOriginal}
+                        onChange={(e) => settings.setCbzKeepOriginal(e.target.checked)}
+                        className="mt-0.5 w-4 h-4 rounded border-line text-accent focus:ring-accent bg-surface"
+                      />
+                      <div>
+                        <label className="text-sm text-fg">
+                          Keep original PDFs after converting
+                        </label>
+                        <p className="mt-0.5 text-xs text-fg-faint">
+                          Archives them under <code className="text-label">_originals/</code>{' '}
+                          instead of deleting. Roughly doubles disk use. This is only the default —
+                          each conversion asks.
+                        </p>
+                      </div>
+                    </div>
+
+                    <OriginalsCleanup />
+                  </div>
+
+                  <div className="flex items-center gap-3 mb-3">
+                    <input
+                      type="checkbox"
+                      checked={settings.showNotifications}
+                      onChange={(e) => settings.setShowNotifications(e.target.checked)}
+                      className="w-4 h-4 rounded border-line text-accent focus:ring-accent bg-surface"
+                    />
+                    <label className="text-sm text-fg">Show download notifications</label>
+                  </div>
+
+                  <div className="border-t border-line pt-3">
+                    <h3 className="text-sm font-semibold text-fg mb-3">PDF Compression</h3>
+
+                    <div className="flex items-center gap-3 mb-3">
+                      <input
+                        type="checkbox"
+                        checked={settings.compressPdf}
+                        onChange={(e) => settings.setCompressPdf(e.target.checked)}
+                        className="w-4 h-4 rounded border-line text-accent focus:ring-accent bg-surface"
+                      />
+                      <label className="text-sm text-fg">Enable Image Compression (JPEG)</label>
+                    </div>
+
+                    <div className="mb-3">
+                      <label className="block text-sm font-medium text-fg mb-1">
+                        Quality: {settings.compressionQuality}
+                      </label>
+                      <input
+                        type="range"
+                        min="1"
+                        max="95"
+                        value={settings.compressionQuality}
+                        onChange={(e) => settings.setCompressionQuality(Number(e.target.value))}
+                        disabled={!settings.compressPdf}
+                        className="w-full accent-accent disabled:opacity-40"
+                      />
+                      <p className="mt-1 text-xs text-fg-faint">
+                        Higher quality = larger file size (1-95)
                       </p>
                     </div>
+
+                    <div className="mb-3">
+                      <label className="block text-sm font-medium text-fg mb-1">Page Size</label>
+                      <select
+                        value={settings.pageSize}
+                        onChange={(e) => settings.setPageSize(e.target.value as PageSizeOption)}
+                        className="w-full px-3 py-2 rounded-lg border border-line bg-surface text-fg focus:outline-none focus:ring-2 focus:ring-accent"
+                      >
+                        <option value="Dynamic">Dynamic (1800px width, auto height)</option>
+                        <option value="Fit to Image">Fit to Image (original dimensions)</option>
+                        <option value="Letter">Letter</option>
+                        <option value="A4">A4</option>
+                      </select>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        checked={settings.blackBackground}
+                        onChange={(e) => settings.setBlackBackground(e.target.checked)}
+                        className="w-4 h-4 rounded border-line text-accent focus:ring-accent bg-surface"
+                      />
+                      <label className="text-sm text-fg">Black Background (for Letter/A4)</label>
+                    </div>
                   </div>
-                  <button
-                    onClick={handleClearKey}
-                    className="px-3 py-1.5 rounded-md text-xs font-medium bg-danger-wash text-danger hover:bg-danger-wash transition-colors"
-                  >
-                    Remove
-                  </button>
                 </div>
-              )}
+              </section>
+            )}
 
-              {/* Validation error */}
-              {validation.status === 'invalid' && (
-                <p className="mt-2 text-sm text-danger flex items-center gap-1">
-                  <X size={14} aria-hidden="true" />
-                  <span>{validation.error}</span>
-                </p>
-              )}
+            {pane === 'search' && <SearchSettings />}
 
-              <p className="mt-1 text-xs text-fg-faint">
-                Login is optional. Provides access to favorites and higher rate limits.
-              </p>
-            </div>
-          </div>
-        </section>
-        )}
-
-        {/* Downloads */}
-        {pane === 'downloads' && (
-        <section>
-          <h2 className="text-section font-semibold text-fg mb-3">
-            Downloads
-          </h2>
-          <div className="space-y-3">
-            <div>
-              <label className="block text-sm font-medium text-fg mb-1">
-                Concurrency: {settings.downloadConcurrency}
-              </label>
-              <input
-                type="range"
-                min="1"
-                max="8"
-                value={settings.downloadConcurrency}
-                onChange={(e) => settings.setDownloadConcurrency(Number(e.target.value))}
-                className="w-full accent-accent"
-              />
-              <p className="mt-1 text-xs text-fg-faint">
-                Number of simultaneous downloads (1-8)
-              </p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-fg mb-1">
-                Output Format
-              </label>
-              <select
-                value={settings.outputFormat}
-                onChange={(e) => settings.setOutputFormat(e.target.value as OutputFormat)}
-                className="w-full px-3 py-2 rounded-lg border border-line bg-surface text-fg focus:outline-none focus:ring-2 focus:ring-accent"
-              >
-                <option value="pdf">PDF</option>
-                <option value="cbz">CBZ</option>
-              </select>
-              <p className="mt-1 text-xs text-fg-faint">
-                Default for new downloads. Each download can override it.
-              </p>
-            </div>
-
-            <div className="border-t border-line pt-3">
-              <h3 className="text-sm font-semibold text-fg mb-3">
-                PDF → CBZ Conversion
-              </h3>
-
-              <div className="flex items-start gap-3 mb-3">
-                <input
-                  type="checkbox"
-                  checked={settings.cbzKeepOriginal}
-                  onChange={(e) => settings.setCbzKeepOriginal(e.target.checked)}
-                  className="mt-0.5 w-4 h-4 rounded border-line text-accent focus:ring-accent bg-surface"
-                />
-                <div>
-                  <label className="text-sm text-fg">
-                    Keep original PDFs after converting
-                  </label>
-                  <p className="mt-0.5 text-xs text-fg-faint">
-                    Archives them under <code className="text-label">_originals/</code> instead of
-                    deleting. Roughly doubles disk use. This is only the default — each conversion
-                    asks.
-                  </p>
+            {/* Interface */}
+            {pane === 'interface' && (
+              <section>
+                <h2 className="text-section font-semibold text-fg mb-3">Interface</h2>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-fg mb-1">Theme</label>
+                    <select
+                      value={ui.theme}
+                      onChange={(e) => ui.setTheme(e.target.value as ThemeMode)}
+                      className="w-full px-3 py-2 rounded-lg border border-line bg-surface text-fg focus:outline-none focus:ring-2 focus:ring-accent"
+                    >
+                      <option value="system">System</option>
+                      <option value="light">Light</option>
+                      <option value="dark">Dark</option>
+                    </select>
+                  </div>
                 </div>
-              </div>
+              </section>
+            )}
 
-              <OriginalsCleanup />
-            </div>
-
-            <div className="flex items-center gap-3 mb-3">
-                <input
-                  type="checkbox"
-                  checked={settings.showNotifications}
-                  onChange={(e) => settings.setShowNotifications(e.target.checked)}
-                  className="w-4 h-4 rounded border-line text-accent focus:ring-accent bg-surface"
-                />
-                <label className="text-sm text-fg">
-                  Show download notifications
-                </label>
-              </div>
-
-              <div className="border-t border-line pt-3">
-              <h3 className="text-sm font-semibold text-fg mb-3">PDF Compression</h3>
-
-              <div className="flex items-center gap-3 mb-3">
-                <input
-                  type="checkbox"
-                  checked={settings.compressPdf}
-                  onChange={(e) => settings.setCompressPdf(e.target.checked)}
-                  className="w-4 h-4 rounded border-line text-accent focus:ring-accent bg-surface"
-                />
-                <label className="text-sm text-fg">
-                  Enable Image Compression (JPEG)
-                </label>
-              </div>
-
-              <div className="mb-3">
-                <label className="block text-sm font-medium text-fg mb-1">
-                  Quality: {settings.compressionQuality}
-                </label>
-                <input
-                  type="range"
-                  min="1"
-                  max="95"
-                  value={settings.compressionQuality}
-                  onChange={(e) => settings.setCompressionQuality(Number(e.target.value))}
-                  disabled={!settings.compressPdf}
-                  className="w-full accent-accent disabled:opacity-40"
-                />
-                <p className="mt-1 text-xs text-fg-faint">
-                  Higher quality = larger file size (1-95)
-                </p>
-              </div>
-
-              <div className="mb-3">
-                <label className="block text-sm font-medium text-fg mb-1">
-                  Page Size
-                </label>
-                <select
-                  value={settings.pageSize}
-                  onChange={(e) => settings.setPageSize(e.target.value as PageSizeOption)}
-                  className="w-full px-3 py-2 rounded-lg border border-line bg-surface text-fg focus:outline-none focus:ring-2 focus:ring-accent"
-                >
-                  <option value="Dynamic">Dynamic (1800px width, auto height)</option>
-                  <option value="Fit to Image">Fit to Image (original dimensions)</option>
-                  <option value="Letter">Letter</option>
-                  <option value="A4">A4</option>
-                </select>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  checked={settings.blackBackground}
-                  onChange={(e) => settings.setBlackBackground(e.target.checked)}
-                  className="w-4 h-4 rounded border-line text-accent focus:ring-accent bg-surface"
-                />
-                <label className="text-sm text-fg">
-                  Black Background (for Letter/A4)
-                </label>
-              </div>
-            </div>
-          </div>
-        </section>
-        )}
-
-        {/* Interface */}
-        {pane === 'interface' && (
-        <section>
-          <h2 className="text-section font-semibold text-fg mb-3">
-            Interface
-          </h2>
-          <div className="space-y-3">
-            <div>
-              <label className="block text-sm font-medium text-fg mb-1">
-                Theme
-              </label>
-              <select
-                value={ui.theme}
-                onChange={(e) => ui.setTheme(e.target.value as ThemeMode)}
-                className="w-full px-3 py-2 rounded-lg border border-line bg-surface text-fg focus:outline-none focus:ring-2 focus:ring-accent"
-              >
-                <option value="system">System</option>
-                <option value="light">Light</option>
-                <option value="dark">Dark</option>
-              </select>
-            </div>
-          </div>
-        </section>
-        )}
-
-        {/* Required tools — not bundled, and the app degrades quietly without
+            {/* Required tools — not bundled, and the app degrades quietly without
             them, so this is deliberately its own section rather than a footnote */}
-        {pane === 'tools' && (
-        <section>
-          <h2 className="text-section font-semibold text-fg mb-3">
-            Required Tools
-          </h2>
-          <ToolchainStatus />
-        </section>
-        )}
+            {pane === 'tools' && (
+              <section>
+                <h2 className="text-section font-semibold text-fg mb-3">Required Tools</h2>
+                <ToolchainStatus />
+              </section>
+            )}
 
-        {pane === 'logs' && <LogsPage />}
+            {pane === 'logs' && <LogsPage />}
 
-        {/* Advanced */}
-        {pane === 'advanced' && (
-        <section>
-          <h2 className="text-section font-semibold text-fg mb-3">Advanced</h2>
-          <div className="space-y-3">
-            <UpdateStatus />
-            <MetadataConverter />
-            <AppVersion />
-          </div>
-        </section>
-        )}
+            {/* Advanced */}
+            {pane === 'advanced' && (
+              <section>
+                <h2 className="text-section font-semibold text-fg mb-3">Advanced</h2>
+                <div className="space-y-3">
+                  <UpdateStatus />
+                  <MetadataConverter />
+                  <AppVersion />
+                </div>
+              </section>
+            )}
 
-        {/*
+            {/*
           Destructive settings, last and visually separated.
 
           This sat in the middle of the page, between the output settings and
@@ -495,56 +475,56 @@ export default function SettingsPage(): React.JSX.Element {
           to reach Logs meant scrolling through it. Irreversible actions belong at
           the end, behind a boundary you have to cross deliberately.
         */}
-        {pane === 'danger' && (
-        <section aria-labelledby="danger-zone" className="pt-2">
-          <div className="border-t border-danger/40 pt-5">
-            <h2 id="danger-zone" className="text-section font-semibold text-danger mb-1">
-              Danger Zone
-            </h2>
-            <p className="text-sm text-fg-muted mb-3">
-              These actions cannot be undone.
-            </p>
+            {pane === 'danger' && (
+              <section aria-labelledby="danger-zone" className="pt-2">
+                <div className="border-t border-danger/40 pt-5">
+                  <h2 id="danger-zone" className="text-section font-semibold text-danger mb-1">
+                    Danger Zone
+                  </h2>
+                  <p className="text-sm text-fg-muted mb-3">These actions cannot be undone.</p>
 
-            <div className="p-4 rounded-lg border border-danger bg-danger-wash space-y-3">
-              <div>
-                <h3 className="text-sm font-semibold text-fg">Reset library</h3>
-                <p className="text-sm text-fg-muted mt-0.5">
-                  Removes every item from the database. Files on disk are{' '}
-                  <strong className="text-fg">not</strong> deleted, so a rescan will find them
-                  again.
-                </p>
-              </div>
+                  <div className="p-4 rounded-lg border border-danger bg-danger-wash space-y-3">
+                    <div>
+                      <h3 className="text-sm font-semibold text-fg">Reset library</h3>
+                      <p className="text-sm text-fg-muted mt-0.5">
+                        Removes every item from the database. Files on disk are{' '}
+                        <strong className="text-fg">not</strong> deleted, so a rescan will find them
+                        again.
+                      </p>
+                    </div>
 
-              <div>
-                <label htmlFor="reset-confirm" className="block text-label mb-1 text-fg-muted">
-                  Type <code className="font-mono text-fg">DELETE ALL</code> to confirm
-                </label>
-                <input
-                  id="reset-confirm"
-                  type="text"
-                  value={resetConfirm}
-                  onChange={(e) => setResetConfirm(e.target.value)}
-                  placeholder="DELETE ALL"
-                  className="w-full max-w-xs px-3 py-2 rounded-lg border border-danger bg-surface text-sm text-fg focus:ring-2 focus:ring-danger"
-                />
-              </div>
+                    <div>
+                      <label
+                        htmlFor="reset-confirm"
+                        className="block text-label mb-1 text-fg-muted"
+                      >
+                        Type <code className="font-mono text-fg">DELETE ALL</code> to confirm
+                      </label>
+                      <input
+                        id="reset-confirm"
+                        type="text"
+                        value={resetConfirm}
+                        onChange={(e) => setResetConfirm(e.target.value)}
+                        placeholder="DELETE ALL"
+                        className="w-full max-w-xs px-3 py-2 rounded-lg border border-danger bg-surface text-sm text-fg focus:ring-2 focus:ring-danger"
+                      />
+                    </div>
 
-              {resetError && <Notice tone="error">{resetError}</Notice>}
-              {resetSuccess && <Notice tone="success">Library reset.</Notice>}
+                    {resetError && <Notice tone="error">{resetError}</Notice>}
+                    {resetSuccess && <Notice tone="success">Library reset.</Notice>}
 
-              <Button
-                role="danger"
-                icon={<Trash2 size={16} />}
-                onClick={handleResetLibrary}
-                disabled={resetConfirm !== 'DELETE ALL' || resetting}
-              >
-                {resetting ? 'Resetting…' : 'Reset library'}
-              </Button>
-            </div>
-          </div>
-        </section>
-        )}
-
+                    <Button
+                      role="danger"
+                      icon={<Trash2 size={16} />}
+                      onClick={handleResetLibrary}
+                      disabled={resetConfirm !== 'DELETE ALL' || resetting}
+                    >
+                      {resetting ? 'Resetting…' : 'Reset library'}
+                    </Button>
+                  </div>
+                </div>
+              </section>
+            )}
           </div>
         </div>
       </div>
@@ -576,16 +556,15 @@ function AppVersion(): React.JSX.Element {
   const [version, setVersion] = useState<string>('...')
 
   useEffect(() => {
-    window.api.app.getVersion().then((r) => {
-      if (r.success && r.data) setVersion(r.data)
-    }).catch(() => setVersion('unknown'))
+    window.api.app
+      .getVersion()
+      .then((r) => {
+        if (r.success && r.data) setVersion(r.data)
+      })
+      .catch(() => setVersion('unknown'))
   }, [])
 
-  return (
-    <p className="text-xs text-fg-faint">
-      Doujin Downloader v{version}
-    </p>
-  )
+  return <p className="text-xs text-fg-faint">Doujin Downloader v{version}</p>
 }
 
 function MetadataConverter(): React.JSX.Element {
@@ -611,7 +590,9 @@ function MetadataConverter(): React.JSX.Element {
         logLines: (p as any).logLines
       })
     })
-    return () => { cleanup() }
+    return () => {
+      cleanup()
+    }
   }, [store.running])
 
   const handleStart = async () => {
@@ -627,7 +608,9 @@ function MetadataConverter(): React.JSX.Element {
           store.addLogLine(`CANCELLED: ${d.converted} converted, ${d.total} total`)
           summary = `Metadata conversion cancelled: ${d.converted} of ${d.total} converted`
         } else {
-          store.addLogLine(`COMPLETE: ${d.converted} converted, ${d.failed} failed, ${d.total} total`)
+          store.addLogLine(
+            `COMPLETE: ${d.converted} converted, ${d.failed} failed, ${d.total} total`
+          )
           summary =
             `Metadata conversion complete: ${d.converted} converted` +
             (d.failed > 0 ? `, ${d.failed} failed` : '')
@@ -651,7 +634,6 @@ function MetadataConverter(): React.JSX.Element {
     store.addLogLine('Cancelling after current items finish...')
   }
 
-
   return (
     <div className="space-y-2">
       <button
@@ -667,9 +649,14 @@ function MetadataConverter(): React.JSX.Element {
       {!store.running && (
         <div className="flex items-center gap-2">
           <label className="text-xs text-fg-muted">Runners:</label>
-          <input type="number" min={1} max={20} value={runners}
+          <input
+            type="number"
+            min={1}
+            max={20}
+            value={runners}
             onChange={(e) => setRunners(Math.max(1, Math.min(20, parseInt(e.target.value) || 3)))}
-            className="w-16 px-2 py-1 text-xs rounded border border-line bg-surface" />
+            className="w-16 px-2 py-1 text-xs rounded border border-line bg-surface"
+          />
         </div>
       )}
 
@@ -679,11 +666,23 @@ function MetadataConverter(): React.JSX.Element {
           <div className="bg-surface rounded-xl p-6 max-w-md mx-4 shadow-2xl">
             <h3 className="text-section font-semibold text-fg mb-2">Convert Library Metadata?</h3>
             <p className="text-sm text-fg-muted mb-4">
-              This will rewrite XMP metadata on ALL files in your library using pikepdf. This may take several minutes for large libraries. Downloads and other operations will not be affected.
+              This will rewrite XMP metadata on ALL files in your library using pikepdf. This may
+              take several minutes for large libraries. Downloads and other operations will not be
+              affected.
             </p>
             <div className="flex gap-3">
-              <button onClick={handleStart} className="flex-1 px-4 py-2 rounded-lg bg-warning-fill text-white text-sm font-medium hover:bg-warning-fill">Start Conversion</button>
-              <button onClick={() => setShowConfirm(false)} className="flex-1 px-4 py-2 rounded-lg border border-line bg-surface text-sm">Cancel</button>
+              <button
+                onClick={handleStart}
+                className="flex-1 px-4 py-2 rounded-lg bg-warning-fill text-white text-sm font-medium hover:bg-warning-fill"
+              >
+                Start Conversion
+              </button>
+              <button
+                onClick={() => setShowConfirm(false)}
+                className="flex-1 px-4 py-2 rounded-lg border border-line bg-surface text-sm"
+              >
+                Cancel
+              </button>
             </div>
           </div>
         </div>
@@ -697,7 +696,10 @@ function MetadataConverter(): React.JSX.Element {
           current={store.current}
           total={store.total}
           detail={
-            [store.converted > 0 ? `${store.converted} ok` : null, store.failed > 0 ? `${store.failed} failed` : null]
+            [
+              store.converted > 0 ? `${store.converted} ok` : null,
+              store.failed > 0 ? `${store.failed} failed` : null
+            ]
               .filter(Boolean)
               .join(' · ') || undefined
           }
@@ -710,9 +712,23 @@ function MetadataConverter(): React.JSX.Element {
 
       {/* Scrollable log */}
       {store.logLines.length > 0 && (
-        <div ref={logRef} className="max-h-40 overflow-y-auto rounded-lg bg-app text-fg text-xs font-mono p-2 space-y-0.5">
+        <div
+          ref={logRef}
+          className="max-h-40 overflow-y-auto rounded-lg bg-app text-fg text-xs font-mono p-2 space-y-0.5"
+        >
           {store.logLines.map((line, i) => (
-            <div key={i} className={line.startsWith('ERROR') || line.startsWith('FAIL') ? 'text-danger' : line.startsWith('COMPLETE') ? 'text-warning' : ''}>{line}</div>
+            <div
+              key={i}
+              className={
+                line.startsWith('ERROR') || line.startsWith('FAIL')
+                  ? 'text-danger'
+                  : line.startsWith('COMPLETE')
+                    ? 'text-warning'
+                    : ''
+              }
+            >
+              {line}
+            </div>
           ))}
         </div>
       )}
