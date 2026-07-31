@@ -7,6 +7,7 @@ import GalleryDetail from '../gallery/GalleryDetail'
 import LoadingSkeleton from '../shared/LoadingSkeleton'
 import EmptyState from '../shared/EmptyState'
 import ErrorState from '../shared/ErrorState'
+import Pagination from '../shared/Pagination'
 
 interface EntityBanner {
   type: string
@@ -170,11 +171,6 @@ export default function SearchPage(): React.JSX.Element {
     [store.query, store.sort, resolveDownloadStatuses]
   )
 
-  const handleSearch = (e: React.FormEvent): void => {
-    e.preventDefault()
-    performSearch(1)
-  }
-
   const loadPage = useCallback(
     async (page: number) => {
       if (store.query.trim()) {
@@ -200,15 +196,23 @@ export default function SearchPage(): React.JSX.Element {
     [store.query, store.sort, performSearch, resolveDownloadStatuses]
   )
 
-  const handlePrevPage = (): void => {
-    const prev = Math.max(1, store.currentPage - 1)
-    if (prev !== store.currentPage) loadPage(prev)
-  }
-
-  const handleNextPage = (): void => {
-    if (store.currentPage < store.totalPages) {
-      loadPage(store.currentPage + 1)
+  /**
+   * Submit the search box.
+   *
+   * An empty box means "show me the default listing again". `performSearch`
+   * returns early on an empty query, so submitting an emptied field used to do
+   * nothing at all — the only way back to the latest uploads was to change the
+   * sort and trigger the auto-search. `loadPage` already falls through to
+   * latest/popular when the query is empty, so a reset is just page 1 of that.
+   */
+  const handleSearch = (e: React.FormEvent): void => {
+    e.preventDefault()
+    if (!store.query.trim()) {
+      store.setQuery('')
+      loadPage(1)
+      return
     }
+    performSearch(1)
   }
 
   const handleGalleryClick = (id: number): void => {
@@ -264,9 +268,9 @@ export default function SearchPage(): React.JSX.Element {
   )
 
   const handleDownload = useCallback(
-    async (galleryId: number): Promise<void> => {
+    async (galleryId: number, format?: string): Promise<void> => {
       try {
-        await window.api.downloads.addToQueue(galleryId)
+        await window.api.downloads.addToQueue(galleryId, format)
         await refreshSingleDownloadStatus(galleryId)
       } catch {
         // Silently ignore
@@ -414,25 +418,12 @@ export default function SearchPage(): React.JSX.Element {
             />
 
             {hasMultiplePages && (
-              <div className="flex items-center justify-center gap-2 pb-4">
-                <button
-                  onClick={handlePrevPage}
-                  disabled={store.currentPage <= 1 || store.loading}
-                  className="px-3 py-1.5 rounded text-sm font-medium border border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                >
-                  ← Prev
-                </button>
-                <span className="text-sm text-gray-500 dark:text-gray-400">
-                  Page {store.currentPage} of {store.totalPages}
-                </span>
-                <button
-                  onClick={handleNextPage}
-                  disabled={store.currentPage >= store.totalPages || store.loading}
-                  className="px-3 py-1.5 rounded text-sm font-medium border border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                >
-                  Next →
-                </button>
-              </div>
+              <Pagination
+                page={store.currentPage}
+                totalPages={store.totalPages}
+                onChange={loadPage}
+                disabled={store.loading}
+              />
             )}
           </div>
         )}

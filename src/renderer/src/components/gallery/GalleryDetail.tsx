@@ -2,13 +2,15 @@ import { useState, useEffect, useCallback } from 'react'
 import type { GalleryDetail as GalleryDetailType, DownloadStatus, CdnConfig } from '../../types/api.types'
 import StatusBadge from '../shared/StatusBadge'
 import LoadingSkeleton from '../shared/LoadingSkeleton'
+import FormatSelector from '../shared/FormatSelector'
 import { useAuthStore } from '../../stores/auth.store'
+import { useSettingsStore, type OutputFormat } from '../../stores/settings.store'
 import GalleryViewer from './GalleryViewer'
 
 interface GalleryDetailProps {
   galleryId: number
   onClose: () => void
-  onDownload: (galleryId: number) => void
+  onDownload: (galleryId: number, format?: OutputFormat) => void
   onAddToQueue?: (galleryId: number) => void
   onTagClick?: (tagType: string, tagName: string) => void
   onGalleryChange?: (galleryId: number) => void
@@ -46,6 +48,8 @@ export default function GalleryDetailPanel({
   onGalleryChange
 }: GalleryDetailProps): React.JSX.Element {
   const auth = useAuthStore()
+  const settingsOutputFormat = useSettingsStore((s) => s.outputFormat)
+  const [downloadFormat, setDownloadFormat] = useState<OutputFormat>(settingsOutputFormat)
   const [detail, setDetail] = useState<GalleryDetailType | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -477,7 +481,7 @@ export default function GalleryDetailPanel({
                         } catch { /* */ }
                         setShowRedownloadConfirm(false)
                         setDownloadStatus('not_downloaded')
-                        onDownload(galleryId)
+                        onDownload(galleryId, downloadFormat)
                       }}
                       className="flex-1 px-3 py-2 rounded-lg bg-orange-600 text-white text-sm font-medium hover:bg-orange-700 transition-colors"
                     >
@@ -496,12 +500,21 @@ export default function GalleryDetailPanel({
                   ⏳ Already Downloading...
                 </div>
               ) : (
-                <button
-                  onClick={() => onDownload(galleryId)}
-                  className="w-full px-4 py-3 rounded-lg bg-purple-600 text-white font-medium hover:bg-purple-700 transition-colors"
-                >
-                  Download
-                </button>
+                <div className="space-y-2">
+                  <div className="flex gap-2">
+                    <FormatSelector
+                      value={downloadFormat}
+                      onChange={setDownloadFormat}
+                      className="flex-1"
+                    />
+                    <button
+                      onClick={() => onDownload(galleryId, downloadFormat)}
+                      className="flex-1 px-4 py-3 rounded-lg bg-purple-600 text-white font-medium hover:bg-purple-700 transition-colors"
+                    >
+                      Download
+                    </button>
+                  </div>
+                </div>
               )}
 
               <button

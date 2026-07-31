@@ -5,6 +5,7 @@ import GalleryDetail from '../gallery/GalleryDetail'
 import LoadingSkeleton from '../shared/LoadingSkeleton'
 import EmptyState from '../shared/EmptyState'
 import ErrorState from '../shared/ErrorState'
+import Pagination from '../shared/Pagination'
 
 interface FavoritesResponse {
   result: GalleryListItem[]
@@ -83,10 +84,21 @@ export default function FavoritesPage(): React.JSX.Element {
     return () => clearInterval(interval)
   }, [pageState.status, resolveDownloadStatuses])
 
+  /**
+   * Submit the search box. An emptied box resets to the full favourites list.
+   *
+   * The trim matters: submitting whitespace would otherwise set a query that is
+   * falsy-but-changed, refetching without filtering while still rendering the
+   * "clear" affordance as though a search were active. Refetching explicitly
+   * rather than relying on the state change also makes an empty submit work when
+   * the query is already empty, so the button never looks inert.
+   */
   const handleSearch = (e: React.FormEvent): void => {
     e.preventDefault()
-    setQuery(searchInput)
+    const next = searchInput.trim()
+    setQuery(next)
     setPage(1)
+    if (next === query && page === 1) fetchFavorites(1, next || undefined)
   }
 
   const handleGalleryClick = (id: number): void => {
@@ -98,9 +110,9 @@ export default function FavoritesPage(): React.JSX.Element {
   }
 
   const handleDownload = useCallback(
-    async (galleryId: number): Promise<void> => {
+    async (galleryId: number, format?: string): Promise<void> => {
       try {
-        await window.api.downloads.addToQueue(galleryId)
+        await window.api.downloads.addToQueue(galleryId, format)
         const statuses = await resolveDownloadStatuses([galleryId])
         setDownloadStatuses((prev) => ({ ...prev, ...statuses }))
       } catch {
@@ -203,24 +215,12 @@ export default function FavoritesPage(): React.JSX.Element {
         />
 
         {pageState.data.num_pages > 1 && (
-          <div className="flex items-center justify-center gap-2 mt-6 pb-4">
-            <button
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page <= 1}
-              className="px-3 py-1.5 rounded text-sm font-medium border border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            >
-              ← Prev
-            </button>
-            <span className="text-sm text-gray-500 dark:text-gray-400">
-              Page {page} of {pageState.data.num_pages}
-            </span>
-            <button
-              onClick={() => setPage((p) => p + 1)}
-              disabled={page >= pageState.data.num_pages}
-              className="px-3 py-1.5 rounded text-sm font-medium border border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            >
-              Next →
-            </button>
+          <div className="mt-6">
+            <Pagination
+              page={page}
+              totalPages={pageState.data.num_pages}
+              onChange={setPage}
+            />
           </div>
         )}
       </div>
