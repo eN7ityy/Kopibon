@@ -21,7 +21,7 @@ import {
   rmdirSync
 } from 'fs'
 import { createHash } from 'crypto'
-import { dirname, join, basename } from 'path'
+import { dirname, join, basename, relative } from 'path'
 import { handle } from './handle'
 import { getLogger } from '../services/logger'
 import { attachWorkerLogForwarding } from '../services/worker-logger'
@@ -2486,6 +2486,123 @@ export function registerLibraryIpc(): void {
     }
   })
 
+  /**
+   * Put archived PDFs back and remove the CBZs that replaced them.
+   *
+   * The inverse of a conversion, for when the CBZs turn out to be unwanted.
+   *
+   * Ordering is the safety property, and it is deliberate:
+   *
+   *   1. Refuse if a file already sits at the destination — never overwrite.
+   *   2. Move the PDF back, and confirm it arrived.
+   *   3. Only then delete the CBZ.
+   *   4. Then update the row.
+   *
+   * So an interruption at any point leaves at least one readable copy on disk.
+   * If step 4 fails the files are still correct and a rescan repairs the row,
+   * which is a far better failure than a row pointing at a file that is gone.
+   *
+   * Lossy archives are included: those are the *higher* quality copy, so
+   * restoring them is more clearly right than restoring a lossless one.
+   *
+   * What this cannot recover is metadata edited after the conversion. Those edits
+   * live in the CBZ's ComicInfo.xml and in the database row; the PDF predates
+   * them. The confirmation says so.
+   */
+  handle('library:restoreOriginals', async () => {
+    const archiveRoot = resolveOriginalsRoot()
+    const libraryRoot = (settingsRepo.get('libraryPath') || '').trim()
+
+    if (!archiveRoot || !existsSync(archiveRoot) || !libraryRoot) {
+      return { success: true, data: { restored: 0, skipped: 0, failed: 0, bytes: 0 } }
+    }
+
+    const scan = scanOriginals(archiveRoot)
+    const archived = [...scan.files, ...scan.lossyFiles]
+
+    let restored = 0
+    let skipped = 0
+    let failed = 0
+    let bytes = 0
+
+    for (const archivedPdf of archived) {
+      try {
+        // Path relative to the archive, with a leading `_lossy` segment dropped
+        // so a lossy original lands where its non-lossy sibling would.
+        const rel = relative(archiveRoot, archivedPdf)
+        const parts = rel.split(/[\\/]/).filter(Boolean)
+        if (parts[0] === '_lossy') parts.shift()
+        if (parts.length === 0) {
+          skipped++
+          continue
+        }
+
+        const targetPdf = join(libraryRoot, ...parts)
+        const targetCbz = targetPdf.replace(/\.pdf$/i, '.cbz')
+
+        // Never overwrite. A file already there means this was restored before,
+        // or something unrelated occupies the name.
+        if (existsSync(targetPdf)) {
+          skipped++
+          continue
+        }
+
+        let size = 0
+        try {
+          size = statSync(archivedPdf).size
+        } catch {
+          /* counted as 0 */
+        }
+
+        mkdirSync(dirname(targetPdf), { recursive: true })
+        renameSync(archivedPdf, targetPdf)
+
+        // Confirm before destroying anything.
+        if (!existsSync(targetPdf)) {
+          failed++
+          continue
+        }
+
+        const row = libraryRepo.findByFilePath(targetCbz)
+
+        if (existsSync(targetCbz)) {
+          try {
+            unlinkSync(targetCbz)
+          } catch {
+            // The PDF is back and readable; a leftover CBZ is untidy, not lost
+            // data. Counting it as failed would misreport a successful restore.
+          }
+        }
+
+        if (row) {
+          const movedCover = renameThumbnailForPath(row.customCoverPath, targetPdf)
+          let mtime = Date.now()
+          try {
+            mtime = statSync(targetPdf).mtimeMs
+          } catch {
+            /* keep now() */
+          }
+          libraryRepo.update(row.id, {
+            filePath: targetPdf,
+            format: 'pdf',
+            fileSize: size,
+            fileMtime: mtime,
+            ...(movedCover ? { customCoverPath: movedCover, thumbnailPath: movedCover } : {}),
+            updatedAt: Date.now()
+          } as Parameters<typeof libraryRepo.update>[1])
+        }
+
+        restored++
+        bytes += size
+      } catch {
+        failed++
+      }
+    }
+
+    log.info(`Restored ${restored} original PDF(s); ${skipped} skipped, ${failed} failed`)
+    return { success: true, data: { restored, skipped, failed, bytes } }
+  })
+
   handle(
     'library:purgeOriginals',
     async (_event, includeLossy: boolean = false) => {
@@ -2516,7 +2633,10 @@ export function registerLibraryIpc(): void {
         }
       }
 
-      const originalsRoot = join(root, '_originals')
+      // `root` is already the archive root, resolved from the setting. Appending
+      // '_originals' again pointed the prune at a directory that does not exist,
+      // so it silently tidied nothing.
+      const originalsRoot = root
       let removedDirs = 0
       const pruneEmpty = (dir: string): boolean => {
         let entries: import('fs').Dirent[]

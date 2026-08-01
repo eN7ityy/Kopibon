@@ -153,6 +153,8 @@ const api = {
     /** Base64 JPEG preview of a source's first page, for the add-entry form. */
     previewSource: (sourcePath: string, sourceType: 'pdf' | 'images') =>
       ipcRenderer.invoke('library:previewSource', sourcePath, sourceType),
+    /** Put archived PDFs back and delete the CBZs that replaced them. */
+    restoreOriginals: () => ipcRenderer.invoke('library:restoreOriginals'),
     purgeOriginals: (includeLossy?: boolean) =>
       ipcRenderer.invoke('library:purgeOriginals', includeLossy),
     cancelConvertToCbz: () => ipcRenderer.invoke('library:cancelConvertToCbz'),

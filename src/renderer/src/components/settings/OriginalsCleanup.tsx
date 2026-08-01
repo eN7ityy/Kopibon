@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Trash2 } from 'lucide-react'
+import { Trash2, Undo2 } from 'lucide-react'
 
 interface OriginalsInfo {
   count: number
@@ -29,7 +29,10 @@ function formatBytes(bytes: number): string {
 export default function OriginalsCleanup(): React.JSX.Element {
   const [info, setInfo] = useState<OriginalsInfo | null>(null)
   const [loading, setLoading] = useState(true)
+  // Two independent confirmations: deleting originals and restoring them are
+  // opposite actions, and a shared flag would let one dialog answer the other.
   const [confirming, setConfirming] = useState(false)
+  const [confirmingRestore, setConfirmingRestore] = useState(false)
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<string | null>(null)
 
@@ -84,6 +87,33 @@ export default function OriginalsCleanup(): React.JSX.Element {
     setReloadTick((t) => t + 1)
   }
 
+  const restore = async (): Promise<void> => {
+    setBusy(true)
+    try {
+      const r = await window.api.library.restoreOriginals()
+      if (r?.success) {
+        const d = r.data as {
+          restored: number
+          skipped: number
+          failed: number
+          bytes: number
+        }
+        setResult(
+          `Restored ${d.restored} PDF${d.restored === 1 ? '' : 's'} (${formatBytes(d.bytes)})` +
+            (d.skipped > 0 ? ` · ${d.skipped} skipped, a file was already there` : '') +
+            (d.failed > 0 ? ` · ${d.failed} failed` : '')
+        )
+      } else {
+        setResult(r?.error || 'Could not restore originals')
+      }
+    } catch (e) {
+      setResult(String(e))
+    }
+    setBusy(false)
+    setConfirmingRestore(false)
+    setReloadTick((t) => t + 1)
+  }
+
   if (loading) {
     return <p className="text-xs text-fg-faint">Checking archived originals…</p>
   }
@@ -135,15 +165,56 @@ export default function OriginalsCleanup(): React.JSX.Element {
             </button>
           </div>
         </div>
+      ) : confirmingRestore ? (
+        <div className="space-y-2">
+          <p className="text-xs text-warning">
+            Move {total} archived PDF{total === 1 ? '' : 's'} back into the library and delete the
+            CBZ files that replaced them?
+          </p>
+          <p className="text-xs text-fg-muted">
+            Any metadata you edited after converting is lost — those changes live in the CBZ, and
+            the PDF predates them. Nothing is overwritten: an item whose PDF is already back is
+            skipped. Kept-back originals are included, since those are the better copy.
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={restore}
+              disabled={busy}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-warning-fill px-3 py-1.5 text-xs font-medium text-white hover:bg-warning-fill disabled:opacity-50"
+            >
+              {busy ? 'Restoring…' : `Restore ${total} PDF${total === 1 ? '' : 's'}`}
+            </button>
+            <button
+              onClick={() => setConfirmingRestore(false)}
+              className="rounded-lg bg-raised px-3 py-1.5 text-xs font-medium text-fg hover:bg-raised"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
       ) : (
-        <button
-          onClick={() => setConfirming(true)}
-          disabled={info!.count === 0}
-          title={info!.count === 0 ? 'Only kept-back originals remain' : undefined}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-danger-wash text-danger text-xs font-medium hover:bg-danger-wash disabled:opacity-50"
-        >
-          <Trash2 size={14} aria-hidden="true" /> Delete archived originals
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => setConfirming(true)}
+            disabled={info!.count === 0}
+            title={info!.count === 0 ? 'Only kept-back originals remain' : undefined}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-danger-wash text-danger text-xs font-medium hover:bg-danger-wash disabled:opacity-50"
+          >
+            <Trash2 size={14} aria-hidden="true" /> Delete archived originals
+          </button>
+
+          {/*
+            Restore undoes a conversion: PDFs come back, the CBZs go. Warning
+            rather than danger — nothing is permanently lost, since the PDFs are
+            the copy being preserved.
+          */}
+          <button
+            onClick={() => setConfirmingRestore(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-warning-wash text-warning text-xs font-medium hover:bg-warning-wash disabled:opacity-50"
+          >
+            <Undo2 size={14} aria-hidden="true" /> Restore originals
+          </button>
+        </div>
       )}
     </div>
   )
