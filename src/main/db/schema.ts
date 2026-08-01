@@ -219,6 +219,16 @@ export const series = sqliteTable(
      * leaves these alone, so a manual arrangement is not undone by a rescan.
      */
     isManual: integer('is_manual').notNull().default(0),
+    /**
+     * Set when someone has said these galleries are not a series.
+     *
+     * Needed because unlinking alone does not survive: every resolve pass links
+     * by name, so a group broken up by hand would silently reassemble on the
+     * next assignment, scan or restart. The row is kept rather than deleted so
+     * the decision — and any chosen cover — outlives it, and so it can be
+     * grouped again later.
+     */
+    isDissolved: integer('is_dissolved').notNull().default(0),
     createdAt: integer('created_at').notNull().default(Date.now()),
     updatedAt: integer('updated_at').notNull().default(Date.now())
   },

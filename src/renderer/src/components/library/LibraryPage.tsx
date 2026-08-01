@@ -1647,6 +1647,9 @@ export default function LibraryPage(): React.JSX.Element {
             setDetailSeries(null)
             setDetailItem(item)
           }}
+          // Renaming or ungrouping changes what the grid should show, so the
+          // page behind the panel reloads rather than going stale.
+          onChanged={() => fetchPage(0, true)}
         />
       )}
 

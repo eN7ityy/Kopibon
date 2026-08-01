@@ -23,6 +23,7 @@ export interface SeriesRow {
   cover_item_id: number | null
   cover_path: string | null
   is_manual: number
+  is_dissolved: number
   created_at: number
   updated_at: number
 }
@@ -123,6 +124,9 @@ export const seriesRepo = {
     const run = sqlite.transaction(() => {
       for (const name of names.values()) {
         const group = this.findOrCreate(name)
+        // A group someone broke up stays broken up. Without this every resolve
+        // pass — an assignment, a scan, a restart — would put it back together.
+        if (group.is_dissolved) continue
         linked += Number(linkByName.run(group.id, name, group.id).changes ?? 0)
       }
       for (const id of unusable) {
@@ -197,9 +201,11 @@ export const seriesRepo = {
         .prepare(
           `UPDATE library_item
               SET series_id = (SELECT s.id FROM series s
-                                WHERE s.name = library_item.series_name COLLATE NOCASE)
+                                WHERE s.name = library_item.series_name COLLATE NOCASE
+                                  AND s.is_dissolved = 0)
             WHERE series_id IS NOT (SELECT s.id FROM series s
-                                     WHERE s.name = library_item.series_name COLLATE NOCASE)`
+                                     WHERE s.name = library_item.series_name COLLATE NOCASE
+                                       AND s.is_dissolved = 0)`
         )
         .run()
       linked = Number(result.changes ?? 0)
@@ -282,7 +288,7 @@ export const seriesRepo = {
         `SELECT s.id AS id, s.name AS name, COUNT(li.id) AS total
            FROM series s
            JOIN library_item li ON li.series_id = s.id
-          WHERE s.name = ? COLLATE NOCASE
+          WHERE s.name = ? COLLATE NOCASE AND s.is_dissolved = 0
           GROUP BY s.id
          HAVING COUNT(li.id) >= ?`
       )
@@ -304,6 +310,63 @@ export const seriesRepo = {
     getSqlite()
       .prepare('UPDATE series SET cover_item_id = ?, cover_path = ?, updated_at = ? WHERE id = ?')
       .run(cover.itemId ?? null, normaliseSeriesName(cover.path), Date.now(), seriesId)
+  },
+
+  /**
+   * Break a group up, or put it back together.
+   *
+   * Dissolving unlinks the members and records the decision on the row, so the
+   * next resolve pass leaves it alone. `series_name` is untouched on purpose:
+   * the galleries genuinely carry that name, nothing on disk changes, and
+   * regrouping later needs it.
+   */
+  setDissolved(seriesId: number, dissolved: boolean): number {
+    const sqlite = getSqlite()
+    const run = sqlite.transaction(() => {
+      sqlite
+        .prepare('UPDATE series SET is_dissolved = ?, is_manual = 1, updated_at = ? WHERE id = ?')
+        .run(dissolved ? 1 : 0, Date.now(), seriesId)
+
+      if (dissolved) {
+        return Number(
+          sqlite
+            .prepare('UPDATE library_item SET series_id = NULL WHERE series_id = ?')
+            .run(seriesId).changes ?? 0
+        )
+      }
+
+      const row = this.findById(seriesId)
+      if (!row) return 0
+      return Number(
+        sqlite
+          .prepare('UPDATE library_item SET series_id = ? WHERE series_name = ? COLLATE NOCASE')
+          .run(seriesId, row.name).changes ?? 0
+      )
+    })
+    return run()
+  },
+
+  /**
+   * Whether another group already holds this name.
+   *
+   * Checked before a rename rather than letting the unique index throw, so the
+   * caller can say which name is taken instead of surfacing a constraint error.
+   */
+  nameTakenBy(name: string, excludingId: number): SeriesRow | undefined {
+    const trimmed = normaliseSeriesName(name)
+    if (!trimmed) return undefined
+    return getSqlite()
+      .prepare('SELECT * FROM series WHERE name = ? COLLATE NOCASE AND id != ?')
+      .get(trimmed, excludingId) as SeriesRow | undefined
+  },
+
+  /** Point the group's row at a new name. Members are updated by the caller. */
+  renameRow(seriesId: number, name: string): void {
+    const trimmed = normaliseSeriesName(name)
+    if (!trimmed) throw new Error('A series needs a name')
+    getSqlite()
+      .prepare('UPDATE series SET name = ?, is_manual = 1, updated_at = ? WHERE id = ?')
+      .run(trimmed, Date.now(), seriesId)
   },
 
   /** Set a display name that differs from the metadata name. */

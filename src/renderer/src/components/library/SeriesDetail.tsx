@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { AlertTriangle, BookOpen, Check, Layers, X } from 'lucide-react'
+import { AlertTriangle, BookOpen, Check, Layers, Pencil, Star, Ungroup, X } from 'lucide-react'
 import type { LibraryItemData } from './LibraryCard'
 import { mergeDisplayLanguages } from '../shared/language'
 import { formatBytes } from '../shared/format'
@@ -68,6 +68,8 @@ interface SeriesDetailProps {
   filters?: SeriesFilterParams
   onClose: () => void
   onOpenItem: (item: LibraryItemData) => void
+  /** Something about the series changed and the grid behind should reload. */
+  onChanged?: () => void
 }
 
 /**
@@ -102,7 +104,8 @@ export default function SeriesDetail({
   series,
   filters,
   onClose,
-  onOpenItem
+  onOpenItem,
+  onChanged
 }: SeriesDetailProps): React.JSX.Element {
   /*
    * Initial values rather than resets inside the effect: the parent mounts this
@@ -112,6 +115,13 @@ export default function SeriesDetail({
   const [facts, setFacts] = useState<SeriesFacts | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  const [renaming, setRenaming] = useState(false)
+  const [nameDraft, setNameDraft] = useState('')
+  const [confirmUngroup, setConfirmUngroup] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [notice, setNotice] = useState<string | null>(null)
+  const [reloadTick, setReloadTick] = useState(0)
 
   useEffect(() => {
     let cancelled = false
@@ -136,7 +146,74 @@ export default function SeriesDetail({
     // `filters` is a fresh object each render; the series id is what identifies
     // the request, and the parent remounts when it changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [series.id])
+  }, [series.id, reloadTick])
+
+  /** Re-read the panel and tell the grid behind it to reload. */
+  const refresh = (message: string | null): void => {
+    setNotice(message)
+    setReloadTick((t) => t + 1)
+    onChanged?.()
+  }
+
+  const doRename = async (): Promise<void> => {
+    const next = nameDraft.trim()
+    if (!next || !facts || next === facts.name) {
+      setRenaming(false)
+      return
+    }
+    setBusy(true)
+    try {
+      const r = await window.api.library.renameSeries(facts.id, next)
+      if (r?.success) {
+        const errs = (r.data as { errors?: string[] })?.errors
+        setRenaming(false)
+        refresh(
+          errs?.length
+            ? `Renamed, but ${errs.length} file${errs.length === 1 ? '' : 's'} could not be moved.`
+            : null
+        )
+      } else {
+        setNotice(r?.error || 'Could not rename this series')
+      }
+    } catch (err) {
+      setNotice(String(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const doUngroup = async (): Promise<void> => {
+    if (!facts) return
+    setBusy(true)
+    setConfirmUngroup(false)
+    try {
+      const r = await window.api.library.setSeriesDissolved(facts.id, true)
+      if (r?.success) {
+        onChanged?.()
+        onClose()
+      } else {
+        setNotice(r?.error || 'Could not ungroup this series')
+      }
+    } catch (err) {
+      setNotice(String(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const doSetCover = async (itemId: number): Promise<void> => {
+    if (!facts) return
+    setBusy(true)
+    try {
+      const r = await window.api.library.setSeriesCover(facts.id, itemId)
+      if (r?.success) refresh('Cover updated.')
+      else setNotice(r?.error || 'Could not set the cover')
+    } catch (err) {
+      setNotice(String(err))
+    } finally {
+      setBusy(false)
+    }
+  }
 
   const cover = useItemThumbnail(facts?.coverItemId ?? series.coverItemId)
 
@@ -161,9 +238,32 @@ export default function SeriesDetail({
         {/* ─── Title bar ────────────────────────────────────────────────── */}
         <div className="flex shrink-0 items-center gap-3 border-b border-line px-5 py-3">
           <Layers size={18} className="shrink-0 text-accent" aria-hidden="true" />
-          <h2 className="min-w-0 flex-1 truncate text-section font-semibold text-fg">
-            {facts?.name ?? series.name}
-          </h2>
+          {renaming ? (
+            <input
+              autoFocus
+              value={nameDraft}
+              disabled={busy}
+              onChange={(e) => setNameDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void doRename()
+                if (e.key === 'Escape') setRenaming(false)
+              }}
+              className="min-w-0 flex-1 rounded-lg border border-accent bg-surface px-2 py-1 text-section font-semibold text-fg"
+            />
+          ) : (
+            <h2 className="min-w-0 flex-1 truncate text-section font-semibold text-fg">
+              {facts?.name ?? series.name}
+            </h2>
+          )}
+          {renaming && (
+            <button
+              onClick={() => void doRename()}
+              disabled={busy}
+              className="shrink-0 rounded-lg bg-accent-fill px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-50"
+            >
+              {busy ? 'Renaming…' : 'Save'}
+            </button>
+          )}
           {nextUnread && (
             <button
               onClick={() => onOpenItem(nextUnread)}
@@ -213,7 +313,9 @@ export default function SeriesDetail({
                     key={item.id}
                     item={item}
                     dimmed={filtered && !item.matches}
+                    isCover={item.id === facts.coverItemId}
                     onClick={() => onOpenItem(item)}
+                    onSetCover={() => void doSetCover(item.id)}
                   />
                 ))}
               </div>
@@ -297,6 +399,65 @@ export default function SeriesDetail({
                 )}
                 {facts.tags.length > 0 && <TagRow label="Tags" names={facts.tags} type="tag" />}
               </div>
+
+              {/* ── Actions ───────────────────────────────────────────── */}
+              <div className="mt-4 space-y-2 border-t border-line pt-3">
+                <button
+                  onClick={() => {
+                    setNameDraft(facts.name)
+                    setRenaming(true)
+                  }}
+                  disabled={busy || renaming}
+                  className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-fg transition-colors hover:bg-raised disabled:opacity-50"
+                >
+                  <Pencil size={14} className="shrink-0 text-fg-muted" aria-hidden="true" />
+                  Rename series
+                </button>
+
+                <button
+                  onClick={() => setConfirmUngroup(true)}
+                  disabled={busy || confirmUngroup}
+                  className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-warning transition-colors hover:bg-warning-wash disabled:opacity-50"
+                >
+                  <Ungroup size={14} className="shrink-0" aria-hidden="true" />
+                  Ungroup this series
+                </button>
+
+                {/*
+                  Says plainly that nothing is destroyed. "Ungroup" next to a
+                  library of files reads as though it might delete or move
+                  something, and it does neither.
+                */}
+                {confirmUngroup && (
+                  <div className="rounded-lg border border-warning/40 bg-warning-wash p-2.5">
+                    <p className="text-xs text-fg">
+                      Show these {facts.totalCount} galleries separately again?
+                    </p>
+                    <p className="mt-1 text-xs text-fg-muted">
+                      No files are moved or deleted and they keep their series name. You can group
+                      them again later.
+                    </p>
+                    <div className="mt-2 flex gap-2">
+                      <button
+                        onClick={() => void doUngroup()}
+                        disabled={busy}
+                        className="rounded-lg bg-warning-fill px-2.5 py-1 text-xs font-medium text-white disabled:opacity-50"
+                      >
+                        Ungroup
+                      </button>
+                      <button
+                        onClick={() => setConfirmUngroup(false)}
+                        disabled={busy}
+                        className="rounded-lg border border-line bg-surface px-2.5 py-1 text-xs font-medium text-fg disabled:opacity-50"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {notice && <p className="text-xs text-fg-muted">{notice}</p>}
+              </div>
             </aside>
           </div>
         )}
@@ -311,11 +472,16 @@ export default function SeriesDetail({
 function MemberTile({
   item,
   dimmed,
-  onClick
+  isCover,
+  onClick,
+  onSetCover
 }: {
   item: SeriesMemberRow
   dimmed: boolean
+  /** This member's cover is the one representing the series. */
+  isCover: boolean
   onClick: () => void
+  onSetCover: () => void
 }): React.JSX.Element {
   const thumb = useItemThumbnail(item.id)
   const read = (item.readProgress ?? 0) > 0
@@ -326,13 +492,26 @@ function MemberTile({
       lift. Bare covers on the panel background read as a contact sheet rather
       than as the galleries they are, and gave nothing to aim at between them.
     */
-    <button
+    /*
+      A div rather than a button, with the cover action as a real button inside
+      it. Nesting a button in a button is invalid and the inner one would not
+      reliably receive its own clicks.
+    */
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onClick()
+        }
+      }}
       onDragStart={(e) => e.preventDefault()}
       title={item.customTitle ?? undefined}
-      className={`group flex flex-col overflow-hidden rounded-lg border border-line bg-surface text-left transition-all duration-200 hover:border-accent hover:shadow-lg ${
-        dimmed ? 'opacity-40 hover:opacity-100' : ''
-      }`}
+      className={`group flex cursor-pointer flex-col overflow-hidden rounded-lg border bg-surface text-left transition-all duration-200 hover:shadow-lg ${
+        isCover ? 'border-accent' : 'border-line hover:border-accent'
+      } ${dimmed ? 'opacity-40 hover:opacity-100' : ''}`}
     >
       <div className="relative aspect-[3/4] overflow-hidden bg-raised">
         {thumb ? (
@@ -369,6 +548,27 @@ function MemberTile({
         <span className="absolute bottom-2 right-2 rounded bg-black/70 px-1.5 py-0.5 text-xs font-medium uppercase text-white">
           {item.format || 'pdf'}
         </span>
+
+        {/*
+          The current cover says so permanently; the others offer the action on
+          hover, so the grid is not littered with buttons.
+        */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            if (!isCover) onSetCover()
+          }}
+          disabled={isCover}
+          title={isCover ? 'Series cover' : 'Use as series cover'}
+          className={`absolute bottom-2 left-2 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium transition-opacity ${
+            isCover
+              ? 'bg-accent-fill/90 text-white'
+              : 'bg-black/70 text-white opacity-0 hover:bg-black/85 group-hover:opacity-100'
+          }`}
+        >
+          <Star size={10} strokeWidth={isCover ? 3 : 2} aria-hidden="true" />
+          {isCover ? 'Cover' : 'Set'}
+        </button>
       </div>
 
       <div className="p-2.5">
@@ -379,7 +579,7 @@ function MemberTile({
           <p className="tnum mt-1 text-xs text-fg-faint">{formatBytes(item.fileSize)}</p>
         ) : null}
       </div>
-    </button>
+    </div>
   )
 }
 

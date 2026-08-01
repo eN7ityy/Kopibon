@@ -274,6 +274,7 @@ function runMigrations(sqlite: Database.Database): void {
       cover_item_id INTEGER,
       cover_path TEXT,
       is_manual INTEGER NOT NULL DEFAULT 0,
+      is_dissolved INTEGER NOT NULL DEFAULT 0,
       created_at INTEGER NOT NULL DEFAULT (unixepoch()),
       updated_at INTEGER NOT NULL DEFAULT (unixepoch())
     );
@@ -329,6 +330,11 @@ function runMigrations(sqlite: Database.Database): void {
   }
   if (!colNames.has('series_id')) {
     sqlite.exec('ALTER TABLE library_item ADD COLUMN series_id INTEGER')
+  }
+
+  const seriesCols = sqlite.prepare("PRAGMA table_info('series')").all() as Array<{ name: string }>
+  if (!seriesCols.some((c) => c.name === 'is_dissolved')) {
+    sqlite.exec('ALTER TABLE series ADD COLUMN is_dissolved INTEGER NOT NULL DEFAULT 0')
   }
 
   // The grouped library query joins on this for every page it renders.

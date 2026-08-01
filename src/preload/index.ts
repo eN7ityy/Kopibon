@@ -216,7 +216,16 @@ const api = {
     previewSeriesGrouping: () => ipcRenderer.invoke('library:previewSeriesGrouping'),
     /** Turn series grouping on (links the library) or off (setting only). */
     setSeriesGrouping: (enabled: boolean) =>
-      ipcRenderer.invoke('library:setSeriesGrouping', enabled)
+      ipcRenderer.invoke('library:setSeriesGrouping', enabled),
+    /** Rename a series in the database, in each file's metadata, and on disk. */
+    renameSeries: (seriesId: number, name: string) =>
+      ipcRenderer.invoke('library:renameSeries', seriesId, name),
+    /** Break a group up, or put it back together. Touches no files. */
+    setSeriesDissolved: (seriesId: number, dissolved: boolean) =>
+      ipcRenderer.invoke('library:setSeriesDissolved', seriesId, dissolved),
+    /** Choose which member's cover represents the series. */
+    setSeriesCover: (seriesId: number, itemId: number | null) =>
+      ipcRenderer.invoke('library:setSeriesCover', seriesId, itemId)
   },
 
   // File read (for PDF viewer)

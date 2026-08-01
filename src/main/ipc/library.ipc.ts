@@ -494,6 +494,118 @@ export function registerLibraryIpc(): void {
     }
   })
 
+  /**
+   * Rename a series everywhere it appears.
+   *
+   * A real rename, not a display label: the name is embedded in each file's
+   * metadata and is the folder the files sit in, so changing only the database
+   * would leave the app disagreeing with the disk and with Kavita.
+   *
+   * Per member: re-embed, move from `<artist>/<old>/` to `<artist>/<new>/`, then
+   * record the new path. Failures are collected rather than thrown, so one
+   * locked file cannot abandon the rename halfway with some members moved and
+   * others not.
+   */
+  handle('library:renameSeries', async (_event, seriesId: number, newName: string) => {
+    const trimmed = (newName || '').trim()
+    if (!trimmed) return { success: false, error: 'A series needs a name' }
+
+    const group = seriesRepo.findById(seriesId)
+    if (!group) return { success: false, error: 'That series no longer exists' }
+    if (trimmed === group.name) return { success: true, data: { renamed: 0, errors: undefined } }
+
+    const clash = seriesRepo.nameTakenBy(trimmed, seriesId)
+    if (clash) {
+      return {
+        success: false,
+        error: `Another series is already called "${clash.name}". Rename that one first, or assign these galleries to it instead.`
+      }
+    }
+
+    const members = seriesRepo.memberIds(seriesId).map((id) => libraryRepo.findById(id))
+    const errors: string[] = []
+    let renamed = 0
+
+    for (const item of members) {
+      if (!item) continue
+      if (isConversionLocked(item.id)) {
+        errors.push(`${basename(item.filePath)} is being converted`)
+        continue
+      }
+
+      try {
+        const { applyMetadata } = await import('../services/apply-metadata')
+        await applyMetadata(item.filePath, item.format || 'pdf', {
+          title: item.customTitle || `Gallery #${item.galleryId || item.id}`,
+          creators: [item.primaryArtist || 'Unknown'],
+          tags: item.customTags
+            ? item.customTags.split(',').map((t: string) => t.trim()).filter(Boolean)
+            : [],
+          nhentaiId: item.galleryId,
+          seriesName: trimmed,
+          seriesIndex: item.seriesIndex ?? undefined,
+          language: item.language || item.customLanguage,
+          publisher: item.publisher || undefined,
+          description: item.description || undefined
+        })
+      } catch (err) {
+        errors.push(`Could not update metadata for ${basename(item.filePath)}: ${String(err)}`)
+      }
+
+      const update: Record<string, unknown> = { seriesName: trimmed }
+
+      // Only move a file that actually sits in a folder named after the old
+      // series. Anything else was filed differently by hand, and relocating it
+      // would be a surprise rather than a rename.
+      const currentDir = dirname(item.filePath)
+      if (basename(currentDir) === group.name) {
+        const targetDir = join(dirname(currentDir), trimmed)
+        const targetPath = join(targetDir, basename(item.filePath))
+        try {
+          if (existsSync(targetPath)) {
+            errors.push(`${basename(targetPath)} already exists in the new folder`)
+          } else {
+            mkdirSync(targetDir, { recursive: true })
+            renameSync(item.filePath, targetPath)
+            update.filePath = targetPath
+          }
+        } catch (err) {
+          errors.push(`Could not move ${basename(item.filePath)}: ${String(err)}`)
+        }
+      }
+
+      libraryRepo.update(item.id, update)
+      renamed++
+    }
+
+    seriesRepo.renameRow(seriesId, trimmed)
+    regroupSeries(members.filter(Boolean).map((m) => m!.id))
+    log.info('renamed a series', { from: group.name, to: trimmed, members: renamed })
+
+    return {
+      success: true,
+      data: { renamed, errors: errors.length > 0 ? errors : undefined }
+    }
+  })
+
+  /**
+   * Break a group up, or put it back together.
+   *
+   * Nothing on disk changes and the galleries keep their series name — this is
+   * only a statement about whether they should be shown as one entry.
+   */
+  handle('library:setSeriesDissolved', async (_event, seriesId: number, dissolved: boolean) => {
+    const affected = seriesRepo.setDissolved(seriesId, dissolved)
+    log.info(dissolved ? 'dissolved a series' : 'regrouped a series', { seriesId, affected })
+    return { success: true, data: { affected } }
+  })
+
+  /** Choose which member's cover represents the series. */
+  handle('library:setSeriesCover', async (_event, seriesId: number, itemId: number | null) => {
+    seriesRepo.setCover(seriesId, { itemId })
+    return { success: true }
+  })
+
   handle('library:search', async (_event, query: string) => {
     const items = libraryRepo.searchByTitle(query)
     return { success: true, data: items }
