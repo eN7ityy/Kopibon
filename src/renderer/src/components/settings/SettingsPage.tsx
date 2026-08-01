@@ -1,9 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useSettingsStore } from '../../stores/settings.store'
 import { useConversionStore } from '../../stores/conversion.store'
-import { useUiStore } from '../../stores/ui.store'
 import { useAuthStore } from '../../stores/auth.store'
-import type { ThemeMode } from '../../stores/ui.store'
 import type { OutputFormat, PageSizeOption } from '../../stores/settings.store'
 import OriginalsCleanup from './OriginalsCleanup'
 import ProgressBar from '../shared/ProgressBar'
@@ -17,7 +15,6 @@ import {
   X,
   FolderTree,
   Globe,
-  Monitor,
   SlidersHorizontal,
   TriangleAlert,
   type LucideIcon
@@ -32,7 +29,7 @@ import Button from '../shared/Button'
  * Logs, Advanced and Danger Zone act immediately or act on their own controls,
  * so showing Save there would offer a button that does nothing.
  */
-type PaneKey = 'library' | 'nhentai' | 'interface' | 'advanced' | 'danger'
+type PaneKey = 'library' | 'nhentai' | 'advanced' | 'danger'
 
 const SETTINGS_PANES: Array<{
   key: PaneKey
@@ -44,7 +41,6 @@ const SETTINGS_PANES: Array<{
   // Account and search defaults are both nhentai-side settings, and each was a
   // pane holding very little on its own.
   { key: 'nhentai', label: 'nhentai', Icon: Globe },
-  { key: 'interface', label: 'Interface', Icon: Monitor, savable: true },
   // Tools, logs and updates are all things you go looking for rather than
   // configure, so they share a pane.
   { key: 'advanced', label: 'Advanced', Icon: SlidersHorizontal },
@@ -59,7 +55,6 @@ type ValidationState =
 
 export default function SettingsPage(): React.JSX.Element {
   const settings = useSettingsStore()
-  const ui = useUiStore()
   const auth = useAuthStore()
 
   const [pane, setPane] = useState<PaneKey>('library')
@@ -409,26 +404,6 @@ export default function SettingsPage(): React.JSX.Element {
             {pane === 'nhentai' && <SearchSettings />}
 
             {/* Interface */}
-            {pane === 'interface' && (
-              <section>
-                <h2 className="text-section font-semibold text-fg mb-3">Interface</h2>
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-sm font-medium text-fg mb-1">Theme</label>
-                    <select
-                      value={ui.theme}
-                      onChange={(e) => ui.setTheme(e.target.value as ThemeMode)}
-                      className="w-full px-3 py-2 rounded-lg border border-line bg-surface text-fg focus:outline-none focus:ring-2 focus:ring-accent"
-                    >
-                      <option value="system">System</option>
-                      <option value="light">Light</option>
-                      <option value="dark">Dark</option>
-                    </select>
-                  </div>
-                </div>
-              </section>
-            )}
-
             {/* Required tools — not bundled, and the app degrades quietly without
             them, so this is deliberately its own section rather than a footnote */}
             {pane === 'advanced' && (
@@ -463,8 +438,8 @@ export default function SettingsPage(): React.JSX.Element {
           the end, behind a boundary you have to cross deliberately.
         */}
             {pane === 'danger' && (
-              <section aria-labelledby="danger-zone" className="pt-2">
-                <div className="border-t border-danger/40 pt-5">
+              <section aria-labelledby="danger-zone">
+                <div>
                   <h2 id="danger-zone" className="text-section font-semibold text-danger mb-1">
                     Danger Zone
                   </h2>
