@@ -16,12 +16,8 @@ import {
   Trash2,
   X,
   FolderTree,
-  KeyRound,
-  Download,
-  Search,
+  Globe,
   Monitor,
-  Wrench,
-  ScrollText,
   SlidersHorizontal,
   TriangleAlert,
   type LucideIcon
@@ -36,16 +32,7 @@ import Button from '../shared/Button'
  * Logs, Advanced and Danger Zone act immediately or act on their own controls,
  * so showing Save there would offer a button that does nothing.
  */
-type PaneKey =
-  | 'library'
-  | 'account'
-  | 'downloads'
-  | 'search'
-  | 'interface'
-  | 'tools'
-  | 'logs'
-  | 'advanced'
-  | 'danger'
+type PaneKey = 'library' | 'nhentai' | 'interface' | 'advanced' | 'danger'
 
 const SETTINGS_PANES: Array<{
   key: PaneKey
@@ -53,15 +40,13 @@ const SETTINGS_PANES: Array<{
   Icon: LucideIcon
   savable?: boolean
 }> = [
-  { key: 'library', label: 'Library', Icon: FolderTree, savable: true },
-  { key: 'account', label: 'Account', Icon: KeyRound },
-  { key: 'downloads', label: 'Downloads', Icon: Download, savable: true },
-  // Not savable: this pane writes each change immediately, since its controls
-  // are individually meaningful rather than one form.
-  { key: 'search', label: 'Search', Icon: Search, savable: false },
+  { key: 'library', label: 'Library & Downloads', Icon: FolderTree, savable: true },
+  // Account and search defaults are both nhentai-side settings, and each was a
+  // pane holding very little on its own.
+  { key: 'nhentai', label: 'nhentai', Icon: Globe },
   { key: 'interface', label: 'Interface', Icon: Monitor, savable: true },
-  { key: 'tools', label: 'Required Tools', Icon: Wrench },
-  { key: 'logs', label: 'Logs', Icon: ScrollText },
+  // Tools, logs and updates are all things you go looking for rather than
+  // configure, so they share a pane.
   { key: 'advanced', label: 'Advanced', Icon: SlidersHorizontal },
   { key: 'danger', label: 'Danger Zone', Icon: TriangleAlert }
 ]
@@ -227,7 +212,7 @@ export default function SettingsPage(): React.JSX.Element {
             )}
 
             {/* Nhentai Account */}
-            {pane === 'account' && (
+            {pane === 'nhentai' && (
               <section>
                 <h2 className="text-section font-semibold text-fg mb-3">Nhentai Account</h2>
                 <div className="space-y-3">
@@ -291,7 +276,7 @@ export default function SettingsPage(): React.JSX.Element {
             )}
 
             {/* Downloads */}
-            {pane === 'downloads' && (
+            {pane === 'library' && (
               <section>
                 <h2 className="text-section font-semibold text-fg mb-3">Downloads</h2>
                 <div className="space-y-3">
@@ -421,7 +406,7 @@ export default function SettingsPage(): React.JSX.Element {
               </section>
             )}
 
-            {pane === 'search' && <SearchSettings />}
+            {pane === 'nhentai' && <SearchSettings />}
 
             {/* Interface */}
             {pane === 'interface' && (
@@ -446,14 +431,14 @@ export default function SettingsPage(): React.JSX.Element {
 
             {/* Required tools — not bundled, and the app degrades quietly without
             them, so this is deliberately its own section rather than a footnote */}
-            {pane === 'tools' && (
+            {pane === 'advanced' && (
               <section>
                 <h2 className="text-section font-semibold text-fg mb-3">Required Tools</h2>
                 <ToolchainStatus />
               </section>
             )}
 
-            {pane === 'logs' && <LogsPage />}
+            {pane === 'advanced' && <LogsPage />}
 
             {/* Advanced */}
             {pane === 'advanced' && (
