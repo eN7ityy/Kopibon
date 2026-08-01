@@ -96,6 +96,33 @@ const api = {
       tagFilters?: string[]
       showUnmatchedOnly?: boolean
     }) => ipcRenderer.invoke('library:getPaginated', params),
+    /**
+     * One page with series collapsed into single rows.
+     *
+     * Rows come back tagged 'item' or 'series'. When grouping is switched off
+     * every row is an 'item', so the caller does not branch on the setting.
+     */
+    getPaginatedGrouped: (params: {
+      offset: number
+      limit: number
+      sortField?: string
+      searchQuery?: string
+      artistFilters?: string[]
+      seriesFilters?: string[]
+      tagFilters?: string[]
+      showUnmatchedOnly?: boolean
+    }) => ipcRenderer.invoke('library:getPaginatedGrouped', params),
+    /** Item ids a series card stands for, honouring the active filters. */
+    getSeriesMembers: (
+      seriesId: number,
+      params?: {
+        searchQuery?: string
+        artistFilters?: string[]
+        seriesFilters?: string[]
+        tagFilters?: string[]
+        showUnmatchedOnly?: boolean
+      }
+    ) => ipcRenderer.invoke('library:getSeriesMembers', seriesId, params ?? {}),
     getByGalleryId: (galleryId: number) => ipcRenderer.invoke('library:getByGalleryId', galleryId),
     /** Ids of every item matching the given filters, ignoring pagination. */
     getAllIds: (params: {

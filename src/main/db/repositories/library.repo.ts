@@ -1,6 +1,13 @@
 import { eq, like, desc, sql, and, or, ne, inArray, isNull } from 'drizzle-orm'
 import { getDatabase } from '../connection'
 import { libraryItem, libraryItemArtist, libraryScanLog } from '../schema'
+import {
+  DEFAULT_MIN_SERIES_MEMBERS,
+  findVolumeGaps,
+  mergeSeriesFacts,
+  pickSeriesCover,
+  sortSeriesMembers
+} from '../../services/series-grouping'
 import type { InferSelectModel, InferInsertModel, SQL } from 'drizzle-orm'
 
 /**
@@ -84,6 +91,182 @@ function buildLibraryFilter(params: LibraryFilterParams): SQL | undefined {
   return conditions.length > 0 ? and(...conditions) : undefined
 }
 
+// ─── Grouped rows ────────────────────────────────────────────────────────────
+
+/** A series as the library grid needs it. */
+export interface SeriesCardData {
+  id: number
+  /** Display name: the sort override when set, otherwise the metadata name. */
+  name: string
+  /** Members matching the active filter. Equals `totalCount` when unfiltered. */
+  matchCount: number
+  /** Members in the whole series, which is the "of 15" the card reports. */
+  totalCount: number
+  addedAt: number
+  fileSize: number
+  /** Member to draw the cover from, resolved through any override. */
+  coverItemId: number | null
+  /** A hand-picked image, which wins over `coverItemId`. */
+  coverPath: string | null
+  /** 'pdf', 'cbz', or 'mixed' while a conversion is part-done. */
+  format: string | null
+  artists: string[]
+  /**
+   * Raw stored language values, deduplicated only by case and ordered by how
+   * many members carry each. `eng` and `english` are still two entries here —
+   * knowing they are one language is display formatting, which belongs to the
+   * renderer's `mergeDisplayLanguages`, not to main.
+   */
+  languages: string[]
+  tags: string[]
+  /** Whole volumes absent from the middle of the run. */
+  gaps: number[]
+}
+
+export type LibraryRow =
+  { kind: 'item'; item: LibraryItem } | { kind: 'series'; series: SeriesCardData }
+
+/** Reading order for rows shaped as they come out of SQL. */
+function sortSeriesMembersRows<
+  T extends { id: number; series_index: number | null; custom_title: string | null }
+>(rows: readonly T[]): T[] {
+  const order = sortSeriesMembers(
+    rows.map((r) => ({ id: r.id, seriesIndex: r.series_index, title: r.custom_title ?? '' }))
+  )
+  const byId = new Map(rows.map((r) => [r.id, r]))
+  return order.map((m) => byId.get(m.id)!).filter(Boolean)
+}
+
+interface MemberRow {
+  id: number
+  series_id: number
+  series_index: number | null
+  custom_title: string | null
+  format: string | null
+  language: string | null
+  custom_language: string | null
+  primary_artist: string | null
+  custom_tags: string | null
+  file_size: number | null
+  added_at: number
+  matches: number
+}
+
+/**
+ * Turn the thin index into the rows the grid renders.
+ *
+ * Items and series are fetched in one query each regardless of how many of
+ * either the page holds, then put back into the order the index established.
+ */
+function hydrateRows(
+  index: ReadonlyArray<{ kind: string; id: number; match_count: number; total_count: number }>,
+  filter: SQL
+): LibraryRow[] {
+  const db = getDatabase()
+  const itemIds = index.filter((r) => r.kind === 'item').map((r) => r.id)
+  const seriesIds = index.filter((r) => r.kind === 'series').map((r) => r.id)
+
+  const itemsById = new Map<number, LibraryItem>()
+  if (itemIds.length > 0) {
+    for (const item of db
+      .select()
+      .from(libraryItem)
+      .where(inArray(libraryItem.id, itemIds))
+      .all()) {
+      itemsById.set(item.id, item)
+    }
+  }
+
+  const cardsById = new Map<number, SeriesCardData>()
+  if (seriesIds.length > 0) {
+    const groups = db.all(
+      sql`SELECT id, name, sort_name, cover_item_id, cover_path FROM series
+           WHERE id IN (${sql.join(
+             seriesIds.map((id) => sql`${id}`),
+             sql`, `
+           )})`
+    ) as Array<{
+      id: number
+      name: string
+      sort_name: string | null
+      cover_item_id: number | null
+      cover_path: string | null
+    }>
+
+    // Every member of every series on this page, carrying whether it matched.
+    // Fetching all members rather than only matching ones is what lets the
+    // cover stay stable under a filter while the facts follow the match.
+    const members = db.all(
+      sql`SELECT id, series_id, series_index, custom_title, format, language,
+                 custom_language, primary_artist, custom_tags, file_size, added_at,
+                 CASE WHEN ${filter} THEN 1 ELSE 0 END AS matches
+            FROM library_item
+           WHERE series_id IN (${sql.join(
+             seriesIds.map((id) => sql`${id}`),
+             sql`, `
+           )})`
+    ) as MemberRow[]
+
+    const bySeries = new Map<number, MemberRow[]>()
+    for (const member of members) {
+      const bucket = bySeries.get(member.series_id)
+      if (bucket) bucket.push(member)
+      else bySeries.set(member.series_id, [member])
+    }
+
+    for (const group of groups) {
+      const all = bySeries.get(group.id) ?? []
+      const matching = all.filter((m) => m.matches === 1)
+      // Facts describe what matched; an unfiltered page matches everything, so
+      // this is the whole series in the normal case.
+      const facts = mergeSeriesFacts(
+        matching.map((m) => ({
+          format: m.format,
+          language: m.language,
+          customLanguage: m.custom_language,
+          primaryArtist: m.primary_artist,
+          customTags: m.custom_tags
+        }))
+      )
+
+      const cover = pickSeriesCover(
+        all.map((m) => ({ id: m.id, seriesIndex: m.series_index, title: m.custom_title ?? '' })),
+        { coverItemId: group.cover_item_id, coverPath: group.cover_path }
+      )
+
+      cardsById.set(group.id, {
+        id: group.id,
+        name: group.sort_name?.trim() || group.name,
+        matchCount: matching.length,
+        totalCount: all.length,
+        addedAt: matching.reduce((max, m) => Math.max(max, m.added_at ?? 0), 0),
+        fileSize: matching.reduce((sum, m) => sum + (m.file_size ?? 0), 0),
+        coverItemId: cover && 'memberId' in cover ? cover.memberId : null,
+        coverPath: cover && 'coverPath' in cover ? cover.coverPath : null,
+        format: facts.format,
+        artists: facts.artists,
+        languages: facts.languages,
+        tags: facts.tags,
+        // Gaps describe the series, not the filtered slice: "volume 3 missing"
+        // is a fact about the collection, and computing it over a match would
+        // report a gap for every volume the search excluded.
+        gaps: findVolumeGaps(all.map((m) => m.series_index))
+      })
+    }
+  }
+
+  const rows: LibraryRow[] = []
+  for (const entry of index) {
+    if (entry.kind === 'item') {
+      const item = itemsById.get(entry.id)
+      if (item) rows.push({ kind: 'item', item })
+    } else {
+      const series = cardsById.get(entry.id)
+      if (series) rows.push({ kind: 'series', series })
+    }
+  }
+  return rows
+}
 export const libraryRepo = {
   findAll(): LibraryItem[] {
     const db = getDatabase()
@@ -248,6 +431,139 @@ export const libraryRepo = {
       .all()
   },
 
+  /**
+   * One page of the library with series collapsed into single rows.
+   *
+   * Returns a thin index first and hydrates it in two follow-up queries rather
+   * than UNIONing full item rows against series aggregates. `library_item` has
+   * two dozen columns; null-padding them across the union to match an aggregate
+   * shape would be unreadable and would break the moment a column is added.
+   *
+   * ── How a filter interacts with a group ──────────────────────────────────
+   *
+   * A series matches when any member does, and then **the row represents only
+   * its matching members**: date, size, artists, languages and tags are all
+   * computed over that subset, and the card reports "3 of 15". This is the
+   * whole reason the grouping stays honest under a search — a series does not
+   * claim fifteen results when three matched, and does not sort by the date of
+   * a volume that was filtered out.
+   *
+   * The cover is the deliberate exception: it comes from the whole series, not
+   * the matching subset, because it identifies the series rather than
+   * summarising it. A group that changed its cover depending on the search box
+   * would read as a different group.
+   */
+  findPaginatedGrouped(
+    params: LibraryFilterParams & {
+      offset: number
+      limit: number
+      sortField?: 'added' | 'title' | 'artist'
+      minMembers?: number
+    }
+  ): { rows: LibraryRow[]; total: number; galleries: number } {
+    const db = getDatabase()
+    const min = params.minMembers ?? DEFAULT_MIN_SERIES_MEMBERS
+
+    // The same predicate the ungrouped list and "select all" use. Sharing it is
+    // what stops the grid and a batch action from disagreeing about which items
+    // are on screen; a second copy here would drift and delete the wrong rows.
+    const filter = buildLibraryFilter(params) ?? sql`1`
+
+    // A group is one whose member count clears the threshold. Deliberately
+    // counted over all members, not matching ones, so a 15-volume series with a
+    // single match is still presented as a series.
+    const grouped = sql`
+      SELECT series_id, COUNT(*) AS total
+        FROM library_item
+       WHERE series_id IS NOT NULL
+       GROUP BY series_id
+      HAVING COUNT(*) >= ${min}
+    `
+
+    /*
+     * Both branches reference `library_item` unaliased so the predicate above —
+     * which Drizzle renders as "library_item"."column" — resolves inside each.
+     */
+    const unioned = sql`
+      SELECT 'series' AS kind,
+             s.id AS id,
+             COALESCE(s.sort_name, s.name) AS sort_title,
+             MIN(library_item.primary_artist) FILTER (WHERE ${filter}) AS sort_artist,
+             MAX(library_item.added_at) FILTER (WHERE ${filter}) AS sort_added,
+             COUNT(*) FILTER (WHERE ${filter}) AS match_count,
+             g.total AS total_count
+        FROM series s
+        JOIN (${grouped}) g ON g.series_id = s.id
+        JOIN library_item ON library_item.series_id = s.id
+       GROUP BY s.id
+      HAVING match_count > 0
+      UNION ALL
+      SELECT 'item',
+             library_item.id,
+             library_item.custom_title,
+             library_item.primary_artist,
+             library_item.added_at,
+             1,
+             1
+        FROM library_item
+       WHERE (library_item.series_id IS NULL
+              OR library_item.series_id NOT IN (SELECT series_id FROM (${grouped})))
+         AND ${filter}
+    `
+
+    let orderBy: SQL
+    switch (params.sortField) {
+      case 'title':
+        orderBy = sql`sort_title COLLATE NOCASE ASC`
+        break
+      case 'artist':
+        // A series sorts under its alphabetically first contributing artist.
+        // Only 12 of 239 groups span more than one artist — the on-disk layout
+        // is artist/series — so this is an exact answer nearly always, and a
+        // stable one otherwise.
+        orderBy = sql`sort_artist COLLATE NOCASE ASC`
+        break
+      case 'added':
+      default:
+        orderBy = sql`sort_added DESC`
+        break
+    }
+
+    const index = db.all(
+      sql`SELECT * FROM (${unioned}) ORDER BY ${orderBy} LIMIT ${params.limit} OFFSET ${params.offset}`
+    ) as Array<{ kind: string; id: number; match_count: number; total_count: number }>
+
+    // Two counts, because they answer different questions: how many rows the
+    // grid will scroll through, and how many galleries actually matched. A
+    // grouped view that reported only the first would understate the result.
+    const totals = db.get(
+      sql`SELECT COUNT(*) AS rows, COALESCE(SUM(match_count), 0) AS galleries FROM (${unioned})`
+    ) as { rows: number; galleries: number } | undefined
+
+    return {
+      rows: hydrateRows(index, filter),
+      total: totals?.rows ?? 0,
+      galleries: totals?.galleries ?? 0
+    }
+  },
+
+  /**
+   * The matching members of one group, in reading order.
+   *
+   * Selecting a series card has to resolve to galleries, and under a filter it
+   * must resolve to the ones the card counted — otherwise a card reading "3 of
+   * 15" would hand fifteen files to a delete.
+   */
+  matchingMemberIds(seriesId: number, params: LibraryFilterParams = {}): number[] {
+    const db = getDatabase()
+    const filter = buildLibraryFilter(params) ?? sql`1`
+    const rows = db.all(
+      sql`SELECT id, series_index, custom_title FROM library_item
+           WHERE series_id = ${seriesId} AND ${filter}`
+    ) as Array<{ id: number; series_index: number | null; custom_title: string | null }>
+
+    return sortSeriesMembersRows(rows).map((r) => r.id)
+  },
   count(): number {
     const db = getDatabase()
     const result = db

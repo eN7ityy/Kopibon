@@ -287,6 +287,72 @@ export function registerLibraryIpc(): void {
     }
   )
 
+  /**
+   * One page of the library with series collapsed into single rows.
+   *
+   * Whether grouping applies is read here rather than taken from the caller, so
+   * the setting has one reader and the grid cannot end up grouped while a batch
+   * action running a moment later is not. When it is off this returns rows in
+   * the same shape, every one of them an item, so the renderer has a single
+   * code path instead of two.
+   */
+  handle(
+    'library:getPaginatedGrouped',
+    async (
+      _event,
+      params: {
+        offset: number
+        limit: number
+        sortField?: string
+        searchQuery?: string
+        artistFilters?: string[]
+        seriesFilters?: string[]
+        tagFilters?: string[]
+        showUnmatchedOnly?: boolean
+      }
+    ) => {
+      const sortField = params.sortField as 'added' | 'title' | 'artist' | undefined
+
+      if (settingsRepo.get('seriesGrouping') !== 'true') {
+        const flat = libraryRepo.findPaginated({ ...params, sortField })
+        return {
+          success: true,
+          data: {
+            rows: flat.items.map((item) => ({ kind: 'item' as const, item })),
+            total: flat.total,
+            galleries: flat.total
+          }
+        }
+      }
+
+      return { success: true, data: libraryRepo.findPaginatedGrouped({ ...params, sortField }) }
+    }
+  )
+
+  /**
+   * The galleries a series card stands for, in reading order.
+   *
+   * Takes the active filters because a card reading "3 of 15" must resolve to
+   * those three — handing a delete the other twelve would be the worst possible
+   * surprise this feature could produce.
+   */
+  handle(
+    'library:getSeriesMembers',
+    async (
+      _event,
+      seriesId: number,
+      params: {
+        searchQuery?: string
+        artistFilters?: string[]
+        seriesFilters?: string[]
+        tagFilters?: string[]
+        showUnmatchedOnly?: boolean
+      } = {}
+    ) => {
+      return { success: true, data: libraryRepo.matchingMemberIds(seriesId, params) }
+    }
+  )
+
   handle('library:search', async (_event, query: string) => {
     const items = libraryRepo.searchByTitle(query)
     return { success: true, data: items }

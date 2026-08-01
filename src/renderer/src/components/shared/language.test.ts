@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { displayLanguage } from './language'
+import { displayLanguage, mergeDisplayLanguages } from './language'
 
 /**
  * The stored language data is inconsistent because it accumulated from several
@@ -79,5 +79,37 @@ describe('displayLanguage — nothing to show', () => {
     // order, and item.language is null on every row in practice.
     expect(displayLanguage(null, 'eng')).toBe('English')
     expect(displayLanguage(null, null)).toBeNull()
+  })
+})
+
+describe('mergeDisplayLanguages — series', () => {
+  it('collapses the spellings that made one series look trilingual', () => {
+    // Straight from a card built against the real library: a fifteen-volume
+    // series reported eng, english and zho. It holds two languages.
+    expect(mergeDisplayLanguages(['eng', 'english', 'zho'])).toEqual(['English', 'Chinese'])
+  })
+
+  it('leads with the most common spelling, which arrives first', () => {
+    expect(mergeDisplayLanguages(['zho', 'eng'])).toEqual(['Chinese', 'English'])
+    expect(mergeDisplayLanguages(['eng', 'zho'])).toEqual(['English', 'Chinese'])
+  })
+
+  it('drops values it cannot place rather than showing them raw', () => {
+    expect(mergeDisplayLanguages(['eng', 'rewrite', 'speechless'])).toEqual(['English'])
+  })
+
+  it('keeps Translated only when nothing real is present', () => {
+    // Same rule displayLanguage uses: it is a tag type, not a language.
+    expect(mergeDisplayLanguages(['translated', 'eng'])).toEqual(['English'])
+    expect(mergeDisplayLanguages(['translated'])).toEqual(['Translated'])
+  })
+
+  it('returns nothing for a series with no usable language', () => {
+    expect(mergeDisplayLanguages([])).toEqual([])
+    expect(mergeDisplayLanguages(['', '   '])).toEqual([])
+  })
+
+  it('treats a mono-language series as one label, not one per member', () => {
+    expect(mergeDisplayLanguages(['eng', 'en', 'english', 'EN'])).toEqual(['English'])
   })
 })

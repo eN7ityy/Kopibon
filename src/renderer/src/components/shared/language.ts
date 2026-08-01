@@ -81,3 +81,34 @@ export function displayLanguage(
 
   return null
 }
+
+/**
+ * Every distinct language across a series, as labels.
+ *
+ * A series card gets the raw stored values of its members, which is how a
+ * fifteen-volume series came out claiming three languages — `eng`, `english`
+ * and `zho` — when it holds two. Main deduplicates only by case, deliberately:
+ * it has no business knowing that `eng` and `english` are one thing, for the
+ * same reason `displayLanguage` lives here and not there.
+ *
+ * Input order is by how many members carry each raw spelling, and first-seen
+ * order is preserved, so the dominant language leads. That ordering is
+ * approximate in one case: two spellings of the same language that each rank
+ * below a different language stay below it after merging. Cosmetic, and not
+ * worth shipping member counts across IPC to fix.
+ */
+export function mergeDisplayLanguages(raw: readonly string[]): string[] {
+  const seen = new Set<string>()
+  const labels: string[] = []
+  for (const value of raw) {
+    const label = displayLanguage(value)
+    if (!label || seen.has(label)) continue
+    seen.add(label)
+    labels.push(label)
+  }
+
+  // 'Translated' is a tag type, not a language. It earns a place only when
+  // nothing else identified one — the same rule displayLanguage applies.
+  const real = labels.filter((l) => l !== 'Translated')
+  return real.length > 0 ? real : labels
+}
