@@ -209,7 +209,9 @@ const api = {
     getCbzConversionState: () => ipcRenderer.invoke('library:getCbzConversionState'),
     syncItem: (itemId: number) => ipcRenderer.invoke('library:syncItem', itemId),
     syncBatch: (ids: number[]) => ipcRenderer.invoke('library:syncBatch', ids),
-    isSyncing: (itemId: number) => ipcRenderer.invoke('library:isSyncing', itemId)
+    isSyncing: (itemId: number) => ipcRenderer.invoke('library:isSyncing', itemId),
+    /** Stop a running batch sync after the item currently in flight. */
+    cancelSync: () => ipcRenderer.invoke('library:cancelSync')
   },
 
   // File read (for PDF viewer)
@@ -314,11 +316,17 @@ const api = {
     return () => ipcRenderer.removeListener('library:syncProgress', handler)
   },
   onSyncComplete: (
-    callback: (data: { succeeded: number; failed: number; total: number }) => void
+    callback: (data: {
+      succeeded: number
+      failed: number
+      total: number
+      /** True when the run was stopped early rather than finishing. */
+      cancelled?: boolean
+    }) => void
   ) => {
     const handler = (
       _event: Electron.IpcRendererEvent,
-      data: { succeeded: number; failed: number; total: number }
+      data: { succeeded: number; failed: number; total: number; cancelled?: boolean }
     ) => callback(data)
     ipcRenderer.on('library:syncComplete', handler)
     return () => ipcRenderer.removeListener('library:syncComplete', handler)

@@ -23,7 +23,7 @@ export interface SyncProgressState {
     title: string
     etaSeconds: number | null
   }) => void
-  complete: (succeeded: number, failed: number, total: number) => void
+  complete: (succeeded: number, failed: number, total: number, cancelled?: boolean) => void
   reset: () => void
 }
 
@@ -40,15 +40,20 @@ export const useSyncProgressStore = create<SyncProgressState>()((set) => ({
 
   updateProgress: (p) => set({ running: true, lastMessage: null, ...p }),
 
-  complete: (succeeded, failed, total) => {
+  complete: (succeeded, failed, total, cancelled = false) => {
     const parts = [`${succeeded} succeeded`]
     if (failed > 0) parts.push(`${failed} failed`)
+    const attempted = succeeded + failed
     set({
       running: false,
-      current: total,
+      // A cancelled run stops partway, so the bar must not jump to full — that
+      // would read as though everything had been synced.
+      current: cancelled ? attempted : total,
       total,
       etaSeconds: null,
-      lastMessage: `Sync complete: ${parts.join(', ')}`
+      lastMessage: cancelled
+        ? `Sync cancelled after ${attempted} of ${total}: ${parts.join(', ')}`
+        : `Sync complete: ${parts.join(', ')}`
     })
     setTimeout(() => {
       if (!useSyncProgressStore.getState().running) {
@@ -92,7 +97,7 @@ export function setupSyncProgressListeners(): () => void {
   const offComplete = window.api.onSyncComplete((d) => {
     recentTimes.length = 0
     lastUpdate = 0
-    useSyncProgressStore.getState().complete(d.succeeded, d.failed, d.total)
+    useSyncProgressStore.getState().complete(d.succeeded, d.failed, d.total, d.cancelled)
   })
 
   return () => {

@@ -169,6 +169,21 @@ const ENDPOINT_LIMITS: Record<EndpointKey, { anon: number; auth: number }> = {
 }
 
 /**
+ * The documented requests-per-minute for one endpoint group.
+ *
+ * Exposed because the batch sync has to pace itself and cannot use the limiter
+ * below: it runs the fetch inside a worker thread, and the buckets live in the
+ * main process. Reading the same table means the sync's pacing and the
+ * limiter's cannot drift apart — the sync previously carried a hardcoded
+ * three-second delay, which is the anonymous rate, so an API key made no
+ * difference to it.
+ */
+export function endpointLimitPerMinute(key: EndpointKey, authenticated: boolean): number {
+  const limits = ENDPOINT_LIMITS[key]
+  return authenticated ? limits.auth : limits.anon
+}
+
+/**
  * Holds one bucket per endpoint group and swaps between the anonymous and
  * authenticated limit sets.
  */

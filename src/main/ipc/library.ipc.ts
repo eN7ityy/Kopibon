@@ -27,6 +27,7 @@ import { handle } from './handle'
 import { getLogger } from '../services/logger'
 import { attachWorkerLogForwarding } from '../services/worker-logger'
 import { sortNatural } from '../services/natural-sort'
+import { endpointLimitPerMinute } from '../services/rate-limiter'
 
 const log = getLogger('library')
 
@@ -1647,6 +1648,19 @@ export function registerLibraryIpc(): void {
 
   const syncingItems = new Set<number>()
 
+  /**
+   * Set by library:cancelSync, cleared when a batch starts.
+   *
+   * Sync was the only long-running job with no way to stop it — the scan and
+   * both conversions have had one all along, and the progress stack renders a
+   * cancel button for every job that supplies a handler.
+   *
+   * Cancelling stops the loop after the item in flight. The worker is left to
+   * finish rather than being terminated mid-write: a sync rewrites the archive
+   * in place, and killing it partway is how a file gets corrupted.
+   */
+  let syncCancelled = false
+
   function spawnSyncWorker(
     itemId: number,
     nhentaiId: number,
@@ -1835,6 +1849,20 @@ export function registerLibraryIpc(): void {
     }
   )
 
+  /**
+   * Stop a running batch sync.
+   *
+   * Takes effect before the next item rather than interrupting the one in
+   * flight. A sync rewrites the archive in place, so tearing its worker down
+   * mid-write is how a file ends up truncated — the same reasoning the CBZ
+   * conversion cancel already follows.
+   */
+  handle('library:cancelSync', async () => {
+    syncCancelled = true
+    log.info('sync cancellation requested')
+    return { success: true }
+  })
+
   handle(
     'library:syncBatch',
     async (event, ids: number[]) => {
@@ -1843,8 +1871,28 @@ export function registerLibraryIpc(): void {
       )
       let succeeded = 0
       let failed = 0
+      let cancelled = false
       const total = ids.length
       const startTime = Date.now()
+      syncCancelled = false
+
+      /*
+       * Pace from the documented limit for the endpoint the worker calls, not
+       * from a constant.
+       *
+       * This was a flat three-second sleep *on top of* each item's work. Three
+       * seconds is 60/20, the anonymous rate for GET /galleries/{id}, so an API
+       * key — which raises that endpoint to 45/min — bought nothing.
+       *
+       * The worker fetches from its own thread and cannot reach the limiter in
+       * this process, so this pacing stands in for it. It runs slightly under
+       * the documented ceiling: tripping a 429 costs a Retry-After wait far
+       * longer than the few requests a minute being given up here.
+       */
+      const limit = endpointLimitPerMinute('gallery', Boolean(getStoredApiKey()))
+      const target = Math.max(1, Math.floor(limit * 0.9))
+      const intervalMs = Math.ceil(60_000 / target)
+      log.info('sync batch pacing', { items: total, limit, target, intervalMs })
 
       if (win) {
         win.webContents.send('library:syncProgress', {
@@ -1856,6 +1904,11 @@ export function registerLibraryIpc(): void {
       }
 
       for (let i = 0; i < ids.length; i++) {
+        if (syncCancelled) {
+          cancelled = true
+          break
+        }
+        const startedItemAt = Date.now()
         const item = libraryRepo.findById(ids[i])
         if (
           !item ||
@@ -1897,8 +1950,15 @@ export function registerLibraryIpc(): void {
           )
         }
 
-        if (i < ids.length - 1) {
-          await new Promise((r) => setTimeout(r, 3000))
+        /*
+         * Sleep only what is left of the interval. The fetch and the archive
+         * rewrite already consumed part of it — on a 30 MB CBZ that is around a
+         * second — and the old code added its delay on top instead of counting
+         * it, so every item cost the work plus the full wait.
+         */
+        if (i < ids.length - 1 && !syncCancelled) {
+          const remaining = intervalMs - (Date.now() - startedItemAt)
+          if (remaining > 0) await new Promise((r) => setTimeout(r, remaining))
         }
       }
 
@@ -1906,7 +1966,8 @@ export function registerLibraryIpc(): void {
         win.webContents.send('library:syncComplete', {
           succeeded,
           failed,
-          total
+          total,
+          cancelled
         })
       }
 
@@ -1914,8 +1975,12 @@ export function registerLibraryIpc(): void {
         try {
           const { Notification } = require('electron')
           new Notification({
-            title: 'Nhentai Sync Complete',
-            body: `${succeeded} succeeded, ${failed} failed (${ids.length} total)`
+            title: cancelled ? 'Nhentai Sync Cancelled' : 'Nhentai Sync Complete',
+            // Reports what was attempted, not the batch size, so a cancelled
+            // run does not read as though most of it silently failed.
+            body: cancelled
+              ? `Stopped after ${succeeded + failed} of ${total} — ${succeeded} succeeded, ${failed} failed`
+              : `${succeeded} succeeded, ${failed} failed (${total} total)`
           }).show()
         } catch {
           /* notification is best-effort */

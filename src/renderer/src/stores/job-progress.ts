@@ -58,6 +58,10 @@ export function useGlobalJobs(): ProgressJob[] {
       total: sync.total,
       etaSeconds: sync.etaSeconds,
       tone: 'read',
+      // Sync was the only job in this stack without one. It stops after the
+      // item in flight rather than mid-write, since a sync rewrites the archive
+      // in place.
+      onCancel: sync.running ? () => void window.api.library.cancelSync() : undefined,
       done: !sync.running
     })
   }
