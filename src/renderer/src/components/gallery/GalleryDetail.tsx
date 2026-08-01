@@ -455,7 +455,7 @@ export default function GalleryDetailPanel({
               {detail.scanlator && (
                 <div className="flex justify-between">
                   <span>Scanlator</span>
-                  <span className="inline-flex items-center gap-1.5 font-medium text-fg">{detail.scanlator}</span>
+                  <span className="font-medium text-fg">{detail.scanlator}</span>
                 </div>
               )}
             </div>
@@ -464,8 +464,9 @@ export default function GalleryDetailPanel({
             <div className="space-y-3">
               {isInLibrary && !showRedownloadConfirm ? (
                 <>
-                  <div className="px-4 py-3 rounded-lg bg-success-wash text-success text-center font-medium">
-                    <Check size={16} aria-hidden="true" /> Already in Library
+                  <div className="flex items-center justify-center gap-1.5 px-4 py-3 rounded-lg bg-success-wash text-success font-medium">
+                    <Check size={16} aria-hidden="true" />
+                    Already in Library
                   </div>
                   <button
                     onClick={async () => {
@@ -510,8 +511,9 @@ export default function GalleryDetailPanel({
                   <p className="text-sm text-warning">
                     This gallery already exists in your library.
                     {libraryPath && (
-                      <span className="inline-flex items-center gap-1.5 block mt-1 text-xs opacity-75 truncate">
-                        <FolderOpen size={12} aria-hidden="true" /> {libraryPath}
+                      <span className="mt-1 flex items-center gap-1.5 text-xs opacity-75">
+                        <FolderOpen size={12} className="shrink-0" aria-hidden="true" />
+                        <span className="truncate">{libraryPath}</span>
                       </span>
                     )}
                   </p>
