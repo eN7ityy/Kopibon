@@ -99,6 +99,14 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
       const asBool = (value: string | undefined, fallback: boolean): boolean =>
         value === undefined ? fallback : value === 'true'
 
+      let defaults: { thumbnailPath?: string; originalsPath?: string } = {}
+      try {
+        const r = await window.api.library.getDefaultPaths()
+        if (r?.success && r.data) defaults = r.data
+      } catch {
+        // Without them the field simply stays empty, which still works.
+      }
+
       const asNumber = (value: string | undefined, fallback: number): number => {
         const n = Number(value)
         return Number.isFinite(n) ? n : fallback
@@ -106,7 +114,10 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
 
       set({
         libraryPath: settings.libraryPath || DEFAULT_LIBRARY_PATH,
-        thumbnailPath: settings.thumbnailPath || '',
+        // Prefilled with the resolved default when unset, so the field shows the
+        // real path instead of an empty box. Fetched from main because only it
+        // knows the per-platform userData location.
+        thumbnailPath: settings.thumbnailPath || defaults.thumbnailPath || '',
         originalsPath: settings.originalsPath || '',
         downloadConcurrency: asNumber(settings.downloadConcurrency, 3),
         outputFormat: (settings.outputFormat as OutputFormat) ?? 'pdf',

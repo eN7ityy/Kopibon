@@ -149,6 +149,8 @@ const api = {
     /** Outstanding conversion work left by an interrupted run. */
     getConversionQueue: () => ipcRenderer.invoke('library:getConversionQueue'),
     clearConversionQueue: () => ipcRenderer.invoke('library:clearConversionQueue'),
+    /** The paths the thumbnail and originals settings fall back to when unset. */
+    getDefaultPaths: () => ipcRenderer.invoke('library:getDefaultPaths'),
     getOriginalsInfo: () => ipcRenderer.invoke('library:getOriginalsInfo'),
     /** Base64 JPEG preview of a source's first page, for the add-entry form. */
     previewSource: (sourcePath: string, sourceType: 'pdf' | 'images') =>

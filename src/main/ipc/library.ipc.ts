@@ -2461,6 +2461,24 @@ export function registerLibraryIpc(): void {
     return { files, bytes, lossyFiles, lossyBytes }
   }
 
+  /**
+   * The paths these settings fall back to when unset.
+   *
+   * Exposed so the settings fields can show the real default rather than an
+   * empty box with a vague placeholder. Resolved here because only main knows
+   * the per-platform userData location — hardcoding the Linux path in the
+   * renderer would be wrong on Windows.
+   */
+  handle('library:getDefaultPaths', async () => {
+    return {
+      success: true,
+      data: {
+        thumbnailPath: join(app.getPath('userData'), 'thumbnails'),
+        originalsPath: resolveOriginalsRoot()
+      }
+    }
+  })
+
   handle('library:getOriginalsInfo', async () => {
     const root = resolveOriginalsRoot()
     if (!root || !existsSync(root)) {

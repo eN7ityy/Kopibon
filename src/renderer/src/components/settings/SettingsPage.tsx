@@ -207,7 +207,7 @@ export default function SettingsPage(): React.JSX.Element {
                     onChange={settings.setThumbnailPath}
                     placeholder="Default (app data folder)"
                     browseFrom={settings.libraryPath}
-                    hint="Where cover images are cached, one small file per item. Leave empty for the app data folder. Do not point this at a temporary location — a cache under /tmp is wiped on reboot and every cover disappears."
+                    hint="Where cover images are cached, one small file per item. Do not point this at a temporary location."
                   />
                 </div>
               </section>
