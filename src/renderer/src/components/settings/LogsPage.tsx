@@ -33,6 +33,16 @@ function getLogApi(): LogApi {
 
 const LEVEL_NAMES: LogLevel[] = ['error', 'warn', 'info', 'debug']
 
+/**
+ * How many lines the panel shows.
+ *
+ * A short tail rather than a scrolling window: this is a glance at what the app
+ * is doing, and anything more than that is better read in the log file itself,
+ * which "Open log folder" reaches. The full history is still in the ring buffer
+ * and still exported by the diagnostics bundle.
+ */
+const TAIL_LINES = 10
+
 const LEVEL_COLORS: Record<LogLevel, string> = {
   error: 'text-danger bg-danger-wash',
   warn: 'text-warning bg-warning-wash',
@@ -290,15 +300,17 @@ export default function LogsPage(): React.JSX.Element {
           Auto
         </label>
 
-        <span className="text-xs text-fg-faint">
-          {filtered.length} of {records.length} records
+        <span className="tnum text-xs text-fg-faint">
+          {filtered.length > TAIL_LINES
+            ? `last ${TAIL_LINES} of ${filtered.length}`
+            : `${filtered.length} of ${records.length}`}
         </span>
       </div>
 
       {/* Log tail */}
       <div
         ref={scrollRef}
-        className="max-h-96 overflow-y-auto rounded-lg bg-app font-mono text-xs leading-relaxed"
+        className="overflow-hidden rounded-lg bg-app font-mono text-xs leading-relaxed"
       >
         {filtered.length === 0 ? (
           <div className="px-3 py-6 text-center text-fg-muted">
@@ -307,7 +319,7 @@ export default function LogsPage(): React.JSX.Element {
               : 'No records match the current filters.'}
           </div>
         ) : (
-          filtered.map((r, i) => (
+          filtered.slice(-TAIL_LINES).map((r, i) => (
             <div
               key={`${r.ts}-${i}`}
               className="flex items-start gap-2 px-3 py-0.5 hover:bg-raised border-b border-line last:border-b-0"

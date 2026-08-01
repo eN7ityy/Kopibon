@@ -40,7 +40,7 @@ const SETTINGS_PANES: Array<{
   Icon: LucideIcon
   savable?: boolean
 }> = [
-  { key: 'library', label: 'Library & Downloads', Icon: FolderTree, savable: true },
+  { key: 'library', label: 'Library', Icon: FolderTree, savable: true },
   // Account and search defaults are both nhentai-side settings, and each was a
   // pane holding very little on its own.
   { key: 'nhentai', label: 'nhentai', Icon: Globe },
@@ -438,7 +438,6 @@ export default function SettingsPage(): React.JSX.Element {
               </section>
             )}
 
-            {pane === 'advanced' && <LogsPage />}
 
             {/* Advanced */}
             {pane === 'advanced' && (
@@ -451,6 +450,9 @@ export default function SettingsPage(): React.JSX.Element {
                 </div>
               </section>
             )}
+
+            {/* The log reads as a footer to this pane, so it sits last. */}
+            {pane === 'advanced' && <LogsPage />}
 
             {/*
           Destructive settings, last and visually separated.
