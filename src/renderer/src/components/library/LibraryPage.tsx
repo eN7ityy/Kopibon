@@ -1631,6 +1631,15 @@ export default function LibraryPage(): React.JSX.Element {
           // the previous one's members while the new ones load.
           key={detailSeries.id}
           series={detailSeries}
+          // The same filters the grid queried with, so the panel dims exactly
+          // the members the card left out of its "3 of 15".
+          filters={{
+            searchQuery: debouncedSearch || undefined,
+            artistFilters: selectedArtistFilters.size > 0 ? [...selectedArtistFilters] : undefined,
+            seriesFilters: selectedSeriesFilters.size > 0 ? [...selectedSeriesFilters] : undefined,
+            tagFilters: selectedTagFilters.size > 0 ? [...selectedTagFilters] : undefined,
+            showUnmatchedOnly: showUnmatchedOnly || undefined
+          }}
           onClose={() => setDetailSeries(null)}
           onOpenItem={(item) => {
             setDetailSeries(null)

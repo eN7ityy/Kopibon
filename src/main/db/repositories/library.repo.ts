@@ -584,6 +584,161 @@ export const libraryRepo = {
 
     return sortSeriesMembersRows(rows).map((r) => r.id)
   },
+  /**
+   * Everything the series detail panel shows, in one call.
+   *
+   * The panel previously fetched each member with its own `getById`, which is
+   * fifteen round-trips for a fifteen-volume series before it can draw
+   * anything. This is one.
+   *
+   * Unlike the card, this returns the **whole** series and flags which members
+   * match. The card summarises a filtered slice — "3 of 15" — but the panel is
+   * the series itself, so it lists all fifteen with the other twelve dimmed and
+   * describes the whole thing. Reporting only the slice would make opening a
+   * card look like the rest of the series had been deleted.
+   */
+  seriesFacts(
+    seriesId: number,
+    params: LibraryFilterParams = {}
+  ): {
+    id: number
+    name: string
+    sortName: string | null
+    coverItemId: number | null
+    coverPath: string | null
+    matchCount: number
+    totalCount: number
+    fileSize: number
+    artists: string[]
+    languages: string[]
+    /**
+     * Merged `custom_tags`, most-used first.
+     *
+     * This is what the panel's tag block is built on, not `typedTags`. Only 52
+     * of 4,409 cached gallery rows carry real tag types — scanner-created rows
+     * store every tag as type 'tag' — so typed tags reach about five series in
+     * this library, while these reach all of them.
+     */
+    tags: string[]
+    gaps: number[]
+    /** Genre, parody and character, where a synced gallery row supplies them. */
+    typedTags: Array<{ id: number; type: string; name: string }>
+    members: Array<LibraryItem & { matches: boolean }>
+  } | null {
+    const db = getDatabase()
+    const filter = buildLibraryFilter(params) ?? sql`1`
+
+    const group = db.get(
+      sql`SELECT id, name, sort_name, cover_item_id, cover_path FROM series WHERE id = ${seriesId}`
+    ) as
+      | {
+          id: number
+          name: string
+          sort_name: string | null
+          cover_item_id: number | null
+          cover_path: string | null
+        }
+      | undefined
+    if (!group) return null
+
+    const rows = db.all(
+      sql`SELECT *, CASE WHEN ${filter} THEN 1 ELSE 0 END AS matches
+            FROM library_item WHERE series_id = ${seriesId}`
+    ) as Array<Record<string, unknown>>
+
+    // Drizzle returns snake_case for a raw select, while the rest of the app
+    // passes camelCase LibraryItem rows around, so these go back through the
+    // typed select and the raw pass is used only for the match flag.
+    const matchById = new Map(rows.map((r) => [Number(r.id), Number(r.matches) === 1]))
+    const typed = db.select().from(libraryItem).where(eq(libraryItem.seriesId, seriesId)).all()
+
+    const ordered = sortSeriesMembers(
+      typed.map((item) => ({
+        id: item.id,
+        seriesIndex: item.seriesIndex,
+        title: item.customTitle ?? ''
+      }))
+    )
+    const byId = new Map(typed.map((item) => [item.id, item]))
+    const members = ordered
+      .map((m) => byId.get(m.id))
+      .filter((item): item is LibraryItem => Boolean(item))
+      .map((item) => ({ ...item, matches: matchById.get(item.id) ?? false }))
+
+    const facts = mergeSeriesFacts(
+      members.map((m) => ({
+        format: m.format,
+        language: m.language,
+        customLanguage: m.customLanguage,
+        primaryArtist: m.primaryArtist,
+        customTags: m.customTags
+      }))
+    )
+
+    /*
+     * Typed tags — genre, parody, character — come from the cached gallery
+     * rows, since `custom_tags` keeps a comma-joined string with the types
+     * thrown away. Scanner stubs stored every tag as type 'tag', which carries
+     * nothing `custom_tags` does not, so those are skipped exactly as
+     * `library:getGalleryTags` skips them.
+     */
+    const galleryIds = members.map((m) => m.galleryId).filter((id): id is number => Boolean(id))
+    const typedTags: Array<{ id: number; type: string; name: string }> = []
+    if (galleryIds.length > 0) {
+      const seen = new Set<string>()
+      const cached = db.all(
+        sql`SELECT raw_tags_json FROM gallery
+             WHERE id IN (${sql.join(
+               galleryIds.map((id) => sql`${id}`),
+               sql`, `
+             )})`
+      ) as Array<{ raw_tags_json: string | null }>
+
+      for (const row of cached) {
+        if (!row.raw_tags_json) continue
+        let parsed: unknown
+        try {
+          parsed = JSON.parse(row.raw_tags_json)
+        } catch {
+          continue
+        }
+        if (!Array.isArray(parsed)) continue
+        const types = new Set(parsed.map((t: { type?: string }) => t.type))
+        if (types.size <= 1 && types.has('tag')) continue
+
+        for (const tag of parsed as Array<{ id?: number; type?: string; name?: string }>) {
+          if (!tag?.type || !tag?.name) continue
+          const key = `${tag.type} ${tag.name.toLowerCase()}`
+          if (seen.has(key)) continue
+          seen.add(key)
+          typedTags.push({ id: tag.id ?? 0, type: tag.type, name: tag.name })
+        }
+      }
+    }
+
+    const cover = pickSeriesCover(
+      members.map((m) => ({ id: m.id, seriesIndex: m.seriesIndex, title: m.customTitle ?? '' })),
+      { coverItemId: group.cover_item_id, coverPath: group.cover_path }
+    )
+
+    return {
+      id: group.id,
+      name: group.sort_name?.trim() || group.name,
+      sortName: group.sort_name,
+      coverItemId: cover && 'memberId' in cover ? cover.memberId : null,
+      coverPath: cover && 'coverPath' in cover ? cover.coverPath : null,
+      matchCount: members.filter((m) => m.matches).length,
+      totalCount: members.length,
+      fileSize: members.reduce((sum, m) => sum + (m.fileSize ?? 0), 0),
+      artists: facts.artists,
+      languages: facts.languages,
+      tags: facts.tags,
+      gaps: findVolumeGaps(members.map((m) => m.seriesIndex)),
+      typedTags,
+      members
+    }
+  },
+
   count(): number {
     const db = getDatabase()
     const result = db

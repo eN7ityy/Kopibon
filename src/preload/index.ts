@@ -123,6 +123,20 @@ const api = {
         showUnmatchedOnly?: boolean
       }
     ) => ipcRenderer.invoke('library:getSeriesMembers', seriesId, params ?? {}),
+    /**
+     * The whole series for its detail panel: members in reading order, each
+     * flagged as matching the active filters, plus merged tags and gaps.
+     */
+    getSeriesFacts: (
+      seriesId: number,
+      params?: {
+        searchQuery?: string
+        artistFilters?: string[]
+        seriesFilters?: string[]
+        tagFilters?: string[]
+        showUnmatchedOnly?: boolean
+      }
+    ) => ipcRenderer.invoke('library:getSeriesFacts', seriesId, params ?? {}),
     getByGalleryId: (galleryId: number) => ipcRenderer.invoke('library:getByGalleryId', galleryId),
     /** Ids of every item matching the given filters, ignoring pagination. */
     getAllIds: (params: {

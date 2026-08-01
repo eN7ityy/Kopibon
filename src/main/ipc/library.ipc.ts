@@ -353,6 +353,31 @@ export function registerLibraryIpc(): void {
     }
   )
 
+  /**
+   * Everything the series detail panel needs, in one call.
+   *
+   * Returns the whole series with each member flagged as matching or not, so
+   * the panel can list all of them and dim the ones a filter excluded.
+   */
+  handle(
+    'library:getSeriesFacts',
+    async (
+      _event,
+      seriesId: number,
+      params: {
+        searchQuery?: string
+        artistFilters?: string[]
+        seriesFilters?: string[]
+        tagFilters?: string[]
+        showUnmatchedOnly?: boolean
+      } = {}
+    ) => {
+      const facts = libraryRepo.seriesFacts(seriesId, params)
+      if (!facts) return { success: false, error: 'That series no longer exists' }
+      return { success: true, data: facts }
+    }
+  )
+
   handle('library:search', async (_event, query: string) => {
     const items = libraryRepo.searchByTitle(query)
     return { success: true, data: items }
