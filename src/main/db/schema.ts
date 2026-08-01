@@ -36,6 +36,19 @@ export const libraryItem = sqliteTable('library_item', {
   primaryArtist: text('primary_artist').notNull(),
   seriesName: text('series_name'),
   seriesIndex: real('series_index'),
+  /**
+   * The group this item belongs to, or null.
+   *
+   * Maintained for every item with a usable `series_name`, including ones that
+   * are currently the only member. Whether a group is *shown* is a threshold at
+   * query time (`HAVING COUNT(*) >= 2`), never a stored flag — so adding a
+   * second volume makes the group appear and deleting down to one makes it
+   * vanish, with no create/dissolve bookkeeping that could fall out of step.
+   *
+   * `series_name` remains the source of truth: it is what goes into ComicInfo
+   * and what decides the folder on disk. This is only a grouping layer over it.
+   */
+  seriesId: integer('series_id'),
   language: text('language'),
   publisher: text('publisher'),
   description: text('description'),
@@ -172,6 +185,49 @@ export const tagCache = sqliteTable('tag_cache', {
   name: text('name').notNull(),
   updatedAt: integer('updated_at').notNull().default(Date.now())
 })
+
+// ─── Series ─────────────────────────────────────────────────────────────────
+
+/**
+ * A named group of library items, the app-side equivalent of a Kavita series.
+ *
+ * Materialised rather than derived with `GROUP BY series_name`, because a series
+ * owns state that a view cannot hold: a chosen cover, a display name distinct
+ * from the metadata name, and whether a person built it by hand. Rename a series
+ * and a derived group would lose all of it.
+ *
+ * Rows are created when a series is assigned, never while the library renders.
+ * A row may legitimately have one member — see `libraryItem.seriesId`.
+ */
+export const series = sqliteTable(
+  'series',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    /** Matched case-insensitively against `library_item.series_name`. */
+    name: text('name').notNull(),
+    /** Display and sort override. Null means use `name`. */
+    sortName: text('sort_name'),
+    /**
+     * Member whose cover represents the group. Null falls back to the lowest
+     * volume, which is the "first gallery of the series" default.
+     */
+    coverItemId: integer('cover_item_id'),
+    /** A hand-picked image, which wins over `coverItemId`. */
+    coverPath: text('cover_path'),
+    /**
+     * Set when a person created or edited this group. Automatic regrouping
+     * leaves these alone, so a manual arrangement is not undone by a rescan.
+     */
+    isManual: integer('is_manual').notNull().default(0),
+    createdAt: integer('created_at').notNull().default(Date.now()),
+    updatedAt: integer('updated_at').notNull().default(Date.now())
+  },
+  (table) => [
+    // NOCASE, matching how series_name is resolved. Without it, 'Dolls' and
+    // 'dolls' would become two groups holding what is obviously one series.
+    uniqueIndex('idx_series_name').on(table.name)
+  ]
+)
 
 // ─── Scan Queue ─────────────────────────────────────────────────────────────
 

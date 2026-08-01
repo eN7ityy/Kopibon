@@ -267,7 +267,29 @@ function runMigrations(sqlite: Database.Database): void {
       updated_at INTEGER NOT NULL DEFAULT (unixepoch())
     );
 
+    CREATE TABLE IF NOT EXISTS series (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      sort_name TEXT,
+      cover_item_id INTEGER,
+      cover_path TEXT,
+      is_manual INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+      updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+    );
+
   `)
+
+  /*
+   * One group per name, case-insensitively. Series names arrive from ComicInfo,
+   * from nhentai metadata and from hand entry, so the same series routinely
+   * appears with different capitalisation; without NOCASE those would become
+   * separate groups holding what is plainly one work.
+   *
+   * Declared here rather than in the Drizzle schema because Drizzle's
+   * uniqueIndex() cannot express a collation, exactly as with blocked_value.
+   */
+  sqlite.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_series_name ON series(name COLLATE NOCASE)')
 
   /*
    * One blocked entry per type+value. NOCASE so 'Yuri' and 'yuri' cannot both be
@@ -305,6 +327,12 @@ function runMigrations(sqlite: Database.Database): void {
   if (!colNames.has('description')) {
     sqlite.exec('ALTER TABLE library_item ADD COLUMN description TEXT')
   }
+  if (!colNames.has('series_id')) {
+    sqlite.exec('ALTER TABLE library_item ADD COLUMN series_id INTEGER')
+  }
+
+  // The grouped library query joins on this for every page it renders.
+  sqlite.exec('CREATE INDEX IF NOT EXISTS idx_library_item_series_id ON library_item(series_id)')
 
   // conversion_queue was created keyed only on file_path, which is not enough to
   // resume: the path changes from .pdf to .cbz the moment an item succeeds, and
