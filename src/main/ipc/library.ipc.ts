@@ -25,6 +25,7 @@ import { dirname, join, basename } from 'path'
 import { handle } from './handle'
 import { getLogger } from '../services/logger'
 import { attachWorkerLogForwarding } from '../services/worker-logger'
+import { sortNatural } from '../services/natural-sort'
 
 const log = getLogger('library')
 
@@ -645,12 +646,13 @@ export function registerLibraryIpc(): void {
         try {
           let imageFiles: string[]
           if (metadata.sourceType === 'images') {
-            imageFiles = readdirSync(metadata.sourcePath)
-              .filter((f) =>
+            // Natural order, not string order: a plain sort puts 10 before 2
+            // and shipped the pages out of sequence.
+            imageFiles = sortNatural(
+              readdirSync(metadata.sourcePath).filter((f) =>
                 /\.(jpg|jpeg|png|webp|gif|bmp)$/i.test(f)
               )
-              .sort()
-              .map((f) => join(metadata.sourcePath, f))
+            ).map((f) => join(metadata.sourcePath, f))
             if (imageFiles.length === 0) {
               return {
                 success: false,
@@ -722,12 +724,11 @@ export function registerLibraryIpc(): void {
         )
 
         if (metadata.sourceType === 'images') {
-          const imageFiles = readdirSync(metadata.sourcePath)
-            .filter((f) =>
+          const imageFiles = sortNatural(
+            readdirSync(metadata.sourcePath).filter((f) =>
               /\.(jpg|jpeg|png|webp|gif|bmp)$/i.test(f)
             )
-            .sort()
-            .map((f) => join(metadata.sourcePath, f))
+          ).map((f) => join(metadata.sourcePath, f))
 
           if (imageFiles.length === 0) {
             return {
@@ -2566,13 +2567,11 @@ export function registerLibraryIpc(): void {
         ).toString('base64')
 
       if (sourceType === 'images') {
-        const first = readdirSync(sourcePath)
-          .filter((f) =>
-            /\.(jpg|jpeg|png|webp|gif|bmp|avif)$/i.test(
-              f
-            )
+        const first = sortNatural(
+          readdirSync(sourcePath).filter((f) =>
+            /\.(jpg|jpeg|png|webp|gif|bmp|avif)$/i.test(f)
           )
-          .sort()[0]
+        )[0]
         if (!first)
           return {
             success: false,
