@@ -25,6 +25,8 @@
  */
 
 import { getRawDatabase } from '../db/connection'
+import { settingsRepo } from '../db/repositories/settings.repo'
+import { seriesRepo } from '../db/repositories/series.repo'
 import { getLogger } from './logger'
 
 export interface MaintenanceResult {
@@ -32,6 +34,8 @@ export interface MaintenanceResult {
   scanQueueCleared: number
   completedDownloadsPruned: number
   orphanedArtistsRemoved: number
+  /** Items linked to their series group. 0 when grouping is switched off. */
+  seriesLinked: number
 }
 
 export interface MaintenanceOptions {
@@ -50,7 +54,8 @@ export function runStartupMaintenance(options: MaintenanceOptions = {}): Mainten
     downloadPagesCleared: 0,
     scanQueueCleared: 0,
     completedDownloadsPruned: 0,
-    orphanedArtistsRemoved: 0
+    orphanedArtistsRemoved: 0,
+    seriesLinked: 0
   }
 
   const sweep = db.transaction(() => {
@@ -102,17 +107,40 @@ export function runStartupMaintenance(options: MaintenanceOptions = {}): Mainten
     return result
   }
 
+  /*
+   * Relink series groups.
+   *
+   * Outside the sweep transaction above, and best-effort like the rest: a stale
+   * group is a display problem, never a reason to fail startup.
+   *
+   * This exists because a restart should be able to heal grouping. A gallery
+   * assigned to a series while an older build was running stayed outside its
+   * own series indefinitely — the series even reported that volume missing —
+   * and restarting did nothing about it. The write paths now regroup as they
+   * go, so this is a backstop rather than the mechanism, and it costs one
+   * statement over the table.
+   */
+  try {
+    if (settingsRepo.get('seriesGrouping') === 'true') {
+      result.seriesLinked = seriesRepo.backfillAll().linked
+    }
+  } catch (err) {
+    getLogger('startup').warn('Series regroup failed', { error: String(err) })
+  }
+
   const total =
     result.downloadPagesCleared +
     result.scanQueueCleared +
     result.completedDownloadsPruned +
-    result.orphanedArtistsRemoved
+    result.orphanedArtistsRemoved +
+    result.seriesLinked
   if (total > 0) {
     getLogger('startup').info('Maintenance sweep', {
       downloadPagesCleared: result.downloadPagesCleared,
       scanQueueCleared: result.scanQueueCleared,
       completedDownloadsPruned: result.completedDownloadsPruned,
-      orphanedArtistsRemoved: result.orphanedArtistsRemoved
+      orphanedArtistsRemoved: result.orphanedArtistsRemoved,
+      seriesLinked: result.seriesLinked
     })
   }
 

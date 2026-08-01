@@ -30,6 +30,66 @@ import { sortNatural } from '../services/natural-sort'
 
 const log = getLogger('library')
 
+// ─── Series Grouping ───────────────────────────────────────────────────────
+
+/**
+ * Link items to their series group after something changed their series.
+ *
+ * Every path that writes `series_name` has to call this, or the name changes
+ * and the grouping silently does not: assigning a series to a gallery left it
+ * sitting outside the very series it had just been added to, with the series
+ * itself reporting that volume as missing.
+ *
+ * `resolveFor` links by name across the whole library rather than only the ids
+ * given, which is what makes assigning a series to one gallery pull in the
+ * others already carrying it.
+ *
+ * Gated on the setting, per the design that automatic grouping is opt-in. Rows
+ * are still linked in bulk when grouping is switched on, so nothing assigned
+ * while it was off is lost.
+ *
+ * Never throws. A failure here means the group is stale until the next resolve
+ * or rescan, which must not turn a completed assignment into a failed one.
+ */
+function regroupSeries(itemIds: readonly number[]): void {
+  if (itemIds.length === 0) return
+  if (settingsRepo.get('seriesGrouping') !== 'true') return
+  try {
+    const result = seriesRepo.resolveFor([...itemIds])
+    if (result.linked > 0 || result.cleared > 0) {
+      log.info('regrouped series', {
+        names: result.names,
+        linked: result.linked,
+        cleared: result.cleared
+      })
+    }
+  } catch (err) {
+    log.warn('could not regroup series', { error: String(err) })
+  }
+}
+
+/**
+ * Resolve grouping across the whole library.
+ *
+ * For after a scan, where naming the changed ids would mean threading thousands
+ * of them out of a worker for no gain — this is a single statement over the
+ * table either way. Also self-repairing: it picks up anything an interrupted
+ * scan left unlinked.
+ */
+function regroupAllSeries(): void {
+  if (settingsRepo.get('seriesGrouping') !== 'true') return
+  try {
+    const result = seriesRepo.backfillAll()
+    log.info('regrouped the library', {
+      linked: result.linked,
+      cleared: result.cleared,
+      visibleGroups: result.visibleGroups
+    })
+  } catch (err) {
+    log.warn('could not regroup the library', { error: String(err) })
+  }
+}
+
 // ─── Metadata Worker Helper ────────────────────────────────────────────────
 
 function spawnMetadataWorker(command: {
@@ -479,6 +539,15 @@ export function registerLibraryIpc(): void {
           case 'complete':
             scanWorker = null
             isScanning = false
+            /*
+             * Resolve grouping for everything the scan added.
+             *
+             * A whole-table pass rather than the new ids: a scan can add
+             * thousands of rows, and this is one statement over the library
+             * either way. It also repairs anything left unlinked by a scan that
+             * was interrupted or that ran while grouping was switched off.
+             */
+            regroupAllSeries()
             win.webContents.send('library:scanComplete', msg.result)
             break
           case 'paused':
@@ -575,6 +644,8 @@ export function registerLibraryIpc(): void {
       seriesName: string
     ) => {
       const errors: string[] = []
+      /** Items whose series actually landed, so regrouping skips the failures. */
+      const assigned: number[] = []
       let updated = 0
 
       for (const entry of entries) {
@@ -655,11 +726,17 @@ export function registerLibraryIpc(): void {
           }
 
           libraryRepo.update(entry.id, dbUpdate)
+          assigned.push(entry.id)
           updated++
         } catch (err) {
           errors.push(`Error processing item ${entry.id}: ${String(err)}`)
         }
       }
+
+      // Once, after the loop, rather than per item: resolveFor links every
+      // gallery sharing the name, so calling it inside the loop would redo the
+      // same work for each entry of a batch.
+      regroupSeries(assigned)
 
       return {
         success: true,
@@ -1028,6 +1105,10 @@ export function registerLibraryIpc(): void {
         })
       }
 
+      // A custom entry can be created with a series already filled in, which
+      // makes it the same case as assigning one afterwards.
+      regroupSeries([newId])
+
       return {
         success: true,
         data: { id: newId, filePath: finalPath, format }
@@ -1299,6 +1380,18 @@ export function registerLibraryIpc(): void {
             filePath: newPath
           } as Record<string, unknown>)
         }
+      }
+
+      /*
+       * Regroup only when the series actually changed. Editing a title or a tag
+       * leaves the grouping untouched, and resolving on every edit would relink
+       * every gallery sharing the name for no reason.
+       *
+       * Placed after the file move rather than beside the database write: a
+       * move can fail, and the row is only settled once this point is reached.
+       */
+      if ((newSeriesName ?? null) !== (oldSeries ?? null)) {
+        regroupSeries([id])
       }
 
       return {
