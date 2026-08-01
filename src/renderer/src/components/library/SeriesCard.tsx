@@ -98,7 +98,17 @@ export default function SeriesCard({
         className="pointer-events-none absolute inset-y-2 right-0 w-2 rounded-r-lg border border-l-0 border-line bg-raised"
       />
 
-      <div className="relative mr-1.5 overflow-hidden rounded-lg border border-line bg-surface transition-all duration-200 hover:border-accent hover:shadow-lg">
+      {/*
+        Same fixed ratio as LibraryCard, so a series and a gallery sitting next
+        to each other are the same height. The match chip is exactly the kind of
+        conditional line that made cards uneven, and here it costs cover height
+        instead of row height.
+      */}
+      <div
+        className={`relative mr-1.5 flex ${
+          compact ? 'aspect-[1/2.05]' : 'aspect-[1/1.85]'
+        } flex-col overflow-hidden rounded-lg border border-line bg-surface transition-all duration-200 hover:border-accent hover:shadow-lg`}
+      >
         <div
           className={`absolute top-2 left-2 z-10 transition-opacity ${
             selected || partiallySelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
@@ -123,45 +133,50 @@ export default function SeriesCard({
         <button
           onClick={() => onClick(series)}
           onDragStart={(e) => e.preventDefault()}
-          className="w-full text-left"
+          className="flex min-h-0 w-full flex-1 flex-col text-left"
         >
-          <TileCover
-            src={imgError ? null : thumb}
-            alt={series.name}
-            compact={compact}
-            stat={series.fileSize > 0 ? formatBytes(series.fileSize) : null}
-            onError={() => setImgError(true)}
-            badge={<TileFormatBadge format={series.format} />}
-            cornerLeft={
-              <span
-                className="tnum inline-flex items-center gap-1 rounded bg-black/70 px-1.5 py-0.5 text-xs font-medium text-white"
-                title={`${series.totalCount} galleries in this series`}
-              >
-                <Layers size={10} aria-hidden="true" />
-                {series.totalCount}
-              </span>
-            }
-          />
+          <div className="min-h-0 flex-1">
+            <TileCover
+              src={imgError ? null : thumb}
+              alt={series.name}
+              compact={compact}
+              fill
+              stat={series.fileSize > 0 ? formatBytes(series.fileSize) : null}
+              onError={() => setImgError(true)}
+              badge={<TileFormatBadge format={series.format} />}
+              cornerLeft={
+                <span
+                  className="tnum inline-flex items-center gap-1 rounded bg-black/70 px-1.5 py-0.5 text-xs font-medium text-white"
+                  title={`${series.totalCount} galleries in this series`}
+                >
+                  <Layers size={10} aria-hidden="true" />
+                  {series.totalCount}
+                </span>
+              }
+            />
+          </div>
 
-          <TileMeta
-            title={series.name}
-            artist={artistLabel}
-            language={languages[0] ?? null}
-            compact={compact}
-          />
+          <div className="shrink-0">
+            <TileMeta
+              title={series.name}
+              artist={artistLabel}
+              language={languages[0] ?? null}
+              compact={compact}
+            />
 
-          {/*
-            The honesty line. A series matches when any member does, so without
-            this a card would silently imply that all fifteen volumes matched a
-            search that three of them did.
-          */}
-          {filtered && !compact && (
-            <p className="px-3 pb-3 -mt-1">
-              <span className="tnum rounded bg-accent-wash px-1.5 py-0.5 text-xs font-medium text-accent">
-                {series.matchCount} of {series.totalCount} match
-              </span>
-            </p>
-          )}
+            {/*
+              The honesty line. A series matches when any member does, so without
+              this a card would silently imply that all fifteen volumes matched a
+              search that three of them did.
+            */}
+            {filtered && !compact && (
+              <p className="px-3 pb-3 -mt-1">
+                <span className="tnum rounded bg-accent-wash px-1.5 py-0.5 text-xs font-medium text-accent">
+                  {series.matchCount} of {series.totalCount} match
+                </span>
+              </p>
+            )}
+          </div>
         </button>
       </div>
     </div>

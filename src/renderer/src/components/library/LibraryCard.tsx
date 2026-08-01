@@ -115,8 +115,17 @@ export default function LibraryCard({
   }
 
   return (
+    /*
+      Fixed height, set by an aspect ratio so it scales with the column width.
+      Every card in the grid is the same width, so this makes every card the
+      same height — a card carrying a series line no longer stands taller than
+      one that does not. The cover flexes and the text block does not, so extra
+      metadata eats into the cover rather than into the row.
+    */
     <div
-      className="group relative rounded-lg overflow-hidden bg-surface border border-line hover:border-accent hover:shadow-lg transition-all duration-200"
+      className={`group relative flex ${
+        compact ? 'aspect-[1/2.05]' : 'aspect-[1/1.85]'
+      } flex-col rounded-lg overflow-hidden bg-surface border border-line hover:border-accent hover:shadow-lg transition-all duration-200`}
     >
       {/* Selection checkbox */}
       <div
@@ -136,43 +145,50 @@ export default function LibraryCard({
         onClick={() => onClick(item.id)}
         onDragStart={(e) => e.preventDefault()}
         onContextMenu={handleContextMenu}
-        className="text-left w-full"
+        className="flex min-h-0 flex-1 flex-col text-left w-full"
       >
         {/*
           Same anatomy as the Search and Favorites cards, from the same parts —
           these three had drifted into three different designs.
+
+          `min-h-0` matters: without it the cover keeps its content height and
+          refuses to shrink, so a long title pushes the card past its ratio and
+          the uniform height is lost again.
         */}
-        <TileCover
-          src={coverSrc}
-          alt={title}
-          compact={compact}
-          // formatBytes returns '0 B' for a missing value, which would print a
-          // meaningless badge, so an unknown size leaves the corner empty.
-          stat={item.fileSize && item.fileSize > 0 ? formatBytes(item.fileSize) : null}
-          onError={() => setImgError(true)}
-          badge={
-            // Converting takes the format badge's place: the format is about to
-            // change, so showing the old one would be misleading.
-            compact && !converting ? null : (
-              <TileFormatBadge
-                format={converting ? null : item.format || 'pdf'}
-                busy={converting}
-              />
-            )
-          }
-        />
+        <div className="min-h-0 flex-1">
+          <TileCover
+            src={coverSrc}
+            alt={title}
+            compact={compact}
+            fill
+            // formatBytes returns '0 B' for a missing value, which would print a
+            // meaningless badge, so an unknown size leaves the corner empty.
+            stat={item.fileSize && item.fileSize > 0 ? formatBytes(item.fileSize) : null}
+            onError={() => setImgError(true)}
+            badge={
+              // Converting takes the format badge's place: the format is about to
+              // change, so showing the old one would be misleading.
+              compact && !converting ? null : (
+                <TileFormatBadge format={converting ? null : item.format || 'pdf'} busy={converting} />
+              )
+            }
+          />
+        </div>
 
-        <TileMeta
-          title={title}
-          artist={artist}
-          language={displayLanguage(item.language, item.customLanguage)}
-          compact={compact}
-        />
+        {/* The text block keeps its natural height; the cover above absorbs it. */}
+        <div className="shrink-0">
+          <TileMeta
+            title={title}
+            artist={artist}
+            language={displayLanguage(item.language, item.customLanguage)}
+            compact={compact}
+          />
 
-        {/* Series is Library-only, so it sits outside the shared meta block. */}
-        {!compact && item.seriesName && (
-          <p className="px-3 pb-3 -mt-1 truncate text-xs text-fg-muted">{item.seriesName}</p>
-        )}
+          {/* Series is Library-only, so it sits outside the shared meta block. */}
+          {!compact && item.seriesName && (
+            <p className="px-3 pb-3 -mt-1 truncate text-xs text-fg-muted">{item.seriesName}</p>
+          )}
+        </div>
       </button>
 
       {/* Right-click context menu */}

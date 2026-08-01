@@ -51,6 +51,17 @@ interface TileCoverProps {
    * or the grid stops making sense.
    */
   cornerLeft?: ReactNode
+  /**
+   * Take the height the parent gives instead of setting one from the aspect
+   * ratio.
+   *
+   * Lets a card fix its own total height and hand the cover whatever the text
+   * block did not use, so a card with an extra line of metadata stays the same
+   * size as its neighbours rather than growing taller than them. The crop moves
+   * to the top edge in this mode: the cover loses height from the bottom, which
+   * is where a cover carries the least.
+   */
+  fill?: boolean
   onError?: () => void
 }
 
@@ -61,11 +72,14 @@ export function TileCover({
   stat,
   badge,
   cornerLeft,
+  fill = false,
   onError
 }: TileCoverProps): React.JSX.Element {
   return (
     <div
-      className={`${compact ? 'aspect-[2/3]' : 'aspect-[3/4]'} bg-raised relative overflow-hidden`}
+      className={`${
+        fill ? 'h-full w-full' : compact ? 'aspect-[2/3]' : 'aspect-[3/4]'
+      } bg-raised relative overflow-hidden`}
     >
       {src ? (
         <img
@@ -74,7 +88,9 @@ export function TileCover({
           draggable={false}
           loading="lazy"
           onError={onError}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+          className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 ${
+            fill ? 'object-top' : ''
+          }`}
         />
       ) : (
         <div className="w-full h-full flex items-center justify-center text-fg-faint">
