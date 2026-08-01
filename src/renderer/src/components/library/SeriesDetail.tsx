@@ -1,5 +1,15 @@
-import { useState, useEffect } from 'react'
-import { AlertTriangle, BookOpen, Check, Layers, Pencil, Star, Ungroup, X } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import {
+  AlertTriangle,
+  BookOpen,
+  Check,
+  Layers,
+  Pencil,
+  RefreshCw,
+  Star,
+  Ungroup,
+  X
+} from 'lucide-react'
 import type { LibraryItemData } from './LibraryCard'
 import { mergeDisplayLanguages } from '../shared/language'
 import { formatBytes } from '../shared/format'
@@ -120,7 +130,22 @@ export default function SeriesDetail({
   const [nameDraft, setNameDraft] = useState('')
   const [confirmUngroup, setConfirmUngroup] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [syncing, setSyncing] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
+
+  /*
+   * A batch sync runs for as long as it takes — a fifteen-volume series is well
+   * over a minute at the API's pace — and the panel can be closed while it
+   * runs. The work carries on in the main process either way; this only stops
+   * the completion handler writing to a component that is gone.
+   */
+  const mounted = useRef(true)
+  useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+    }
+  }, [])
   const [reloadTick, setReloadTick] = useState(0)
 
   useEffect(() => {
@@ -201,6 +226,37 @@ export default function SeriesDetail({
     }
   }
 
+  /**
+   * Sync every gallery in the series against nhentai.
+   *
+   * Only members that have an nhentai id are sent. A scanned file that was
+   * never matched has nothing to sync against, and including it would make the
+   * batch report failures for galleries that were never candidates.
+   *
+   * Progress and cancellation come from the shared job stack, the same as a
+   * sync started from a selection, so this needs no bar of its own.
+   */
+  const doSyncSeries = async (): Promise<void> => {
+    if (!facts) return
+    const ids = facts.members.filter((m) => m.galleryId).map((m) => m.id)
+    if (ids.length === 0) {
+      setNotice('None of these galleries have an nhentai id to sync against.')
+      return
+    }
+
+    setSyncing(true)
+    setNotice(null)
+    try {
+      await window.api.library.syncBatch(ids)
+      if (!mounted.current) return
+      refresh(null)
+    } catch (err) {
+      if (mounted.current) setNotice(String(err))
+    } finally {
+      if (mounted.current) setSyncing(false)
+    }
+  }
+
   const doSetCover = async (itemId: number): Promise<void> => {
     if (!facts) return
     setBusy(true)
@@ -224,6 +280,8 @@ export default function SeriesDetail({
 
   /** First unread volume, so a long series can be resumed without hunting. */
   const nextUnread = facts?.members.find((m) => (m.readProgress ?? 0) === 0) ?? null
+  /** Members that can actually be synced — the rest have no nhentai id. */
+  const syncableCount = facts?.members.filter((m) => m.galleryId).length ?? 0
   const readCount = facts?.members.filter((m) => (m.readProgress ?? 0) > 0).length ?? 0
 
   return (
@@ -412,6 +470,28 @@ export default function SeriesDetail({
                 >
                   <Pencil size={14} className="shrink-0 text-fg-muted" aria-hidden="true" />
                   Rename series
+                </button>
+
+                {/*
+                  Counted, not just labelled "Sync": a series can hold files the
+                  scanner never matched to nhentai, and those cannot be synced.
+                */}
+                <button
+                  onClick={() => void doSyncSeries()}
+                  disabled={busy || syncing || syncableCount === 0}
+                  title={
+                    syncableCount === 0
+                      ? 'No gallery here has an nhentai id'
+                      : `Fetch fresh metadata for ${syncableCount} galleries`
+                  }
+                  className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-fg transition-colors hover:bg-raised disabled:opacity-50"
+                >
+                  <RefreshCw
+                    size={14}
+                    className={`shrink-0 text-fg-muted ${syncing ? 'animate-spin' : ''}`}
+                    aria-hidden="true"
+                  />
+                  {syncing ? 'Syncing…' : `Sync ${syncableCount} with nhentai`}
                 </button>
 
                 <button
