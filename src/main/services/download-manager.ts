@@ -13,6 +13,54 @@ import { resolveLanguageName } from './xml-utils'
 import type { GalleryMetadata } from './metadata-writer'
 import type { GalleryDetail } from './api-client'
 
+// ─── Cached gallery metadata ─────────────────────────────────────────────────
+
+/**
+ * A cached gallery row, but only when it is a real API response.
+ *
+ * The `gallery` table holds two very different things. Downloads cache the
+ * whole API response there. The library scanner also writes a row when it reads
+ * an nhentai id out of a filename, and that one is a stub:
+ *
+ *   {"id":6436,"title":{"pretty":"Breast Play 2"}}
+ *
+ * 4,357 of 4,409 rows in a real library are that shape. A download that trusted
+ * one crashed on `gallery.tags.find(...)`, because the stub has no tags — nor
+ * `media_id`, `num_pages` or `pages`, which are the fields that actually fetch
+ * the images. So the stub is not a partial cache to be topped up; it is a cache
+ * miss wearing a row.
+ *
+ * Returning null sends the caller to the API, and its `upsert` then replaces
+ * the stub with the full response — so this repairs the row as a side effect
+ * rather than needing a migration.
+ */
+export function parseCachedGallery(rawJson: string | null | undefined): GalleryDetail | null {
+  if (!rawJson) return null
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(rawJson)
+  } catch {
+    // Unparseable cache is a cache miss, not a failed download.
+    return null
+  }
+  if (!parsed || typeof parsed !== 'object') return null
+
+  const gallery = parsed as Partial<GalleryDetail>
+
+  // Every field the download pipeline goes on to read without checking.
+  const usable =
+    Array.isArray(gallery.tags) &&
+    Array.isArray(gallery.pages) &&
+    gallery.pages.length > 0 &&
+    typeof gallery.num_pages === 'number' &&
+    gallery.num_pages > 0 &&
+    gallery.media_id != null &&
+    Boolean(gallery.title)
+
+  return usable ? (gallery as GalleryDetail) : null
+}
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export interface DownloadProgress {
@@ -265,8 +313,10 @@ export class DownloadManager {
       const existingGallery = galleryRepo.findById(galleryId)
       let gallery: GalleryDetail
 
-      if (existingGallery) {
-        gallery = JSON.parse(existingGallery.rawJson) as GalleryDetail
+      const cachedGallery = existingGallery ? parseCachedGallery(existingGallery.rawJson) : null
+
+      if (cachedGallery) {
+        gallery = cachedGallery
       } else {
         this.emitProgress(queueId, galleryId, 'Fetching metadata...', 0, 0, 0, 0)
         gallery = await client.getGallery(galleryId)
