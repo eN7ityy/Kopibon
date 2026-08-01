@@ -140,7 +140,7 @@ export default function OriginalsCleanup(): React.JSX.Element {
           onClick={() => setConfirming(true)}
           disabled={info!.count === 0}
           title={info!.count === 0 ? 'Only kept-back originals remain' : undefined}
-          className="px-3 py-1.5 rounded-lg bg-danger-wash text-danger text-xs font-medium hover:bg-danger-wash disabled:opacity-50"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-danger-wash text-danger text-xs font-medium hover:bg-danger-wash disabled:opacity-50"
         >
           <Trash2 size={14} aria-hidden="true" /> Delete archived originals
         </button>

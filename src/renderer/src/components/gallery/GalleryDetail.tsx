@@ -255,7 +255,7 @@ export default function GalleryDetailPanel({
                   />
                   {/* Hover overlay */}
                   <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center">
-                    <span className="text-white text-lg font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+                    <span className="inline-flex items-center gap-1.5 text-white text-lg font-medium opacity-0 group-hover:opacity-100 transition-opacity">
                       <BookOpen size={16} aria-hidden="true" /> Read
                     </span>
                   </div>
@@ -455,7 +455,7 @@ export default function GalleryDetailPanel({
               {detail.scanlator && (
                 <div className="flex justify-between">
                   <span>Scanlator</span>
-                  <span className="font-medium text-fg">{detail.scanlator}</span>
+                  <span className="inline-flex items-center gap-1.5 font-medium text-fg">{detail.scanlator}</span>
                 </div>
               )}
             </div>
@@ -500,8 +500,8 @@ export default function GalleryDetailPanel({
                     </div>
                   ) : (
                     <div className="flex gap-2">
-                      <button onClick={() => setDeleteConfirm('remove')} className="flex-1 px-4 py-2 rounded-lg bg-warning-wash text-warning text-sm font-medium hover:bg-warning-wash"><ListX size={14} aria-hidden="true" /> Remove from Library</button>
-                      <button onClick={() => setDeleteConfirm('deleteFile')} className="flex-1 px-4 py-2 rounded-lg bg-danger-wash text-danger text-sm font-medium hover:bg-danger-wash"><Trash2 size={14} aria-hidden="true" /> Delete File</button>
+                      <button onClick={() => setDeleteConfirm('remove')} className="inline-flex items-center justify-center gap-1.5 flex-1 px-4 py-2 rounded-lg bg-warning-wash text-warning text-sm font-medium hover:bg-warning-wash"><ListX size={14} aria-hidden="true" /> Remove from Library</button>
+                      <button onClick={() => setDeleteConfirm('deleteFile')} className="inline-flex items-center justify-center gap-1.5 flex-1 px-4 py-2 rounded-lg bg-danger-wash text-danger text-sm font-medium hover:bg-danger-wash"><Trash2 size={14} aria-hidden="true" /> Delete File</button>
                     </div>
                   )}
                 </>
@@ -510,7 +510,7 @@ export default function GalleryDetailPanel({
                   <p className="text-sm text-warning">
                     This gallery already exists in your library.
                     {libraryPath && (
-                      <span className="block mt-1 text-xs opacity-75 truncate">
+                      <span className="inline-flex items-center gap-1.5 block mt-1 text-xs opacity-75 truncate">
                         <FolderOpen size={12} aria-hidden="true" /> {libraryPath}
                       </span>
                     )}

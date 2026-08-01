@@ -622,8 +622,8 @@ export default function LibraryDetail({
               )}
 
               <div className="flex gap-2">
-                <button onClick={handleOpenFile} className="flex-1 px-4 py-2 rounded-lg bg-accent-fill text-white text-sm font-medium hover:bg-accent-hover"><BookOpen size={14} aria-hidden="true" /> Open File</button>
-                <button onClick={handleOpenFolder} className="flex-1 px-4 py-2 rounded-lg bg-raised text-sm font-medium text-fg hover:bg-raised"><FolderOpen size={14} aria-hidden="true" /> Open Folder</button>
+                <button onClick={handleOpenFile} className="inline-flex items-center justify-center gap-1.5 flex-1 px-4 py-2 rounded-lg bg-accent-fill text-white text-sm font-medium hover:bg-accent-hover"><BookOpen size={14} aria-hidden="true" /> Open File</button>
+                <button onClick={handleOpenFolder} className="inline-flex items-center justify-center gap-1.5 flex-1 px-4 py-2 rounded-lg bg-raised text-sm font-medium text-fg hover:bg-raised"><FolderOpen size={14} aria-hidden="true" /> Open Folder</button>
               </div>
 
               {convertError && (
@@ -640,7 +640,7 @@ export default function LibraryDetail({
                 <button
                   onClick={() => setShowConvertDialog(true)}
                   disabled={isConverting || converting}
-                  className="w-full px-4 py-2 rounded-lg bg-accent-fill text-white text-sm font-medium hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="inline-flex items-center gap-1.5 w-full px-4 py-2 rounded-lg bg-accent-fill text-white text-sm font-medium hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {isConverting || converting ? (
                     <>
@@ -658,7 +658,7 @@ export default function LibraryDetail({
                 onClick={() => setEditing(true)}
                 disabled={isConverting}
                 title={isConverting ? 'Unavailable while this file is being converted' : undefined}
-                className="w-full px-4 py-2 rounded-lg bg-info-wash text-info text-sm font-medium hover:bg-info-wash disabled:opacity-40 disabled:cursor-not-allowed"
+                className="inline-flex items-center gap-1.5 w-full px-4 py-2 rounded-lg bg-info-wash text-info text-sm font-medium hover:bg-info-wash disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <Pencil size={14} aria-hidden="true" /> Edit Metadata
               </button>
@@ -683,8 +683,8 @@ export default function LibraryDetail({
                   </div>
                 ) : (
                   <div className="flex gap-2">
-                    <button onClick={() => setDeleteConfirm('remove')} disabled={isConverting} title={isConverting ? 'Unavailable while this file is being converted' : undefined} className="flex-1 px-4 py-2 rounded-lg bg-warning-wash text-warning text-sm font-medium hover:bg-warning-wash disabled:opacity-40 disabled:cursor-not-allowed"><ListX size={14} aria-hidden="true" /> Remove from Library</button>
-                    <button onClick={() => setDeleteConfirm('deleteFile')} disabled={isConverting} title={isConverting ? 'Unavailable while this file is being converted' : undefined} className="flex-1 px-4 py-2 rounded-lg bg-danger-wash text-danger text-sm font-medium hover:bg-danger-wash disabled:opacity-40 disabled:cursor-not-allowed"><Trash2 size={14} aria-hidden="true" /> Delete File</button>
+                    <button onClick={() => setDeleteConfirm('remove')} disabled={isConverting} title={isConverting ? 'Unavailable while this file is being converted' : undefined} className="inline-flex items-center justify-center gap-1.5 flex-1 px-4 py-2 rounded-lg bg-warning-wash text-warning text-sm font-medium hover:bg-warning-wash disabled:opacity-40 disabled:cursor-not-allowed"><ListX size={14} aria-hidden="true" /> Remove from Library</button>
+                    <button onClick={() => setDeleteConfirm('deleteFile')} disabled={isConverting} title={isConverting ? 'Unavailable while this file is being converted' : undefined} className="inline-flex items-center justify-center gap-1.5 flex-1 px-4 py-2 rounded-lg bg-danger-wash text-danger text-sm font-medium hover:bg-danger-wash disabled:opacity-40 disabled:cursor-not-allowed"><Trash2 size={14} aria-hidden="true" /> Delete File</button>
                   </div>
                 )}
               </div>

@@ -472,7 +472,7 @@ export default function CustomEntryForm({
             <div className="flex items-center gap-3">
               <button
                 onClick={handlePickPdf}
-                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                   sourcePath && sourceType === 'pdf'
                     ? 'bg-accent-fill text-white'
                     : 'bg-raised text-fg hover:bg-raised'
@@ -482,7 +482,7 @@ export default function CustomEntryForm({
               </button>
               <button
                 onClick={handlePickImageFolder}
-                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                   sourcePath && sourceType === 'images'
                     ? 'bg-accent-fill text-white'
                     : 'bg-raised text-fg hover:bg-raised'

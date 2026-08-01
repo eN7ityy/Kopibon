@@ -357,7 +357,7 @@ export default function GalleryViewer({
         <div className="flex-1 flex justify-end">
           <button
             onClick={exitReadingMode}
-            className="text-white/70 hover:text-danger transition-colors text-sm font-medium"
+            className="inline-flex items-center gap-1.5 text-white/70 hover:text-danger transition-colors text-sm font-medium"
           >
             <X size={14} aria-hidden="true" /> Exit
           </button>

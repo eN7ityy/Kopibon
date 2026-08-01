@@ -189,9 +189,18 @@ export default function DownloadItem({
               <p className="text-xs text-success inline-flex items-center gap-1">
                 <Check size={12} aria-hidden="true" /> Download complete
               </p>
+              {/*
+                `flex` rather than `inline-flex` below, with the path in its own
+                span: `truncate` needs the overflow to belong to the text element,
+                so putting it on a flex container would stop it truncating.
+              */}
               {galleryInfo?.filePath && (
-                <p className="text-xs text-fg-faint mt-0.5 truncate" title={galleryInfo.filePath}>
-                  <FolderOpen size={12} aria-hidden="true" /> {galleryInfo.filePath}
+                <p
+                  className="mt-0.5 flex items-center gap-1.5 text-xs text-fg-faint"
+                  title={galleryInfo.filePath}
+                >
+                  <FolderOpen size={12} className="shrink-0" aria-hidden="true" />
+                  <span className="truncate">{galleryInfo.filePath}</span>
                 </p>
               )}
             </div>
