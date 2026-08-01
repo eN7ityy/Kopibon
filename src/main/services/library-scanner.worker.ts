@@ -17,7 +17,7 @@ import type { Dirent } from 'fs'
 import { join, relative, basename } from 'path'
 import { execFile } from 'child_process'
 import { createHash } from 'crypto'
-import { tmpdir, homedir } from 'os'
+import { homedir } from 'os'
 import Database from 'better-sqlite3'
 import { PDFDocument } from 'pdf-lib'
 
@@ -76,9 +76,15 @@ let state: 'idle' | 'scanning' | 'paused' | 'cancelled' = 'idle'
 let db: Database.Database | null = null
 let currentLibraryRoot = ''
 let resolvePause: (() => void) | null = null
-// Supplied by the main process (userData/thumbnails). Falls back to tmpdir
-// only if the message somehow arrives without it.
-let currentThumbnailDir = join(tmpdir(), 'doujin-downloader-thumbs')
+/*
+ * Supplied by the main process (userData/thumbnails).
+ *
+ * The fallback used to be tmpdir, which is where this went wrong: on a machine
+ * where /tmp is a tmpfs, every cached thumbnail vanished on reboot while the
+ * database still held valid-looking paths to them. A fallback must not be
+ * volatile — it now matches the log directory convention above.
+ */
+let currentThumbnailDir = join(homedir(), '.config', 'doujin-downloader', 'thumbnails')
 
 // ─── Logging ─────────────────────────────────────────────────────────────────
 
@@ -410,6 +416,39 @@ async function extractCbzMetadata(filePath: string): Promise<PdfMetadata> {
  * Generate a thumbnail for a CBZ file by extracting the first image entry
  * and resizing with sharp.
  */
+/**
+ * Regenerate a thumbnail for an existing row when the cached file is gone.
+ *
+ * The three "already exists" paths below all return early, before the
+ * generation step that runs for new files — so a lost thumbnail was permanent:
+ * rescanning could never bring it back. That is what left a converted library
+ * with no covers, because the cached files had been written to /tmp and cleared.
+ *
+ * Cheap in the normal case: one indexed lookup and one existsSync per file, and
+ * generation only when there is genuinely nothing there.
+ */
+async function repairThumbnail(rowId: number, filePath: string): Promise<void> {
+  try {
+    const row = db!
+      .prepare('SELECT custom_cover_path FROM library_item WHERE id = ?')
+      .get(rowId) as { custom_cover_path: string | null } | undefined
+    if (row?.custom_cover_path && existsSync(row.custom_cover_path)) return
+
+    const isCbz = filePath.toLowerCase().endsWith('.cbz')
+    const made = isCbz ? await generateCbzThumbnail(filePath) : await generateThumbnail(filePath)
+    if (!made) return
+
+    // Both columns, kept in step: `custom_cover_path` is what the UI reads and
+    // `thumbnail_path` is what this scanner writes, and they had drifted apart.
+    db!
+      .prepare('UPDATE library_item SET custom_cover_path = ?, thumbnail_path = ? WHERE id = ?')
+      .run(made, made, rowId)
+    log(`THUMBNAIL regenerated ${filePath}`)
+  } catch {
+    /* a missing cover is cosmetic; never fail a scan over it */
+  }
+}
+
 async function generateCbzThumbnail(filePath: string): Promise<string | null> {
   const thumbDir = currentThumbnailDir
   if (!existsSync(thumbDir)) {
@@ -707,6 +746,7 @@ async function processFile(filePath: string): Promise<{ status: 'new' | 'skipped
       if (row) {
         log(`SKIP (exists by gallery #${galleryId}) ${filePath}`)
         updateLibraryItemMtime(row.id, filePath, statInfo.mtimeMs, statInfo.size)
+        await repairThumbnail(row.id, filePath)
         markQueueItem(filePath, 'completed')
         return { status: 'skipped' }
       }
@@ -716,6 +756,7 @@ async function processFile(filePath: string): Promise<{ status: 'new' | 'skipped
     if (rowByPath) {
       log(`SKIP (exists by path) ${filePath}`)
       updateLibraryItemMtime(rowByPath.id, filePath, statInfo.mtimeMs, statInfo.size)
+      await repairThumbnail(rowByPath.id, filePath)
       markQueueItem(filePath, 'completed')
       return { status: 'skipped' }
     }

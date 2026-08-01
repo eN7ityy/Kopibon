@@ -2206,9 +2206,14 @@ export function registerLibraryIpc(): void {
                         fileMtime:
                           msg.fileMtime ??
                           Date.now(),
+                        // Both columns: the UI reads customCoverPath and the
+                        // scanner writes thumbnailPath, and updating only one
+                        // left 4,619 rows disagreeing about where the cover is.
                         ...(movedCover
                           ? {
                               customCoverPath:
+                                movedCover,
+                              thumbnailPath:
                                 movedCover
                             }
                           : {}),
