@@ -44,6 +44,11 @@ interface ConvertCommand {
     options: {
       keepOriginal: boolean
       libraryRoot: string
+      /**
+       * Where the source PDF is archived. Resolved in main from the setting, so
+       * the worker never has to know the default layout.
+       */
+      originalsRoot: string
       userDataDir: string
       mangaDirection: 'Yes' | 'YesAndRightToLeft' | 'No'
       parodyAsCollection: boolean
@@ -346,9 +351,13 @@ parentPort?.on('message', async (cmd: ConvertCommand) => {
       // database and goes straight into a path, so it has to be reduced to a
       // single safe path segment first — a name containing '/' or '..' would
       // otherwise place the user's only remaining copy outside _originals.
+      // The archive root is configurable, so it comes in rather than being built
+      // from the library root. An empty value falls back to the old layout so a
+      // conversion can never lose the source PDF over a missing setting.
+      const archiveRoot = options.originalsRoot || join(options.libraryRoot, '_originals')
       const originalsDir = forcedKeep
-        ? join(options.libraryRoot, '_originals', '_lossy', safePathSegment(itemMeta?.primaryArtist))
-        : join(options.libraryRoot, '_originals', safePathSegment(itemMeta?.primaryArtist))
+        ? join(archiveRoot, '_lossy', safePathSegment(itemMeta?.primaryArtist))
+        : join(archiveRoot, safePathSegment(itemMeta?.primaryArtist))
       mkdirSync(originalsDir, { recursive: true })
 
       // Never overwrite an archived original — re-converting an item whose name

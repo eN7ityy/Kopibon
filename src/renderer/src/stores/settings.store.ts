@@ -12,6 +12,10 @@ export type PageSizeOption = 'Dynamic' | 'Fit to Image' | 'Letter' | 'A4'
 
 interface SettingsState {
   libraryPath: string
+  /** Where cached covers are written. Empty means the app default. */
+  thumbnailPath: string
+  /** Where converted PDFs are archived. Empty means <library>/_originals. */
+  originalsPath: string
   downloadConcurrency: number
   outputFormat: OutputFormat
 
@@ -34,6 +38,8 @@ interface SettingsState {
   loaded: boolean
 
   setLibraryPath: (path: string) => void
+  setThumbnailPath: (path: string) => void
+  setOriginalsPath: (path: string) => void
   setDownloadConcurrency: (n: number) => void
   setOutputFormat: (format: OutputFormat) => void
   setCompressPdf: (compress: boolean) => void
@@ -51,6 +57,10 @@ const DEFAULT_LIBRARY_PATH = '/mnt/bragi/Kavita/Doujins/'
 
 export const useSettingsStore = create<SettingsState>()((set, get) => ({
   libraryPath: DEFAULT_LIBRARY_PATH,
+  // Empty rather than a guessed default: main resolves these, and storing a
+  // placeholder here would write it to the database as if it were chosen.
+  thumbnailPath: '',
+  originalsPath: '',
   downloadConcurrency: 3,
   outputFormat: 'pdf',
   compressPdf: true,
@@ -62,6 +72,8 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   loaded: false,
 
   setLibraryPath: (path) => set({ libraryPath: path }),
+  setThumbnailPath: (path) => set({ thumbnailPath: path }),
+  setOriginalsPath: (path) => set({ originalsPath: path }),
   setDownloadConcurrency: (n) => set({ downloadConcurrency: n }),
   setOutputFormat: (format) => set({ outputFormat: format }),
   setCompressPdf: (compress) => set({ compressPdf: compress }),
@@ -94,6 +106,8 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
 
       set({
         libraryPath: settings.libraryPath || DEFAULT_LIBRARY_PATH,
+        thumbnailPath: settings.thumbnailPath || '',
+        originalsPath: settings.originalsPath || '',
         downloadConcurrency: asNumber(settings.downloadConcurrency, 3),
         outputFormat: (settings.outputFormat as OutputFormat) ?? 'pdf',
         compressPdf: asBool(settings.compressPdf, true),
@@ -114,6 +128,8 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     try {
       await window.api.settings.setAll({
         libraryPath: state.libraryPath,
+        thumbnailPath: state.thumbnailPath,
+        originalsPath: state.originalsPath,
         downloadConcurrency: String(state.downloadConcurrency),
         outputFormat: state.outputFormat,
         compressPdf: String(state.compressPdf),

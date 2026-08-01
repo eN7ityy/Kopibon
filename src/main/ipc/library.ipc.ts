@@ -93,6 +93,33 @@ function conversionLockError(): { success: false; error: string } {
  * nothing to move — in which case the caller leaves the column alone and the
  * next scan regenerates.
  */
+/**
+ * Where cached thumbnails live.
+ *
+ * Configurable because these can run to thousands of files, and the default sits
+ * under userData on the system disk. An explicit setting also guards against the
+ * failure that lost every cover once already: a volatile location.
+ */
+function resolveThumbnailDir(): string {
+  const configured = (settingsRepo.get('thumbnailPath') || '').trim()
+  return configured || join(app.getPath('userData'), 'thumbnails')
+}
+
+/**
+ * Where converted PDFs are archived.
+ *
+ * Defaults to `_originals` inside the library, which is where conversions have
+ * always put them, so an unset value keeps existing archives findable. Pointing
+ * it elsewhere is the point: the originals are usually far larger than the CBZs
+ * that replaced them and often belong on different storage.
+ */
+function resolveOriginalsRoot(): string {
+  const configured = (settingsRepo.get('originalsPath') || '').trim()
+  if (configured) return configured
+  const root = (settingsRepo.get('libraryPath') || '').trim()
+  return root ? join(root, '_originals') : ''
+}
+
 function renameThumbnailForPath(
   currentCover: string | null,
   newFilePath: string
@@ -379,7 +406,7 @@ export function registerLibraryIpc(): void {
     scanWorker.postMessage({
       type: 'start',
       libraryRoot,
-      thumbnailDir: join(app.getPath('userData'), 'thumbnails')
+      thumbnailDir: resolveThumbnailDir()
     })
     return { success: true, data: { scanning: true } }
   })
@@ -2152,6 +2179,8 @@ export function registerLibraryIpc(): void {
                   keepOriginal:
                     claim.keepOriginal,
                   libraryRoot,
+                  originalsRoot:
+                    resolveOriginalsRoot(),
                   userDataDir:
                     app.getPath(
                       'userData'
@@ -2379,7 +2408,8 @@ export function registerLibraryIpc(): void {
   /**
    * Walk `_originals`, separating the freely-deletable archive from `_lossy`.
    */
-  function scanOriginals(root: string): {
+  /** Walk an originals archive. Takes the archive root, not the library root. */
+  function scanOriginals(originalsRoot: string): {
     files: string[]
     bytes: number
     lossyFiles: string[]
@@ -2427,16 +2457,13 @@ export function registerLibraryIpc(): void {
       }
     }
 
-    walk(join(root, '_originals'), false)
+    walk(originalsRoot, false)
     return { files, bytes, lossyFiles, lossyBytes }
   }
 
   handle('library:getOriginalsInfo', async () => {
-    const root = settingsRepo.get('libraryPath') || ''
-    if (
-      !root ||
-      !existsSync(join(root, '_originals'))
-    ) {
+    const root = resolveOriginalsRoot()
+    if (!root || !existsSync(root)) {
       return {
         success: true,
         data: {
@@ -2462,11 +2489,8 @@ export function registerLibraryIpc(): void {
   handle(
     'library:purgeOriginals',
     async (_event, includeLossy: boolean = false) => {
-      const root = settingsRepo.get('libraryPath') || ''
-      if (
-        !root ||
-        !existsSync(join(root, '_originals'))
-      ) {
+      const root = resolveOriginalsRoot()
+      if (!root || !existsSync(root)) {
         return {
           success: true,
           data: { deleted: 0, bytes: 0, failed: 0 }

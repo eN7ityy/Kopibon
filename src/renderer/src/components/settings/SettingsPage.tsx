@@ -71,25 +71,6 @@ export default function SettingsPage(): React.JSX.Element {
   // Save feedback
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle')
 
-  /**
-   * Pick the library folder.
-   *
-   * Seeds the dialog with the current path, and leaves the value in the store for
-   * the pane's Save to persist — the same as typing it. Applying immediately
-   * would move where downloads land and where scans look on a single click, with
-   * no chance to reconsider.
-   */
-  const handleBrowseLibraryPath = async (): Promise<void> => {
-    try {
-      const result = await window.api.dialog.openDirectory(settings.libraryPath || undefined)
-      if (result.success && result.data) {
-        settings.setLibraryPath(result.data as string)
-      }
-    } catch {
-      /* the dialog was dismissed, or no window was available */
-    }
-  }
-
   const handleSaveSettings = async (): Promise<void> => {
     setSaveState('saving')
     await settings.saveToDb()
@@ -210,38 +191,24 @@ export default function SettingsPage(): React.JSX.Element {
               <section>
                 <h2 className="text-section font-semibold text-fg mb-3">Library</h2>
                 <div className="space-y-3">
-                  <div>
-                    <label htmlFor="library-path" className="block text-sm font-medium text-fg mb-1">
-                      Library Path
-                    </label>
-                    {/*
-                      The field stays editable — a path can be pasted, and on a
-                      network share typing it is sometimes easier than browsing to
-                      it. Browse is the affordance, not the only way in.
-                    */}
-                    <div className="flex gap-2">
-                      <input
-                        id="library-path"
-                        type="text"
-                        value={settings.libraryPath}
-                        onChange={(e) => settings.setLibraryPath(e.target.value)}
-                        placeholder="Not set"
-                        spellCheck={false}
-                        className="min-w-0 flex-1 px-3 py-2 rounded-lg border border-line bg-surface font-mono text-sm text-fg placeholder-fg-faint focus:outline-none focus:ring-2 focus:ring-accent"
-                      />
-                      <Button
-                        icon={<FolderOpen size={16} />}
-                        onClick={handleBrowseLibraryPath}
-                        extraClass="shrink-0"
-                      >
-                        Browse
-                      </Button>
-                    </div>
-                    <p className="mt-1 text-xs text-fg-faint">
-                      Where downloads are written and scans look for files. Changing it takes effect
-                      on Save; run a rescan afterwards so the library matches the new location.
-                    </p>
-                  </div>
+                  <PathField
+                    id="library-path"
+                    label="Library Path"
+                    value={settings.libraryPath}
+                    onChange={settings.setLibraryPath}
+                    placeholder="Not set"
+                    hint="Where downloads are written and scans look for files. Changing it takes effect on Save; run a rescan afterwards so the library matches the new location."
+                  />
+
+                  <PathField
+                    id="thumbnail-path"
+                    label="Thumbnail cache"
+                    value={settings.thumbnailPath}
+                    onChange={settings.setThumbnailPath}
+                    placeholder="Default (app data folder)"
+                    browseFrom={settings.libraryPath}
+                    hint="Where cover images are cached, one small file per item. Leave empty for the app data folder. Do not point this at a temporary location — a cache under /tmp is wiped on reboot and every cover disappears."
+                  />
                 </div>
               </section>
             )}
@@ -367,6 +334,18 @@ export default function SettingsPage(): React.JSX.Element {
                           each conversion asks.
                         </p>
                       </div>
+                    </div>
+
+                    <div className="mt-3">
+                      <PathField
+                        id="originals-path"
+                        label="Originals archive"
+                        value={settings.originalsPath}
+                        onChange={settings.setOriginalsPath}
+                        placeholder="Default (_originals inside the library)"
+                        browseFrom={settings.libraryPath}
+                        hint="Where the source PDF is moved after a conversion. Leave empty to keep it inside the library. Originals are usually far larger than the CBZs that replace them, so this often belongs on different storage. Existing archives are not moved when this changes."
+                      />
                     </div>
 
                     <OriginalsCleanup />
@@ -549,6 +528,64 @@ export default function SettingsPage(): React.JSX.Element {
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+/**
+ * A path with a Browse button.
+ *
+ * The field stays editable: a path can be pasted, and on a network share typing
+ * it is often easier than browsing to it. Browse seeds the dialog with whatever
+ * is already there, or with `browseFrom` when the field is empty and showing a
+ * resolved default.
+ */
+function PathField({
+  id,
+  label,
+  value,
+  onChange,
+  placeholder,
+  hint,
+  browseFrom
+}: {
+  id: string
+  label: string
+  value: string
+  onChange: (value: string) => void
+  placeholder?: string
+  hint?: React.ReactNode
+  browseFrom?: string
+}): React.JSX.Element {
+  const browse = async (): Promise<void> => {
+    try {
+      const result = await window.api.dialog.openDirectory(value || browseFrom || undefined)
+      if (result.success && result.data) onChange(result.data as string)
+    } catch {
+      /* the dialog was dismissed, or no window was available */
+    }
+  }
+
+  return (
+    <div>
+      <label htmlFor={id} className="block text-sm font-medium text-fg mb-1">
+        {label}
+      </label>
+      <div className="flex gap-2">
+        <input
+          id={id}
+          type="text"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          spellCheck={false}
+          className="min-w-0 flex-1 px-3 py-2 rounded-lg border border-line bg-surface font-mono text-sm text-fg placeholder-fg-faint focus:outline-none focus:ring-2 focus:ring-accent"
+        />
+        <Button icon={<FolderOpen size={16} />} onClick={browse} extraClass="shrink-0">
+          Browse
+        </Button>
+      </div>
+      {hint && <p className="mt-1 text-xs text-fg-faint">{hint}</p>}
     </div>
   )
 }
