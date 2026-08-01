@@ -14,6 +14,7 @@ import {
   Trash2,
   X,
   FolderTree,
+  FolderOpen,
   Globe,
   SlidersHorizontal,
   TriangleAlert,
@@ -69,6 +70,25 @@ export default function SettingsPage(): React.JSX.Element {
 
   // Save feedback
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle')
+
+  /**
+   * Pick the library folder.
+   *
+   * Seeds the dialog with the current path, and leaves the value in the store for
+   * the pane's Save to persist — the same as typing it. Applying immediately
+   * would move where downloads land and where scans look on a single click, with
+   * no chance to reconsider.
+   */
+  const handleBrowseLibraryPath = async (): Promise<void> => {
+    try {
+      const result = await window.api.dialog.openDirectory(settings.libraryPath || undefined)
+      if (result.success && result.data) {
+        settings.setLibraryPath(result.data as string)
+      }
+    } catch {
+      /* the dialog was dismissed, or no window was available */
+    }
+  }
 
   const handleSaveSettings = async (): Promise<void> => {
     setSaveState('saving')
@@ -191,15 +211,35 @@ export default function SettingsPage(): React.JSX.Element {
                 <h2 className="text-section font-semibold text-fg mb-3">Library</h2>
                 <div className="space-y-3">
                   <div>
-                    <label className="block text-sm font-medium text-fg mb-1">Library Path</label>
-                    <input
-                      type="text"
-                      value={settings.libraryPath}
-                      onChange={(e) => settings.setLibraryPath(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg border border-line bg-surface text-fg focus:outline-none focus:ring-2 focus:ring-accent"
-                    />
+                    <label htmlFor="library-path" className="block text-sm font-medium text-fg mb-1">
+                      Library Path
+                    </label>
+                    {/*
+                      The field stays editable — a path can be pasted, and on a
+                      network share typing it is sometimes easier than browsing to
+                      it. Browse is the affordance, not the only way in.
+                    */}
+                    <div className="flex gap-2">
+                      <input
+                        id="library-path"
+                        type="text"
+                        value={settings.libraryPath}
+                        onChange={(e) => settings.setLibraryPath(e.target.value)}
+                        placeholder="Not set"
+                        spellCheck={false}
+                        className="min-w-0 flex-1 px-3 py-2 rounded-lg border border-line bg-surface font-mono text-sm text-fg placeholder-fg-faint focus:outline-none focus:ring-2 focus:ring-accent"
+                      />
+                      <Button
+                        icon={<FolderOpen size={16} />}
+                        onClick={handleBrowseLibraryPath}
+                        extraClass="shrink-0"
+                      >
+                        Browse
+                      </Button>
+                    </div>
                     <p className="mt-1 text-xs text-fg-faint">
-                      Directory where doujinshi PDFs are stored
+                      Where downloads are written and scans look for files. Changing it takes effect
+                      on Save; run a rescan afterwards so the library matches the new location.
                     </p>
                   </div>
                 </div>

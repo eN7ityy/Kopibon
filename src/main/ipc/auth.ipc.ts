@@ -176,12 +176,16 @@ export function registerAuthIpc(): void {
     }
   )
 
-  handle('dialog:openDirectory', async (event) => {
+  handle('dialog:openDirectory', async (event, defaultPath?: string) => {
     const win = BrowserWindow.fromWebContents(event.sender)
     if (!win) return { success: false, error: 'No window found' }
 
     const result = await dialog.showOpenDialog(win, {
-      properties: ['openDirectory']
+      properties: ['openDirectory', 'createDirectory'],
+      // Start where the caller already points, so choosing a sibling folder does
+      // not mean navigating from the filesystem root every time. An unreadable or
+      // missing path is ignored by Electron rather than failing the dialog.
+      ...(defaultPath ? { defaultPath } : {})
     })
 
     return {

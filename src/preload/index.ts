@@ -60,7 +60,8 @@ const api = {
   dialog: {
     openFile: (options?: { filters?: Array<{ name: string; extensions: string[] }> }) =>
       ipcRenderer.invoke('dialog:openFile', options),
-    openDirectory: () => ipcRenderer.invoke('dialog:openDirectory')
+    openDirectory: (defaultPath?: string) =>
+      ipcRenderer.invoke('dialog:openDirectory', defaultPath)
   },
 
   // Downloads
