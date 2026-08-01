@@ -449,6 +449,21 @@ async function repairThumbnail(rowId: number, filePath: string): Promise<void> {
   }
 }
 
+/**
+ * Cover size.
+ *
+ * Was 300x400, which a card renders at up to ~260 CSS px and the detail panel at
+ * ~460 — so on a HiDPI display the cover was being upscaled two to three times
+ * and looked soft. Source pages are ~1280x1803, so the detail was always there.
+ *
+ * Measured over 40 real covers: 300x400 averages 30 KB (136 MB across this
+ * library), 600x800 averages 98 KB (445 MB). Doubling the edge is the useful
+ * step; 800x1067 costs 699 MB for detail nothing displays at.
+ */
+const THUMB_WIDTH = 600
+const THUMB_HEIGHT = 800
+const THUMB_QUALITY = 82
+
 async function generateCbzThumbnail(filePath: string): Promise<string | null> {
   const thumbDir = currentThumbnailDir
   if (!existsSync(thumbDir)) {
@@ -495,8 +510,8 @@ async function generateCbzThumbnail(filePath: string): Promise<string | null> {
     if (!imageBuffer) return null
 
     await sharp(imageBuffer)
-      .resize(300, 400, { fit: 'inside' })
-      .jpeg({ quality: 80 })
+      .resize(THUMB_WIDTH, THUMB_HEIGHT, { fit: 'inside' })
+      .jpeg({ quality: THUMB_QUALITY })
       .toFile(thumbPath)
 
     return thumbPath
@@ -521,7 +536,10 @@ async function generateThumbnail(pdfPath: string): Promise<string | null> {
   try {
     await new Promise<void>((resolve, reject) => {
       execFile('pdftoppm', [
-        '-f', '1', '-l', '1', '-singlefile', '-jpeg', '-scale-to', '300',
+        // -scale-to sets the longest edge, so this matches `fit: 'inside'`
+        // above for a portrait page. At 300 it yielded ~212x300, which is why
+        // PDF covers looked worse than CBZ ones.
+        '-f', '1', '-l', '1', '-singlefile', '-jpeg', '-scale-to', String(THUMB_HEIGHT),
         pdfPath, thumbPath.replace('.jpg', '')
       ], { timeout: 5000 }, (err) => { if (err) reject(err); else resolve() })
     })
