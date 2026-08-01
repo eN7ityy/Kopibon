@@ -615,6 +615,38 @@ export class DownloadManager {
         try { fileSize = statSync(outputPath).size } catch { /* ignore */ }
         const dateStr = new Date(gallery.upload_date * 1000).toISOString().split('T')[0]
 
+        /*
+         * A re-download supersedes whatever file the row pointed at.
+         *
+         * Removed here, once the new file is on disk and about to be recorded,
+         * rather than before the download starts. Re-download used to delete
+         * first and fetch second, so a failure anywhere in between left the
+         * gallery gone with nothing to restore. Now the worst case is an
+         * unchanged library.
+         *
+         * Skipped when the paths match, which is the common case — the new
+         * download simply overwrote it — and when the row is a placeholder,
+         * whose filePath is empty.
+         */
+        const superseded = libItem.filePath
+        if (superseded && superseded !== outputPath && existsSync(superseded)) {
+          try {
+            rmSync(superseded, { force: true })
+            getLogger('downloads').info('replaced the previous file for a re-download', {
+              galleryId: gallery.id,
+              removed: superseded,
+              replacedBy: outputPath
+            })
+          } catch (err) {
+            // Leaves a stray file, which a rescan will pick up. Not a reason to
+            // fail a download that has already succeeded.
+            getLogger('downloads').warn('could not remove the superseded file', {
+              path: superseded,
+              error: String(err)
+            })
+          }
+        }
+
         libraryRepo.update(libItem.id, {
           isCustom: 0,
           customTitle: gallery.title.pretty,

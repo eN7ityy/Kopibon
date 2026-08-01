@@ -518,18 +518,22 @@ export default function GalleryDetailPanel({
                     )}
                   </p>
                   <p className="text-xs text-warning">
-                    Re-downloading will remove the existing file and re-download it.
+                    The existing file is kept until the new one has downloaded, then replaced.
                   </p>
                   <div className="flex gap-2">
                     <button
-                      onClick={async () => {
-                        // Remove from library first, then download
-                        try {
-                          const r = await window.api.library.getByGalleryId(galleryId)
-                          if (r.success && r.data) {
-                            await window.api.library.deleteFile(r.data.id)
-                          }
-                        } catch { /* */ }
+                      onClick={() => {
+                        /*
+                          Deliberately does not delete anything first.
+
+                          This used to remove the file and then start the
+                          download, so any failure — a network drop, a bad
+                          response — left the gallery gone for good. The main
+                          process already points the library row at the new file
+                          when the download succeeds, and removes the old one
+                          only at that point, so nothing has to be destroyed up
+                          front to make room.
+                        */
                         setShowRedownloadConfirm(false)
                         setDownloadStatus('not_downloaded')
                         onDownload(galleryId, downloadFormat)

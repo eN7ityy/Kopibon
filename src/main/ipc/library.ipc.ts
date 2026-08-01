@@ -1661,6 +1661,22 @@ export function registerLibraryIpc(): void {
       const worker = new Worker(workerPath)
       attachWorkerLogForwarding(worker, log)
 
+      /*
+       * Resolve exactly once.
+       *
+       * Three paths can finish a sync — a result message, a worker error, and
+       * the exit backstop — and a normal completion triggers two of them, since
+       * terminating the worker fires `exit` straight after. Without this, the
+       * later call would be a no-op on the promise but would still be reasoning
+       * about a job that had already reported.
+       */
+      let settled = false
+      const settle = (result: { success: boolean; message?: string }): void => {
+        if (settled) return
+        settled = true
+        resolve(result)
+      }
+
       const apiKey = getStoredApiKey()
 
       worker.on(
@@ -1729,23 +1745,49 @@ export function registerLibraryIpc(): void {
               /* best-effort */
             }
             syncingItems.delete(msg.itemId)
-            resolve({ success: true })
+            settle({ success: true })
           } else if (msg.type === 'error') {
             syncingItems.delete(msg.itemId)
-            resolve({
+            settle({
               success: false,
               message: msg.message
             })
           }
-          worker.terminate()
+          /*
+           * Only tear the worker down for a message that ended the job.
+           *
+           * This used to run for every message. Once workers began forwarding
+           * their log records to the application log, the first line a sync
+           * writes — before it has done anything — is a `log` message, so every
+           * sync was terminated immediately and neither branch above resolved.
+           * The promise then never settled and the batch loop stopped dead on
+           * its first item.
+           */
+          if (msg.type === 'complete' || msg.type === 'error') {
+            worker.terminate()
+          }
         }
       )
 
       worker.on('error', () => {
         syncingItems.delete(itemId)
-        resolve({
+        settle({
           success: false,
           message: 'Worker error'
+        })
+      })
+
+      /*
+       * Backstop. A worker that dies without reporting — a load failure, a
+       * crash, or the terminate above — must still settle this promise, or the
+       * caller waits on it forever. `settle` ignores anything after the first
+       * call, so a normal completion is unaffected by the exit that follows it.
+       */
+      worker.on('exit', () => {
+        syncingItems.delete(itemId)
+        settle({
+          success: false,
+          message: 'Sync worker stopped before it reported a result'
         })
       })
 
