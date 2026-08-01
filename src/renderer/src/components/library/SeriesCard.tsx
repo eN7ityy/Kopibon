@@ -87,7 +87,15 @@ export default function SeriesCard({
         : `${series.artists[0]} +${series.artists.length - 1}`
 
   return (
-    <div className="group relative">
+    /*
+      The ratio lives on the outer wrapper, which spans the full grid cell.
+
+      It was on the inner card, which carries `mr-1.5` to make room for the
+      stacked edge — so the ratio resolved against a width 6px narrower than a
+      gallery card's and every series came out about 11px shorter. The wrapper
+      sets the height, the card fills it.
+    */
+    <div className={`group relative flex ${compact ? 'aspect-[1/2.05]' : 'aspect-[1/1.85]'}`}>
       {/*
         A second card peeking out behind the first. Inset vertically and offset
         by a few pixels so it reads as depth rather than as a misaligned card,
@@ -98,17 +106,7 @@ export default function SeriesCard({
         className="pointer-events-none absolute inset-y-2 right-0 w-2 rounded-r-lg border border-l-0 border-line bg-raised"
       />
 
-      {/*
-        Same fixed ratio as LibraryCard, so a series and a gallery sitting next
-        to each other are the same height. The match chip is exactly the kind of
-        conditional line that made cards uneven, and here it costs cover height
-        instead of row height.
-      */}
-      <div
-        className={`relative mr-1.5 flex ${
-          compact ? 'aspect-[1/2.05]' : 'aspect-[1/1.85]'
-        } flex-col overflow-hidden rounded-lg border border-line bg-surface transition-all duration-200 hover:border-accent hover:shadow-lg`}
-      >
+      <div className="relative mr-1.5 flex min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-line bg-surface transition-all duration-200 hover:border-accent hover:shadow-lg">
         <div
           className={`absolute top-2 left-2 z-10 transition-opacity ${
             selected || partiallySelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
