@@ -121,6 +121,22 @@ export interface SeriesCardData {
   tags: string[]
   /** Whole volumes absent from the middle of the run. */
   gaps: number[]
+  /**
+   * The galleries this card stands for, in reading order — matching members
+   * only, so selecting a card that reads "3 of 15" selects three.
+   *
+   * Carried on the card rather than fetched per card: selection has to know
+   * these to render a checkbox state at all, and a round-trip for every series
+   * on a hundred-row page would be a hundred round-trips. At an average of 3.3
+   * members across 239 groups the payload is negligible.
+   *
+   * Shaped like the rows `findAllIds` returns, id and format together, because
+   * it feeds the same selection state. Selecting a series has to record each
+   * member's format: the renderer only holds rows for galleries shown in their
+   * own right, so without this a member of a collapsed series would fall back
+   * to a default and a selection of CBZs could be counted as convertible PDFs.
+   */
+  members: Array<{ id: number; format: string }>
 }
 
 export type LibraryRow =
@@ -250,7 +266,11 @@ function hydrateRows(
         // Gaps describe the series, not the filtered slice: "volume 3 missing"
         // is a fact about the collection, and computing it over a match would
         // report a gap for every volume the search excluded.
-        gaps: findVolumeGaps(all.map((m) => m.series_index))
+        gaps: findVolumeGaps(all.map((m) => m.series_index)),
+        members: sortSeriesMembersRows(matching).map((m) => ({
+          id: m.id,
+          format: m.format || 'pdf'
+        }))
       })
     }
   }

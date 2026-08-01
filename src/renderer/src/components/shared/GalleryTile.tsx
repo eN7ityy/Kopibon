@@ -42,6 +42,15 @@ interface TileCoverProps {
   stat?: string | null
   /** Badge slot, top right. */
   badge?: ReactNode
+  /**
+   * Bottom-left slot, opposite `stat`.
+   *
+   * Exists for the series card's volume count. The other three corners were
+   * already taken — selection checkbox top left, format badge top right, size
+   * bottom right — and a series has to be tellable from a gallery at a glance
+   * or the grid stops making sense.
+   */
+  cornerLeft?: ReactNode
   onError?: () => void
 }
 
@@ -51,6 +60,7 @@ export function TileCover({
   compact = false,
   stat,
   badge,
+  cornerLeft,
   onError
 }: TileCoverProps): React.JSX.Element {
   return (
@@ -83,6 +93,8 @@ export function TileCover({
           {stat}
         </span>
       )}
+
+      {cornerLeft && !compact && <div className="absolute bottom-2 left-2">{cornerLeft}</div>}
     </div>
   )
 }

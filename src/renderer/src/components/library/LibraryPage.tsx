@@ -4,6 +4,8 @@ import { useSearchStore } from '../../stores/search.store'
 import { VirtuosoGrid, Virtuoso } from 'react-virtuoso'
 import type { LibraryItemData } from './LibraryCard'
 import LibraryCard from './LibraryCard'
+import SeriesCard, { type SeriesCardModel } from './SeriesCard'
+import SeriesDetail from './SeriesDetail'
 import AutocompleteInput from '../shared/AutocompleteInput'
 import SeriesAssignment from './SeriesAssignment'
 import CustomEntryForm from './CustomEntryForm'
@@ -20,12 +22,39 @@ import { useGlobalJobs, type ProgressJob } from '../../stores/job-progress'
 import { ProgressStack } from '../shared/ProgressBar'
 import Button from '../shared/Button'
 import Notice, { NoticeRegion } from '../shared/Notice'
+import { mergeDisplayLanguages } from '../shared/language'
 import { Check, FileArchive, Grid3x3, Layers, LayoutGrid, Library, List, ListChecks, ListX, Pause, Play, Plus, RefreshCw, SlidersHorizontal, Trash2, X } from 'lucide-react'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 type SortField = 'added' | 'title' | 'artist'
 type ViewMode = 'grid' | 'compact' | 'list'
+
+/**
+ * A row in the library grid: a gallery, or a series standing for several.
+ *
+ * Mirrors LibraryRow in library.repo. Declared here rather than imported
+ * because main's types are not reachable from the renderer.
+ */
+type LibraryRow =
+  | { kind: 'item'; item: LibraryItemData }
+  | { kind: 'series'; series: SeriesCardModel }
+
+/** Every gallery a row stands for — one for an item, the matches for a series. */
+function rowGalleryIds(row: LibraryRow): number[] {
+  return row.kind === 'item' ? [row.item.id] : row.series.members.map((m) => m.id)
+}
+
+/**
+ * A row's identity, for deduplicating pages and keying React.
+ *
+ * The kind has to be part of it. `series.id` and `library_item.id` come from
+ * separate autoincrement sequences, so series 42 and gallery 42 both exist and
+ * a bare id would treat them as the same row.
+ */
+function rowKey(row: LibraryRow): string {
+  return row.kind === 'item' ? `i${row.item.id}` : `s${row.series.id}`
+}
 
 const VIEW_MODE_KEY = 'library.viewMode'
 
@@ -273,9 +302,21 @@ export default function LibraryPage(): React.JSX.Element {
   // hardcode a path, so changing the setting had no effect on scanning.
   const libraryRoot = useSettingsStore((s) => s.libraryPath)
 
-  // Paginated data
-  const [items, setItems] = useState<LibraryItemData[]>([])
+  /*
+   * Paginated data.
+   *
+   * `rows` is what the grid renders: galleries and series interleaved. When
+   * grouping is off every row is a gallery, so there is one code path rather
+   * than a branch on the setting.
+   *
+   * `totalCount` counts rows, since it drives pagination. `galleryCount` counts
+   * the galleries behind them, which is the number worth showing a person —
+   * collapsing fifteen volumes into one card must not look like losing fourteen
+   * items.
+   */
+  const [rows, setRows] = useState<LibraryRow[]>([])
   const [totalCount, setTotalCount] = useState(0)
+  const [galleryCount, setGalleryCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -312,9 +353,42 @@ export default function LibraryPage(): React.JSX.Element {
    * is populated from the same query that resolves the ids.
    */
   const [selectionFormats, setSelectionFormats] = useState<Map<number, string>>(new Map())
+
+  /**
+   * The loaded galleries that are on screen in their own right.
+   *
+   * Everything that acted on `items` before grouping existed still wants
+   * galleries rather than rows. Members of a collapsed series are deliberately
+   * *not* here: only their ids are known on this side, not their rows, so
+   * including them would mean inventing partial records.
+   *
+   * That is safe because the two places it matters already handle ids without
+   * rows. `selectionFormats` carries the format for any selected id, and the
+   * series dialog takes `allSelectedIds` for ids whose rows were never loaded —
+   * both built for "Select all" reaching past the loaded pages, which is the
+   * same situation. Anything counting what is selected must use gallery ids,
+   * not this array.
+   */
+  const items = useMemo<LibraryItemData[]>(
+    () => rows.flatMap((row) => (row.kind === 'item' ? [row.item] : [])),
+    [rows]
+  )
+
+  /** Every gallery the loaded rows stand for, including inside series. */
+  const visibleGalleryIds = useMemo(() => rows.flatMap(rowGalleryIds), [rows])
+
+  /**
+   * Whether the visible select-all is satisfied.
+   *
+   * One definition, read by both the checkbox and the toggle, so the box cannot
+   * show ticked while clicking it selects rather than clears.
+   */
+  const allVisibleSelected =
+    visibleGalleryIds.length > 0 && visibleGalleryIds.every((id) => selectedIds.has(id))
   const [showSeriesModal, setShowSeriesModal] = useState(false)
   const [showCustomForm, setShowCustomForm] = useState(false)
   const [detailItem, setDetailItem] = useState<LibraryItemData | null>(null)
+  const [detailSeries, setDetailSeries] = useState<SeriesCardModel | null>(null)
 
   // Scan state
   const [scanning, setScanning] = useState(false)
@@ -345,7 +419,7 @@ export default function LibraryPage(): React.JSX.Element {
     }
 
     try {
-      const result = await window.api.library.getPaginated({
+      const result = await window.api.library.getPaginatedGrouped({
         offset,
         limit: PAGE_SIZE,
         sortField,
@@ -357,17 +431,20 @@ export default function LibraryPage(): React.JSX.Element {
       })
 
       if (result.success && result.data) {
-        const newItems = result.data.items as unknown as LibraryItemData[]
+        const newRows = result.data.rows as unknown as LibraryRow[]
         setTotalCount(result.data.total)
-        currentOffset.current = offset + newItems.length
+        setGalleryCount(result.data.galleries)
+        currentOffset.current = offset + newRows.length
 
         if (replace) {
-          setItems(newItems)
+          setRows(newRows)
         } else {
-          setItems((prev) => {
-            const existingIds = new Set(prev.map((i) => i.id))
-            const unique = newItems.filter((item) => !existingIds.has(item.id))
-            return [...prev, ...unique]
+          setRows((prev) => {
+            // Deduplicated on the row's own identity, not the gallery's: an
+            // item and a series can hold the same number, so a single id set
+            // would drop a series whose id matched an already-loaded gallery.
+            const seen = new Set(prev.map((r) => rowKey(r)))
+            return [...prev, ...newRows.filter((r) => !seen.has(rowKey(r)))]
           })
         }
       } else {
@@ -384,9 +461,9 @@ export default function LibraryPage(): React.JSX.Element {
   // ─── Load more (infinite scroll) ───────────────────────────────────────────
 
   const loadMore = useCallback(() => {
-    if (loadingMore || items.length >= totalCount) return
+    if (loadingMore || rows.length >= totalCount) return
     fetchPage(currentOffset.current, false)
-  }, [loadingMore, items.length, totalCount, fetchPage])
+  }, [loadingMore, rows.length, totalCount, fetchPage])
 
   // ─── Reset and fetch when filters/sort/search change ───────────────────────
 
@@ -474,10 +551,20 @@ export default function LibraryPage(): React.JSX.Element {
       setError(err)
     })
 
-    // Live item streaming: prepend batched new items during active scan
+    /*
+     * Live item streaming: prepend batched new items during active scan.
+     *
+     * These arrive as plain galleries even when grouping is on. A freshly
+     * scanned file has no series resolved yet, and guessing which group it
+     * belongs to here would mean duplicating the resolver in the renderer. The
+     * scan-complete handler refetches the page, and the row appears in its
+     * group then.
+     */
     const unsubNewItems = window.api.onLibraryNewItems((batch) => {
-      setItems((prev) => {
-        const existingIds = new Set(prev.map((i) => i.id))
+      setRows((prev) => {
+        const existingIds = new Set(
+          prev.flatMap((row) => (row.kind === 'item' ? [row.item.id] : []))
+        )
         const newItems: LibraryItemData[] = []
         for (const item of batch) {
           if (existingIds.has(item.id)) continue
@@ -505,7 +592,7 @@ export default function LibraryPage(): React.JSX.Element {
           })
         }
         if (newItems.length > 0) {
-          return [...newItems, ...prev]
+          return [...newItems.map((item) => ({ kind: 'item' as const, item })), ...prev]
         }
         return prev
       })
@@ -569,6 +656,48 @@ export default function LibraryPage(): React.JSX.Element {
     if (!selectMode) setSelectMode(true)
     toggleSelect(id)
   }, [selectMode, toggleSelect])
+
+  /**
+   * Selecting a series selects the galleries it stands for.
+   *
+   * Under a filter that is the matching members only, so a card reading "3 of
+   * 15" puts three ids into the selection. Batch actions never see a series —
+   * they only ever act on galleries, which is what keeps a delete honest about
+   * how many files it is about to remove.
+   *
+   * Toggling off clears just this series' members, leaving any selected
+   * separately alone.
+   */
+  const handleSeriesToggle = useCallback(
+    (series: SeriesCardModel) => {
+      if (!selectMode) setSelectMode(true)
+      const allSelected = series.members.every((m) => selectedIds.has(m.id))
+
+      setSelectedIds((prev) => {
+        const next = new Set(prev)
+        for (const member of series.members) {
+          if (allSelected) next.delete(member.id)
+          else next.add(member.id)
+        }
+        return next
+      })
+
+      // Record each member's format. The renderer holds no row for a gallery
+      // inside a collapsed series, so without this the convert button would
+      // fall back to a default and count CBZs as convertible PDFs.
+      setSelectionFormats((prev) => {
+        const next = new Map(prev)
+        for (const member of series.members) {
+          if (allSelected) next.delete(member.id)
+          else next.set(member.id, member.format || 'pdf')
+        }
+        return next
+      })
+
+      setSelectionTick((t) => t + 1)
+    },
+    [selectMode, selectedIds]
+  )
 
   // Auto-exit selection mode when no items are selected
   useEffect(() => {
@@ -653,9 +782,11 @@ export default function LibraryPage(): React.JSX.Element {
         showUnmatchedOnly: showUnmatchedOnly || undefined
       })
       if (result.success && Array.isArray(result.data)) {
-        const rows = result.data as Array<{ id: number; format: string }>
-        setSelectedIds(new Set(rows.map((row) => row.id)))
-        setSelectionFormats(new Map(rows.map((row) => [row.id, row.format || 'pdf'])))
+        // Named `matched`, not `rows`: `rows` is the grid's state now, and a
+        // shadow here would read as if this were selecting the loaded page.
+        const matched = result.data as Array<{ id: number; format: string }>
+        setSelectedIds(new Set(matched.map((row) => row.id)))
+        setSelectionFormats(new Map(matched.map((row) => [row.id, row.format || 'pdf'])))
         setSelectionTick((tick) => tick + 1)
       }
     } catch {
@@ -665,11 +796,18 @@ export default function LibraryPage(): React.JSX.Element {
     }
   }
 
+  /**
+   * Select or clear every gallery the loaded rows stand for.
+   *
+   * Counts galleries rather than rows, so a page holding one series of fifteen
+   * selects fifteen. Comparing against row count instead would call the
+   * selection complete after one click on a page that is mostly series.
+   */
   const toggleSelectAll = () => {
-    if (selectedIds.size === items.length) {
+    if (allVisibleSelected) {
       setSelectedIds(new Set()); setSelectionFormats(new Map())
     } else {
-      setSelectedIds(new Set(items.map((i) => i.id)))
+      setSelectedIds(new Set(visibleGalleryIds))
     }
     setSelectionTick((t) => t + 1)
   }
@@ -780,7 +918,7 @@ export default function LibraryPage(): React.JSX.Element {
 
   // ─── Loading State ─────────────────────────────────────────────────────────
 
-  const hasMore = items.length < totalCount
+  const hasMore = rows.length < totalCount
 
   // One header for all three states. It was repeated in each branch, and the
   // error branch had already lost the subtitle the other two carried.
@@ -788,9 +926,20 @@ export default function LibraryPage(): React.JSX.Element {
     <div className="mb-4 shrink-0">
       <h1 className="text-2xl font-bold tracking-tight text-fg">Library</h1>
       <p className="mt-1 text-sm text-fg-muted">
-        {totalCount > 0 ? (
+        {/*
+          Galleries, not rows. Collapsing fifteen volumes into one card must not
+          read as losing fourteen items, so the headline stays the true size of
+          the library and the row count is mentioned only when it differs.
+        */}
+        {galleryCount > 0 ? (
           <>
-            <span className="tnum">{totalCount}</span> items in library
+            <span className="tnum">{galleryCount}</span> items in library
+            {totalCount !== galleryCount && (
+              <span className="text-fg-faint">
+                {' '}
+                · <span className="tnum">{totalCount}</span> rows
+              </span>
+            )}
           </>
         ) : (
           'Browse your downloaded doujinshi collection'
@@ -1004,7 +1153,9 @@ export default function LibraryPage(): React.JSX.Element {
           <label className="flex cursor-pointer items-center gap-2 text-sm text-fg">
             <input
               type="checkbox"
-              checked={selectedIds.size === items.length && items.length > 0}
+              // Compared against the galleries on screen, which a page holding
+              // series has more of than it has rows.
+              checked={allVisibleSelected}
               onChange={toggleSelectAll}
               className="h-4 w-4 rounded border-line text-accent focus:ring-accent"
             />
@@ -1013,16 +1164,16 @@ export default function LibraryPage(): React.JSX.Element {
             </span>
           </label>
 
-          {totalCount > items.length && (
+          {galleryCount > visibleGalleryIds.length && (
             <Button
               size="sm"
               role="ghost"
               icon={<ListChecks size={14} />}
               onClick={handleSelectAllInLibrary}
               disabled={selectingAll}
-              title={`Select all ${totalCount} items matching the current filters`}
+              title={`Select all ${galleryCount} items matching the current filters`}
             >
-              {selectingAll ? 'Selecting…' : `Select all ${totalCount}`}
+              {selectingAll ? 'Selecting…' : `Select all ${galleryCount}`}
             </Button>
           )}
 
@@ -1164,7 +1315,7 @@ export default function LibraryPage(): React.JSX.Element {
       )}
 
       {/* Content area */}
-      {items.length === 0 ? (
+      {rows.length === 0 ? (
         <EmptyState icon={Library} title="Library is empty" description="Download your first doujin or add a custom entry to get started" actionLabel="Rescan Library" onAction={handleRescan} />
       ) : viewMode === 'list' ? (
         <div className="flex-1">
@@ -1189,7 +1340,7 @@ export default function LibraryPage(): React.JSX.Element {
             <div className="w-20 shrink-0 text-right">Date</div>
           </div>
           <Virtuoso
-            totalCount={items.length}
+            totalCount={rows.length}
             endReached={loadMore}
             overscan={400}
             useWindowScroll={false}
@@ -1203,14 +1354,83 @@ export default function LibraryPage(): React.JSX.Element {
                 : undefined as any
             }}
             itemContent={(index) => {
-              const item = items[index]
-              if (!item) return null
-              const title = item.customTitle || item.primaryArtist || `Item #${item.id}`
+              const row = rows[index]
+              if (!row) return null
+
               const formatSize = (bytes: number | null): string => {
                 if (!bytes) return '—'
                 if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
                 return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
               }
+
+              if (row.kind === 'series') {
+                const series = row.series
+                const members = series.members
+                const selectedCount = members.filter((m) => selectedIds.has(m.id)).length
+                const allSelected = members.length > 0 && selectedCount === members.length
+                const languages = mergeDisplayLanguages(series.languages)
+                return (
+                  <div
+                    className={`flex cursor-pointer items-center gap-3 border-b border-line px-4 py-2 transition-colors hover:bg-raised ${
+                      selectedCount > 0 ? 'bg-accent-wash' : ''
+                    }`}
+                    onClick={() => {
+                      if (selectMode) handleSeriesToggle(series)
+                      else setDetailSeries(series)
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={allSelected}
+                      ref={(el) => {
+                        if (el) el.indeterminate = !allSelected && selectedCount > 0
+                      }}
+                      onChange={() => handleSeriesToggle(series)}
+                      onClick={(e) => e.stopPropagation()}
+                      className="h-4 w-4 shrink-0 rounded border-line text-accent focus:ring-accent"
+                    />
+                    {/*
+                      A series occupies the Title column and marks itself with the
+                      same stack icon the grid card uses, so the two views agree
+                      about what a series looks like.
+                    */}
+                    <div className="flex min-w-0 flex-1 items-center gap-2">
+                      <Layers size={14} className="shrink-0 text-accent" aria-hidden="true" />
+                      <span className="truncate text-sm font-medium text-fg">{series.name}</span>
+                      <span className="tnum shrink-0 rounded bg-raised px-1.5 py-0.5 text-xs text-fg-muted">
+                        {series.matchCount < series.totalCount
+                          ? `${series.matchCount} of ${series.totalCount}`
+                          : series.totalCount}
+                      </span>
+                    </div>
+                    <div className="w-32 shrink-0 truncate text-xs text-accent">
+                      {series.artists[0] ?? '—'}
+                      {series.artists.length > 1 && (
+                        <span className="text-fg-faint"> +{series.artists.length - 1}</span>
+                      )}
+                    </div>
+                    <div className="w-36 shrink-0 truncate text-xs text-fg-muted">—</div>
+                    <div className="w-10 shrink-0 text-xs text-fg-faint">—</div>
+                    <div className="w-16 shrink-0 truncate text-xs text-fg-muted">
+                      {languages[0] ?? '—'}
+                    </div>
+                    <div className="w-14 shrink-0 text-xs uppercase text-fg-muted">
+                      {series.format ?? '—'}
+                    </div>
+                    <div className="w-16 shrink-0 text-right">
+                      <p className="tnum text-xs text-fg-faint">{formatSize(series.fileSize)}</p>
+                    </div>
+                    <div className="w-20 shrink-0 text-right">
+                      <p className="tnum text-xs text-fg-faint">
+                        {new Date(series.addedAt).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </div>
+                )
+              }
+
+              const item = row.item
+              const title = item.customTitle || item.primaryArtist || `Item #${item.id}`
               const addedDate = new Date(item.addedAt).toLocaleDateString()
               return (
                 <div
@@ -1300,7 +1520,7 @@ export default function LibraryPage(): React.JSX.Element {
       ) : (
         <div className="flex-1">
           <VirtuosoGrid
-            totalCount={items.length}
+            totalCount={rows.length}
             endReached={loadMore}
             overscan={400}
             useWindowScroll={false}
@@ -1315,11 +1535,35 @@ export default function LibraryPage(): React.JSX.Element {
                 : undefined as any
             }}
             itemContent={(index) => {
-              const item = items[index]
-              if (!item) return null
+              const row = rows[index]
+              if (!row) return null
+
+              if (row.kind === 'series') {
+                const members = row.series.members
+                const selectedCount = members.filter((m) => selectedIds.has(m.id)).length
+                return (
+                  <SeriesCard
+                    key={rowKey(row)}
+                    series={row.series}
+                    selected={members.length > 0 && selectedCount === members.length}
+                    partiallySelected={selectedCount > 0 && selectedCount < members.length}
+                    onToggleSelect={handleSeriesToggle}
+                    compact={viewMode === 'compact'}
+                    onClick={(series) => {
+                      // In selection mode a click is a selection, matching how a
+                      // gallery card behaves — otherwise clicking to add a second
+                      // series to the selection would navigate away instead.
+                      if (selectMode) handleSeriesToggle(series)
+                      else setDetailSeries(series)
+                    }}
+                  />
+                )
+              }
+
+              const item = row.item
               return (
                 <LibraryCard
-                  key={item.id}
+                  key={rowKey(row)}
                   item={item}
                   selected={selectedIds.has(item.id)}
                   onToggleSelect={handleCheckboxToggle}
@@ -1376,6 +1620,24 @@ export default function LibraryPage(): React.JSX.Element {
           fetchPage(0, true)
         }}
       />
+
+      {/*
+        Series Detail. Opening a gallery from inside it closes this first, so
+        the two panels never stack — LibraryDetail is itself a full overlay.
+      */}
+      {detailSeries && (
+        <SeriesDetail
+          // Keyed, so opening a different series remounts rather than showing
+          // the previous one's members while the new ones load.
+          key={detailSeries.id}
+          series={detailSeries}
+          onClose={() => setDetailSeries(null)}
+          onOpenItem={(item) => {
+            setDetailSeries(null)
+            setDetailItem(item)
+          }}
+        />
+      )}
 
       {/* Library Detail Panel */}
       <LibraryDetail
