@@ -4,6 +4,7 @@ import { useConversionStore } from '../../stores/conversion.store'
 import { useAuthStore } from '../../stores/auth.store'
 import type { OutputFormat, PageSizeOption } from '../../stores/settings.store'
 import OriginalsCleanup from './OriginalsCleanup'
+import SeriesGrouping from './SeriesGrouping'
 import ProgressBar from '../shared/ProgressBar'
 import ToolchainStatus from './ToolchainStatus'
 import UpdateStatus from './UpdateStatus'
@@ -209,6 +210,13 @@ export default function SettingsPage(): React.JSX.Element {
                     browseFrom={settings.libraryPath}
                     hint="Where cover images are cached, one small file per item. Do not point this at a temporary location."
                   />
+
+                  {/*
+                    Applies immediately rather than on Save: switching it on
+                    links the library, which is work, and a checkbox that only
+                    takes effect later would be a poor fit for that.
+                  */}
+                  <SeriesGrouping />
                 </div>
               </section>
             )}

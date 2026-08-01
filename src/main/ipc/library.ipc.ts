@@ -452,6 +452,48 @@ export function registerLibraryIpc(): void {
     return { success: true, data: seriesRepo.findDisplayableByName(name) }
   })
 
+  /**
+   * What switching grouping on would produce, without writing anything.
+   *
+   * Backs the confirmation dialog. Computed rather than estimated: the honest
+   * answer on a 4,636-item library is 239 groups over 798 galleries, and a
+   * dialog quoting the 2,733 distinct series names would be describing a
+   * feature this is not.
+   */
+  handle('library:previewSeriesGrouping', async () => {
+    return { success: true, data: seriesRepo.previewBackfill() }
+  })
+
+  /**
+   * Turn grouping on or off.
+   *
+   * Enabling links every item in one pass, so the library is grouped when the
+   * dialog closes rather than filling in as things are touched.
+   *
+   * Disabling only flips the setting. The `series_id` links and the `series`
+   * rows are deliberately left alone: they cost nothing while unused, a chosen
+   * cover survives, and switching back on is instant instead of another pass
+   * over the library.
+   */
+  handle('library:setSeriesGrouping', async (_event, enabled: boolean) => {
+    settingsRepo.set('seriesGrouping', enabled ? 'true' : 'false')
+    if (!enabled) {
+      log.info('series grouping disabled')
+      return { success: true, data: { groups: 0, galleries: 0 } }
+    }
+
+    const result = seriesRepo.backfillAll()
+    log.info('series grouping enabled', {
+      linked: result.linked,
+      visibleGroups: result.visibleGroups
+    })
+    const preview = seriesRepo.previewBackfill()
+    return {
+      success: true,
+      data: { groups: result.visibleGroups, galleries: preview.galleries }
+    }
+  })
+
   handle('library:search', async (_event, query: string) => {
     const items = libraryRepo.searchByTitle(query)
     return { success: true, data: items }

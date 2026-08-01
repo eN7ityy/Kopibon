@@ -211,7 +211,12 @@ const api = {
     syncBatch: (ids: number[]) => ipcRenderer.invoke('library:syncBatch', ids),
     isSyncing: (itemId: number) => ipcRenderer.invoke('library:isSyncing', itemId),
     /** Stop a running batch sync after the item currently in flight. */
-    cancelSync: () => ipcRenderer.invoke('library:cancelSync')
+    cancelSync: () => ipcRenderer.invoke('library:cancelSync'),
+    /** Groups and galleries that switching grouping on would produce. */
+    previewSeriesGrouping: () => ipcRenderer.invoke('library:previewSeriesGrouping'),
+    /** Turn series grouping on (links the library) or off (setting only). */
+    setSeriesGrouping: (enabled: boolean) =>
+      ipcRenderer.invoke('library:setSeriesGrouping', enabled)
   },
 
   // File read (for PDF viewer)
