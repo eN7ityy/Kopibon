@@ -2,6 +2,7 @@ import { BrowserWindow, app } from 'electron'
 import { Worker } from 'worker_threads'
 import { join as pathJoin } from 'path'
 import { libraryRepo } from '../db/repositories/library.repo'
+import { seriesRepo } from '../db/repositories/series.repo'
 import { galleryRepo } from '../db/repositories/gallery.repo'
 import { settingsRepo } from '../db/repositories/settings.repo'
 import { conversionRepo } from '../db/repositories/conversion.repo'
@@ -377,6 +378,18 @@ export function registerLibraryIpc(): void {
       return { success: true, data: facts }
     }
   )
+
+  /**
+   * The group a series name refers to, for the link on a gallery's detail.
+   *
+   * Null unless grouping is on and the name really does hold a group, so a
+   * one-shot whose series defaults to its own title stays plain text rather
+   * than offering a link to a series containing only itself.
+   */
+  handle('library:findSeries', async (_event, name: string) => {
+    if (settingsRepo.get('seriesGrouping') !== 'true') return { success: true, data: null }
+    return { success: true, data: seriesRepo.findDisplayableByName(name) }
+  })
 
   handle('library:search', async (_event, query: string) => {
     const items = libraryRepo.searchByTitle(query)

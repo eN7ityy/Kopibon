@@ -21,6 +21,13 @@ interface LibraryDetailProps {
   onFilterPublisher?: (publisher: string) => void
   onFilterTag?: (tag: string) => void
   onOpenInSearch?: (galleryId: number) => void
+  /**
+   * Open the series this gallery belongs to.
+   *
+   * Only offered when the name really resolves to a group — see `seriesRef`
+   * below — so a one-shot does not get a link to a series of itself.
+   */
+  onOpenSeries?: (ref: { id: number; name: string; totalCount: number }) => void
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -44,7 +51,7 @@ const LANGUAGES = ['English', 'Japanese', 'Chinese', 'Other']
 
 export default function LibraryDetail({
   item, onClose, onDeleted, onUpdated, libraryRoot,
-  onFilterArtist, onFilterPublisher, onFilterTag, onOpenInSearch
+  onFilterArtist, onFilterPublisher, onFilterTag, onOpenInSearch, onOpenSeries
 }: LibraryDetailProps): React.JSX.Element | null {
   const [editingRaw, setEditing] = useState(false)
   const [editTitle, setEditTitle] = useState('')
@@ -98,6 +105,11 @@ export default function LibraryDetail({
   const [typedTags, setTypedTags] = useState<{ galleryId: number; tags: TagLike[] } | null>(
     null
   )
+  /** The openable group for this gallery's series, keyed by the name it is for. */
+  const [seriesRef, setSeriesRef] = useState<{
+    name: string
+    ref: { id: number; name: string; totalCount: number }
+  } | null>(null)
 
   useEffect(() => {
     if (!item) { setFreshItem(null); return }
@@ -280,6 +292,36 @@ export default function LibraryDetail({
     return () => { cancelled = true }
   }, [freshItem, item])
 
+  /*
+   * Whether this gallery's series is one that can be opened.
+   *
+   * Asked of main rather than assumed from `seriesName` being set, because the
+   * name alone does not mean there is a group: grouping may be off, and 2,337
+   * items default their series to their own title, which names only themselves.
+   * A link that opened a series of one would be worse than plain text.
+   *
+   * Keyed by name for the same reason the tags above are keyed by galleryId —
+   * so a previous item's series can never be attributed to the current one.
+   */
+  useEffect(() => {
+    const name = (freshItem || item)?.seriesName
+    if (!name) return
+    let cancelled = false
+    window.api.library
+      .findSeries(name)
+      .then((r) => {
+        if (!cancelled && r?.success && r.data) {
+          setSeriesRef({ name, ref: r.data as { id: number; name: string; totalCount: number } })
+        }
+      })
+      .catch(() => {
+        /* the field stays plain text, which is the pre-grouping behaviour */
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [freshItem, item])
+
   if (!item) return null
 
   // Use freshly fetched data when available, fall back to prop
@@ -389,10 +431,30 @@ export default function LibraryDetail({
             ) : detail.seriesName ? (
               <div>
                 <span className="text-xs font-medium text-fg-muted">Series</span>
-                <p className="text-sm text-info">
-                  {detail.seriesName}
-                  {detail.seriesIndex != null && <span className="text-fg-faint ml-1">Vol. {detail.seriesIndex}</span>}
-                </p>
+                {/*
+                  A link only when the name resolves to a group that exists and
+                  holds more than this one gallery. Otherwise it stays the plain
+                  text it has always been.
+                */}
+                {onOpenSeries && seriesRef && seriesRef.name === detail.seriesName ? (
+                  <p className="text-sm">
+                    <button
+                      onClick={() => onOpenSeries(seriesRef.ref)}
+                      className="text-info hover:underline cursor-pointer"
+                      title={`Open this series (${seriesRef.ref.totalCount} galleries)`}
+                    >
+                      {detail.seriesName}
+                    </button>
+                    {detail.seriesIndex != null && (
+                      <span className="text-fg-faint ml-1">Vol. {detail.seriesIndex}</span>
+                    )}
+                  </p>
+                ) : (
+                  <p className="text-sm text-info">
+                    {detail.seriesName}
+                    {detail.seriesIndex != null && <span className="text-fg-faint ml-1">Vol. {detail.seriesIndex}</span>}
+                  </p>
+                )}
               </div>
             ) : null}
 

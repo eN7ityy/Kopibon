@@ -137,6 +137,11 @@ const api = {
         showUnmatchedOnly?: boolean
       }
     ) => ipcRenderer.invoke('library:getSeriesFacts', seriesId, params ?? {}),
+    /**
+     * The group a series name refers to, or null when there is none to open.
+     * Null whenever grouping is off, or the name holds only one gallery.
+     */
+    findSeries: (name: string) => ipcRenderer.invoke('library:findSeries', name),
     getByGalleryId: (galleryId: number) => ipcRenderer.invoke('library:getByGalleryId', galleryId),
     /** Ids of every item matching the given filters, ignoring pagination. */
     getAllIds: (params: {

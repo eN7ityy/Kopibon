@@ -5,7 +5,7 @@ import { VirtuosoGrid, Virtuoso } from 'react-virtuoso'
 import type { LibraryItemData } from './LibraryCard'
 import LibraryCard from './LibraryCard'
 import SeriesCard, { type SeriesCardModel } from './SeriesCard'
-import SeriesDetail from './SeriesDetail'
+import SeriesDetail, { type SeriesRef } from './SeriesDetail'
 import AutocompleteInput from '../shared/AutocompleteInput'
 import SeriesAssignment from './SeriesAssignment'
 import CustomEntryForm from './CustomEntryForm'
@@ -388,7 +388,9 @@ export default function LibraryPage(): React.JSX.Element {
   const [showSeriesModal, setShowSeriesModal] = useState(false)
   const [showCustomForm, setShowCustomForm] = useState(false)
   const [detailItem, setDetailItem] = useState<LibraryItemData | null>(null)
-  const [detailSeries, setDetailSeries] = useState<SeriesCardModel | null>(null)
+  // A ref rather than a card model: the grid opens this with a full card, but
+  // the series link on a gallery's detail only knows an id and a name.
+  const [detailSeries, setDetailSeries] = useState<SeriesRef | null>(null)
 
   // Scan state
   const [scanning, setScanning] = useState(false)
@@ -1674,6 +1676,12 @@ export default function LibraryPage(): React.JSX.Element {
           setSelectedTagFilters(new Set([tag]))
           setShowFilters(true)
           fetchPage(0, true)
+        }}
+        onOpenSeries={(ref) => {
+          // Swap panels rather than stacking them: LibraryDetail is itself a
+          // full overlay, so leaving it open would sit behind the series.
+          setDetailItem(null)
+          setDetailSeries(ref)
         }}
         onOpenInSearch={(galleryId) => {
           useSearchStore.getState().setPendingGalleryId(galleryId)

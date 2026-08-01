@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { AlertTriangle, BookOpen, Check, Layers, X } from 'lucide-react'
 import type { LibraryItemData } from './LibraryCard'
-import type { SeriesCardModel } from './SeriesCard'
 import { mergeDisplayLanguages } from '../shared/language'
 import { formatBytes } from '../shared/format'
 import { tagClass } from '../shared/tags'
@@ -49,8 +48,23 @@ export interface SeriesFilterParams {
   showUnmatchedOnly?: boolean
 }
 
+/**
+ * The least this panel needs to open a series.
+ *
+ * A card supplies all of it, but so does the name lookup behind the series link
+ * on a gallery's detail, which knows an id and a name and nothing else. Only
+ * the id identifies the request; the rest is what to draw until the facts
+ * arrive.
+ */
+export interface SeriesRef {
+  id: number
+  name: string
+  totalCount?: number
+  coverItemId?: number | null
+}
+
 interface SeriesDetailProps {
-  series: SeriesCardModel
+  series: SeriesRef
   filters?: SeriesFilterParams
   onClose: () => void
   onOpenItem: (item: LibraryItemData) => void
@@ -188,7 +202,12 @@ export default function SeriesDetail({
                 </p>
               )}
 
-              <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-5">
+              {/*
+                Fewer, larger columns than a contact sheet. These are the point
+                of the panel, so the cover should be big enough to recognise a
+                volume by, not just to count them.
+              */}
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
                 {facts.members.map((item) => (
                   <MemberTile
                     key={item.id}
@@ -302,13 +321,20 @@ function MemberTile({
   const read = (item.readProgress ?? 0) > 0
 
   return (
+    /*
+      A real card, matching the library grid: its own surface, border and hover
+      lift. Bare covers on the panel background read as a contact sheet rather
+      than as the galleries they are, and gave nothing to aim at between them.
+    */
     <button
       onClick={onClick}
       onDragStart={(e) => e.preventDefault()}
       title={item.customTitle ?? undefined}
-      className={`group text-left transition-opacity ${dimmed ? 'opacity-40 hover:opacity-100' : ''}`}
+      className={`group flex flex-col overflow-hidden rounded-lg border border-line bg-surface text-left transition-all duration-200 hover:border-accent hover:shadow-lg ${
+        dimmed ? 'opacity-40 hover:opacity-100' : ''
+      }`}
     >
-      <div className="relative aspect-[3/4] overflow-hidden rounded-lg border border-line bg-raised transition-colors group-hover:border-accent">
+      <div className="relative aspect-[3/4] overflow-hidden bg-raised">
         {thumb ? (
           <img
             src={thumb}
@@ -319,7 +345,7 @@ function MemberTile({
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-fg-faint">
-            <BookOpen size={20} strokeWidth={1.5} aria-hidden="true" />
+            <BookOpen size={28} strokeWidth={1.5} aria-hidden="true" />
           </div>
         )}
 
@@ -327,27 +353,32 @@ function MemberTile({
           Volume leads the tile. It is what orders the series, and a member with
           no number has to look unnumbered rather than merely sorted last.
         */}
-        <span className="tnum absolute left-1.5 top-1.5 rounded bg-black/75 px-1.5 py-0.5 text-xs font-medium text-white">
+        <span className="tnum absolute left-2 top-2 rounded bg-black/75 px-1.5 py-0.5 text-xs font-medium text-white">
           {item.seriesIndex != null ? `V${item.seriesIndex}` : '—'}
         </span>
 
         {read && (
           <span
-            className="absolute right-1.5 top-1.5 rounded bg-success-fill/90 p-0.5 text-white"
+            className="absolute right-2 top-2 rounded bg-success-fill/90 p-0.5 text-white"
             title="Read"
           >
             <Check size={11} strokeWidth={3} aria-hidden="true" />
           </span>
         )}
 
-        <span className="absolute bottom-1.5 right-1.5 rounded bg-black/70 px-1.5 py-0.5 text-xs font-medium uppercase text-white">
+        <span className="absolute bottom-2 right-2 rounded bg-black/70 px-1.5 py-0.5 text-xs font-medium uppercase text-white">
           {item.format || 'pdf'}
         </span>
       </div>
 
-      <p className="mt-1 line-clamp-2 text-xs leading-snug text-fg">
-        {item.customTitle || `Item #${item.id}`}
-      </p>
+      <div className="p-2.5">
+        <p className="line-clamp-2 text-xs leading-snug text-fg">
+          {item.customTitle || `Item #${item.id}`}
+        </p>
+        {item.fileSize ? (
+          <p className="tnum mt-1 text-xs text-fg-faint">{formatBytes(item.fileSize)}</p>
+        ) : null}
+      </div>
     </button>
   )
 }

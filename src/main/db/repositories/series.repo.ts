@@ -263,6 +263,34 @@ export const seriesRepo = {
     return row?.n ?? 0
   },
 
+  /**
+   * A group by name, but only if it is one the library would actually show.
+   *
+   * Backs the series link on a gallery's detail panel. Returns null for a name
+   * that names only one item, so a one-shot whose `series_name` defaults to its
+   * own title — 2,337 of them — does not sprout a link to a series of one.
+   */
+  findDisplayableByName(
+    name: string,
+    min = DEFAULT_MIN_SERIES_MEMBERS
+  ): { id: number; name: string; totalCount: number } | null {
+    const trimmed = normaliseSeriesName(name)
+    if (!trimmed || !isGroupableSeriesName(trimmed)) return null
+
+    const row = getSqlite()
+      .prepare(
+        `SELECT s.id AS id, s.name AS name, COUNT(li.id) AS total
+           FROM series s
+           JOIN library_item li ON li.series_id = s.id
+          WHERE s.name = ? COLLATE NOCASE
+          GROUP BY s.id
+         HAVING COUNT(li.id) >= ?`
+      )
+      .get(trimmed, min) as { id: number; name: string; total: number } | undefined
+
+    return row ? { id: row.id, name: row.name, totalCount: row.total } : null
+  },
+
   /** Members of a group, unordered — callers sort with sortSeriesMembers. */
   memberIds(seriesId: number): number[] {
     const rows = getSqlite()
