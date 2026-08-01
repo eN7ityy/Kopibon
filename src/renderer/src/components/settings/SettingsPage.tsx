@@ -404,6 +404,17 @@ export default function SettingsPage(): React.JSX.Element {
             {pane === 'nhentai' && <SearchSettings />}
 
             {/* Interface */}
+            {/* Advanced */}
+            {pane === 'advanced' && (
+              <section>
+                <h2 className="text-section font-semibold text-fg mb-3">Advanced</h2>
+                <div className="space-y-3">
+                  <UpdateStatus />
+                  <MetadataConverter />
+                </div>
+              </section>
+            )}
+
             {/* Required tools — not bundled, and the app degrades quietly without
             them, so this is deliberately its own section rather than a footnote */}
             {pane === 'advanced' && (
@@ -413,18 +424,6 @@ export default function SettingsPage(): React.JSX.Element {
               </section>
             )}
 
-
-            {/* Advanced */}
-            {pane === 'advanced' && (
-              <section>
-                <h2 className="text-section font-semibold text-fg mb-3">Advanced</h2>
-                <div className="space-y-3">
-                  <UpdateStatus />
-                  <MetadataConverter />
-                  <AppVersion />
-                </div>
-              </section>
-            )}
 
             {/* The log reads as a footer to this pane, so it sits last. */}
             {pane === 'advanced' && <LogsPage />}
@@ -512,21 +511,6 @@ export default function SettingsPage(): React.JSX.Element {
       )}
     </div>
   )
-}
-
-function AppVersion(): React.JSX.Element {
-  const [version, setVersion] = useState<string>('...')
-
-  useEffect(() => {
-    window.api.app
-      .getVersion()
-      .then((r) => {
-        if (r.success && r.data) setVersion(r.data)
-      })
-      .catch(() => setVersion('unknown'))
-  }, [])
-
-  return <p className="text-xs text-fg-faint">Doujin Downloader v{version}</p>
 }
 
 function MetadataConverter(): React.JSX.Element {
