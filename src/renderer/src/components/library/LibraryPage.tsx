@@ -460,6 +460,53 @@ export default function LibraryPage(): React.JSX.Element {
     }
   }, [sortField, debouncedSearch, selectedArtistFilters, selectedSeriesFilters, selectedTagFilters, showUnmatchedOnly])
 
+  /**
+   * Re-read what is already on screen, without collapsing back to page one.
+   *
+   * Editing or syncing a gallery from its detail panel used to call
+   * `fetchPage(0, true)`. That throws away every page loaded by scrolling: on a
+   * library scrolled two pages deep, the grid silently shrank to the first 100
+   * rows — which expand to 141 galleries here, exactly the ceiling that made
+   * "select all visible" stop at 141 and made items look like they had
+   * vanished.
+   *
+   * So the loaded window is preserved rather than reset, and `loading` is left
+   * alone: raising it re-renders the page through its loading branch, which
+   * unmounts the detail panel that started the update.
+   */
+  const refreshLoaded = useCallback(async () => {
+    const loaded = Math.max(currentOffset.current, PAGE_SIZE)
+    try {
+      const result = await window.api.library.getPaginatedGrouped({
+        offset: 0,
+        limit: loaded,
+        sortField,
+        searchQuery: debouncedSearch || undefined,
+        artistFilters: selectedArtistFilters.size > 0 ? [...selectedArtistFilters] : undefined,
+        seriesFilters: selectedSeriesFilters.size > 0 ? [...selectedSeriesFilters] : undefined,
+        tagFilters: selectedTagFilters.size > 0 ? [...selectedTagFilters] : undefined,
+        showUnmatchedOnly: showUnmatchedOnly || undefined
+      })
+      if (result.success && result.data) {
+        const newRows = result.data.rows as unknown as LibraryRow[]
+        setRows(newRows)
+        setTotalCount(result.data.total)
+        setGalleryCount(result.data.galleries)
+        currentOffset.current = newRows.length
+      }
+    } catch {
+      // The grid keeps showing what it had, which is better than emptying it
+      // because a refresh failed.
+    }
+  }, [
+    sortField,
+    debouncedSearch,
+    selectedArtistFilters,
+    selectedSeriesFilters,
+    selectedTagFilters,
+    showUnmatchedOnly
+  ])
+
   // ─── Load more (infinite scroll) ───────────────────────────────────────────
 
   const loadMore = useCallback(() => {
@@ -1197,6 +1244,9 @@ export default function LibraryPage(): React.JSX.Element {
                 /* the sync worker reports its own failures to the log */
               }
               setBatchSyncing(false)
+              // Synced titles and tags were previously invisible until the page
+              // was left and come back to.
+              void refreshLoaded()
             }}
             disabled={batchSyncing}
           >
@@ -1663,7 +1713,9 @@ export default function LibraryPage(): React.JSX.Element {
           fetchPage(0, true)
         }}
         onUpdated={() => {
-          fetchPage(0, true)
+          // Not fetchPage(0, true): that discards every page loaded by
+          // scrolling and unmounts this panel through the loading branch.
+          void refreshLoaded()
         }}
         onFilterArtist={(artist) => {
           setSelectedArtistFilters(new Set([artist]))
