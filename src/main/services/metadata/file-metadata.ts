@@ -51,6 +51,13 @@ export interface GalleryMetadata {
   language?: string
   publisher?: string
   description?: string
+  /** nhentai's media id, which its image URLs are built from. */
+  mediaId?: number | null
+  favorites?: number | null
+  coverUrl?: string | null
+  thumbnailUrl?: string | null
+  /** Always empty in practice — nhentai does not populate it. */
+  scanlator?: string | null
 }
 
 /**
@@ -76,6 +83,14 @@ export interface LibraryItemMetadata {
   format?: string | null
   pageCount?: number | null
   id?: number
+  /** Folded in from the cached gallery row, where one exists. */
+  titleEnglish?: string | null
+  titleJapanese?: string | null
+  mediaId?: number | null
+  favoritesCount?: number | null
+  coverUrl?: string | null
+  thumbnailUrl?: string | null
+  galleryPageCount?: number | null
 }
 
 /**
@@ -147,6 +162,17 @@ export interface FileMetadata {
   format: string | null
   mangaDirection: MangaDirection
   ageRating: string
+
+  /*
+   * Carried but unused by the shipped templates. Kept so a template can be
+   * changed without a code change — which is the whole reason the templates
+   * are text files.
+   */
+  mediaId: number | null
+  favorites: number | null
+  coverUrl: string | null
+  thumbnailUrl: string | null
+  scanlator: string | null
 }
 
 /**
@@ -180,7 +206,12 @@ export const DEFAULT_FILE_METADATA: FileMetadata = {
   galleryPageCount: null,
   format: null,
   mangaDirection: 'YesAndRightToLeft',
-  ageRating: 'Adults Only 18+'
+  ageRating: 'Adults Only 18+',
+  mediaId: null,
+  favorites: null,
+  coverUrl: null,
+  thumbnailUrl: null,
+  scanlator: null
 }
 
 /** Build a FileMetadata from a partial one, filling the rest with defaults. */
@@ -267,6 +298,11 @@ export function fileMetadataFromGallery(
     description: meta.description || null,
     releaseDate: toDate(meta.uploadDate, 'seconds'),
     galleryPageCount: meta.numPages ?? null,
+    mediaId: meta.mediaId ?? null,
+    favorites: meta.favorites ?? null,
+    coverUrl: meta.coverUrl ?? null,
+    thumbnailUrl: meta.thumbnailUrl ?? null,
+    scanlator: meta.scanlator || null,
     ...over
   })
 }
@@ -307,6 +343,15 @@ export function fileMetadataFromLibraryItem(
     releaseDate: real ? toDate(row.uploadDate, 'seconds') : null,
     format: row.format || null,
     pageCount: row.pageCount ?? 0,
+    // From the cached gallery, when the caller folded one in. Without these the
+    // Japanese title sat in the database and never reached a template.
+    titleEnglish: row.titleEnglish || null,
+    titleJapanese: row.titleJapanese || null,
+    galleryPageCount: row.galleryPageCount ?? null,
+    mediaId: row.mediaId ?? null,
+    favorites: row.favoritesCount ?? null,
+    coverUrl: row.coverUrl || null,
+    thumbnailUrl: row.thumbnailUrl || null,
     ...over
   })
 }

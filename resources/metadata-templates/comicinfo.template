@@ -2,6 +2,7 @@
 <ComicInfo xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="ComicInfo.xsd">
   <Title>{{title}}</Title>
   <Series>{{series}}</Series>
+  <LocalizedSeries>{{localizedSeries?}}</LocalizedSeries>
   <Number>{{number?}}</Number>
   <Summary>{{summary?}}</Summary>
   <Writer>{{writers?}}</Writer>
@@ -20,4 +21,6 @@
   <AgeRating>{{ageRating}}</AgeRating>
   <Manga>{{manga}}</Manga>
   <SeriesGroup>{{seriesGroup?}}</SeriesGroup>
+  <StoryArc>{{storyArc?}}</StoryArc>
+  <StoryArcNumber>{{storyArcNumber?}}</StoryArcNumber>
 </ComicInfo>

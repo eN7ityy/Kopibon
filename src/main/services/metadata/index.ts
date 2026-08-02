@@ -41,7 +41,8 @@ export {
   resolveWriters,
   resolvePublisher,
   resolveLanguageValue,
-  resolveSeriesGroup
+  resolveSeriesGroup,
+  resolveLocalizedSeries
 } from './mappers'
 
 export { renderTemplate } from './template-engine'

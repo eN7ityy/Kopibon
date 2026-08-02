@@ -103,6 +103,21 @@ export function resolveSeriesGroup(meta: FileMetadata): string | null {
   return meta.parodies[0] ?? null
 }
 
+/**
+ * The localized name for the *series*, which is what Kavita reads it as.
+ *
+ * Only for a one-shot. There, Series is the title and the Japanese title names
+ * the same work, so it is exactly right. For a series member the Japanese
+ * title names that volume, not the series — writing it would give the whole
+ * series a localized name taken from whichever volume Kavita happened to scan
+ * first. `titleJapanese` stays in the context for a template that wants it
+ * anyway.
+ */
+export function resolveLocalizedSeries(meta: FileMetadata): string | null {
+  if (isPartOfSeries(meta)) return null
+  return meta.titleJapanese || null
+}
+
 // ─── Shared context ──────────────────────────────────────────────────────────
 
 const esc = (value: string | null | undefined): string => (value ? escapeXml(value) : '')
@@ -158,7 +173,14 @@ function commonContext(meta: FileMetadata): TemplateContext {
     format: esc(meta.format),
     ageRating: esc(meta.ageRating),
     manga: esc(meta.mangaDirection),
-    producer: PDF_PRODUCER
+    producer: PDF_PRODUCER,
+
+    // Carried for template authors; nothing shipped uses these.
+    mediaId: meta.mediaId ?? '',
+    favorites: meta.favorites ?? '',
+    coverUrl: esc(meta.coverUrl),
+    thumbnailUrl: esc(meta.thumbnailUrl),
+    scanlator: esc(meta.scanlator)
   }
 }
 
@@ -175,6 +197,13 @@ export function comicInfoContext(meta: FileMetadata): TemplateContext {
     seriesIndex: meta.seriesIndex ?? '',
     summary: esc(meta.description),
     seriesGroup: esc(resolveSeriesGroup(meta)),
+    localizedSeries: esc(resolveLocalizedSeries(meta)),
+    /*
+     * StoryArc mirrors the series, which Kavita turns into a Reading List —
+     * a second way to walk a series, alongside the Series grouping itself.
+     */
+    storyArc: isPartOfSeries(meta) ? esc(meta.seriesName) : '',
+    storyArcNumber: seriesNumber(meta) ?? '',
     // Written as three elements, so all three are absent together.
     year: date ? date.getFullYear() : '',
     month: date ? String(date.getMonth() + 1).padStart(2, '0') : '',

@@ -279,7 +279,17 @@ function metaForItem(
     {
       ...item,
       rawTagsJson: gallery?.rawTagsJson,
-      uploadDate: gallery?.uploadDate
+      uploadDate: gallery?.uploadDate,
+      // Everything the cached gallery knows that the row does not. Without
+      // these a template could never see the Japanese title, however much of
+      // it we had stored.
+      titleEnglish: gallery?.titleEnglish,
+      titleJapanese: gallery?.titleJapanese,
+      mediaId: gallery?.mediaId,
+      favoritesCount: gallery?.favoritesCount,
+      coverUrl: gallery?.coverUrl,
+      thumbnailUrl: gallery?.thumbnailUrl,
+      galleryPageCount: gallery?.pageCount
     },
     {
       format: item.format || 'pdf',
@@ -2014,6 +2024,20 @@ export function registerLibraryIpc(): void {
           success?: boolean
           message?: string
           rawTags?: Array<{ id: number; type: string; name: string }>
+          /** The whole API response, so the cached row can be brought up to date. */
+          gallery?: {
+            media_id?: string | number
+            title?: {
+              english?: string
+              japanese?: string | null
+              pretty?: string
+            }
+            cover?: { path?: string }
+            thumbnail?: { path?: string }
+            upload_date?: number
+            num_pages?: number
+            num_favorites?: number
+          }
           metadata?: {
             title: string
             primaryArtist: string
@@ -2071,9 +2095,38 @@ export function registerLibraryIpc(): void {
                 if (item?.galleryId) {
                   const existing = galleryRepo.findById(item.galleryId)
                   if (existing) {
+                    const g = msg.gallery
                     galleryRepo.upsert({
                       ...existing,
-                      rawTagsJson: JSON.stringify(msg.rawTags)
+                      rawTagsJson: JSON.stringify(msg.rawTags),
+                      /*
+                       * Everything else the response carried, matching what a
+                       * download stores. Writing only the tags meant a synced
+                       * row stayed permanently poorer than a downloaded one,
+                       * for data the request had already fetched.
+                       */
+                      ...(g
+                        ? {
+                            mediaId: Number(g.media_id) || existing.mediaId,
+                            titlePretty:
+                              g.title?.pretty || existing.titlePretty,
+                            titleEnglish:
+                              g.title?.english ?? existing.titleEnglish,
+                            titleJapanese:
+                              g.title?.japanese ?? existing.titleJapanese,
+                            pageCount: g.num_pages ?? existing.pageCount,
+                            favoritesCount:
+                              g.num_favorites ?? existing.favoritesCount,
+                            uploadDate: g.upload_date ?? existing.uploadDate,
+                            thumbnailUrl: g.thumbnail?.path
+                              ? `https://t.nhentai.net/${g.thumbnail.path}`
+                              : existing.thumbnailUrl,
+                            coverUrl: g.cover?.path
+                              ? `https://t.nhentai.net/${g.cover.path}`
+                              : existing.coverUrl,
+                            rawJson: JSON.stringify(g)
+                          }
+                        : {})
                     })
                   }
                 }

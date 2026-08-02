@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { buildComicInfoXml, buildXmpXml, buildKeywordTokens, buildDocInfo } from './mappers'
+import {
+  buildComicInfoXml,
+  buildXmpXml,
+  buildKeywordTokens,
+  buildDocInfo,
+  comicInfoContext
+} from './mappers'
 import {
   makeFileMetadata,
   fileMetadataFromGallery,
@@ -198,6 +204,59 @@ describe('buildComicInfoXml — Kavita field rules', () => {
 
   it('omits Genre when there is neither a category nor a parody', () => {
     expect(buildComicInfoXml(meta())).not.toContain('<Genre>')
+  })
+})
+
+describe('buildComicInfoXml — LocalizedSeries and StoryArc', () => {
+  it('writes the Japanese title as the localized series for a one-shot', () => {
+    // Series is the title there, so the Japanese title names the same work.
+    const xml = buildComicInfoXml(meta({ title: 'Pretty', titleJapanese: '日本語' }))
+    expect(field(xml, 'LocalizedSeries')).toBe('日本語')
+  })
+
+  it('does NOT write it for a series member', () => {
+    // The Japanese title names that volume, not the series. Writing it would
+    // give the whole series a localized name from whichever volume Kavita
+    // scanned first.
+    const xml = buildComicInfoXml(
+      meta({ title: 'Vol 2', titleJapanese: '第二巻', seriesName: 'A Series', seriesIndex: 2 })
+    )
+    expect(xml).not.toContain('<LocalizedSeries>')
+  })
+
+  it('omits it when there is no Japanese title', () => {
+    expect(buildComicInfoXml(meta())).not.toContain('<LocalizedSeries>')
+  })
+
+  it('mirrors the series into StoryArc, which Kavita reads as a Reading List', () => {
+    const xml = buildComicInfoXml(meta({ seriesName: 'A Series', seriesIndex: 3 }))
+    expect(field(xml, 'StoryArc')).toBe('A Series')
+    expect(field(xml, 'StoryArcNumber')).toBe('3')
+  })
+
+  it('writes no StoryArc for a one-shot', () => {
+    const xml = buildComicInfoXml(meta({ seriesIndex: 1 }))
+    expect(xml).not.toContain('<StoryArc>')
+    expect(xml).not.toContain('<StoryArcNumber>')
+  })
+})
+
+describe('the rest of the API response reaches a template', () => {
+  // Not used by the shipped templates. The point is that someone can add
+  // {{favorites}} to a template without a code change.
+  it('exposes what the API returned but ComicInfo has no field for', () => {
+    const ctx = comicInfoContext(
+      makeFileMetadata({
+        mediaId: 12345,
+        favorites: 900,
+        coverUrl: 'https://t.nhentai.net/x/cover.jpg',
+        titleEnglish: 'English Title'
+      })
+    )
+    expect(ctx.mediaId).toBe(12345)
+    expect(ctx.favorites).toBe(900)
+    expect(ctx.coverUrl).toBe('https://t.nhentai.net/x/cover.jpg')
+    expect(ctx.titleEnglish).toBe('English Title')
   })
 })
 

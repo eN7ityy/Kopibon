@@ -117,6 +117,10 @@ they are there so you can add them without a code change.
 | --- | --- |
 | `title` | The title to write |
 | `titleEnglish`, `titleJapanese`, `titlePretty` | The other title variants, when known |
+| `mediaId` | nhentai's media id, which its image URLs are built from |
+| `favorites` | How many people favourited the gallery |
+| `coverUrl`, `thumbnailUrl` | nhentai's own image URLs |
+| `scanlator` | Always empty — nhentai does not populate it |
 | `galleryId` | nhentai gallery number. Empty for anything added by hand |
 | `seriesName` | The series, or empty |
 | `partOfSeries` | True when a series name was given. Useful as a section |
@@ -147,6 +151,8 @@ ComicInfo also gets:
 | `seriesIndex` | The raw index, ungated |
 | `summary` | Same as `description` |
 | `seriesGroup` | The first parody. Kavita reads it as a Collection |
+| `localizedSeries` | The Japanese title, **for a one-shot only**. Kavita reads it as the series' Localized Name, and for a series member the Japanese title names that volume rather than the series. Use `{{titleJapanese?}}` if you want it regardless |
+| `storyArc`, `storyArcNumber` | The series and its number again. Kavita turns these into a Reading List, a second way to walk a series |
 | `year`, `month`, `day` | Release date parts, all empty together |
 | `dateIso` | The release date in full |
 

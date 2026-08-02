@@ -182,6 +182,17 @@ parentPort?.on('message', async (cmd: SyncCommand) => {
         type: t.type,
         name: t.name
       })),
+      /**
+       * The whole API response, so the cached row can be brought up to the
+       * standard of a freshly downloaded one.
+       *
+       * Sync used to post back the tags alone, and main wrote only those — so
+       * every other field the request had already paid for was discarded: the
+       * Japanese title, the favourites count, the cover and thumbnail paths,
+       * the media id. Measured on this library, 837 rows had been enriched by
+       * a sync and were still missing all of it.
+       */
+      gallery,
       metadata: {
         title,
         primaryArtist: creators[0] || 'Unknown',
