@@ -6,6 +6,7 @@
  *
  * Options
  *   --dry-run   Report what would change, write nothing.
+ *   --limit=N   Stop after N files. Useful for a trial run.
  *   --db=PATH   Database location. Defaults to the app's.
  *
  * Why this exists
@@ -37,6 +38,8 @@ const Database = require('better-sqlite3')
 const argv = process.argv.slice(2)
 const target = argv.find((a) => !a.startsWith('--'))
 const dryRun = argv.includes('--dry-run')
+const limitArg = argv.find((a) => a.startsWith('--limit='))
+const limit = limitArg ? Number(limitArg.slice(8)) || 0 : 0
 const dbArg = argv.find((a) => a.startsWith('--db='))
 const dbPath = dbArg ? dbArg.slice(5) : join(homedir(), '.config', 'doujin-downloader', 'db.sqlite')
 
@@ -94,11 +97,48 @@ function findCbz(dir) {
   return out
 }
 
-const files = findCbz(target)
+const found = findCbz(target)
+const files = limit ? found.slice(0, limit) : found
 console.log(`directory  ${target}`)
 console.log(`database   ${dbPath}`)
-console.log(`files      ${files.length}`)
-console.log(`mode       ${dryRun ? 'DRY RUN' : 'rewriting'}\n`)
+console.log(`files      ${files.length}${limit ? ` (limited from ${found.length})` : ''}`)
+console.log(`mode       ${dryRun ? 'DRY RUN' : 'rewriting'}`)
+console.log('')
+
+/*
+ * Progress on one rewriting line.
+ *
+ * Rewriting an archive means reading it and writing it back, so a library of
+ * these takes minutes rather than seconds and needs to visibly be alive. Skips
+ * and failures print on their own lines above the counter, so nothing is lost
+ * behind the carriage return.
+ */
+const startedAt = Date.now()
+let processed = 0
+
+function fmtDuration(seconds) {
+  if (!Number.isFinite(seconds) || seconds <= 0) return '0s'
+  const m = Math.floor(seconds / 60)
+  const sec = Math.round(seconds % 60)
+  return m > 0 ? `${m}m${String(sec).padStart(2, '0')}s` : `${sec}s`
+}
+
+function note(line) {
+  // Clears the counter first, so the note is not printed over it.
+  process.stdout.write(`\r${' '.repeat(78)}\r${line}\n`)
+}
+
+function report() {
+  const elapsed = (Date.now() - startedAt) / 1000
+  const rate = processed / Math.max(elapsed, 0.001)
+  const eta = rate > 0 ? (files.length - processed) / rate : 0
+  const pct = ((processed / files.length) * 100).toFixed(1)
+  process.stdout.write(
+    `\r${String(processed).padStart(5)}/${files.length}  ${pct.padStart(5)}%  ` +
+      `${rate.toFixed(1).padStart(4)}/s  eta ${fmtDuration(eta)}  ` +
+      `rewritten ${rewritten}  skipped ${skipped}  failed ${failed}   `
+  )
+}
 
 const byGallery = db.prepare('SELECT * FROM library_item WHERE gallery_id = ?')
 
@@ -120,17 +160,20 @@ let skipped = 0
 let failed = 0
 
 for (const file of files) {
+  processed++
   const id = basename(file).match(/\[nhentai-(\d+)\]/)?.[1]
   if (!id) {
-    console.log(`  skip (no nhentai id): ${basename(file)}`)
+    note(`  skip, no nhentai id: ${basename(file)}`)
     skipped++
+    report()
     continue
   }
 
   const row = byGallery.get(Number(id))
   if (!row) {
-    console.log(`  skip (not in library): ${basename(file)}`)
+    note(`  skip, not in library: ${basename(file)}`)
     skipped++
+    report()
     continue
   }
 
@@ -139,21 +182,29 @@ for (const file of files) {
   if (members < 2) {
     // A one-shot. Numbering it would give Kavita a one-chapter series per
     // file, which is the same mess from the other direction.
-    console.log(`  skip (not in a series): ${basename(file)}`)
     skipped++
+    report()
     continue
   }
 
-  console.log(`  ${basename(file)}\n      Series="${series}"  Number=${row.series_index ?? '—'}`)
   if (dryRun) {
+    note(
+      `  ${basename(file).slice(0, 60)}\n      Series="${series}"  Number=${row.series_index ?? '—'}`
+    )
     rewritten++
+    report()
     continue
   }
 
   const result = await applyMetadata(file, 'cbz', {
     title: row.custom_title || basename(file),
     creators: [row.primary_artist || 'Unknown'],
-    tags: row.custom_tags ? row.custom_tags.split(',').map((t) => t.trim()).filter(Boolean) : [],
+    tags: row.custom_tags
+      ? row.custom_tags
+          .split(',')
+          .map((t) => t.trim())
+          .filter(Boolean)
+      : [],
     nhentaiId: row.gallery_id,
     seriesName: series,
     seriesIndex: row.series_index,
@@ -164,14 +215,17 @@ for (const file of files) {
 
   if (result.success) rewritten++
   else {
-    console.log(`      FAILED: ${result.error}`)
+    note(`  FAILED ${basename(file)}: ${result.error}`)
     failed++
   }
+  report()
 }
 
-console.log(`\nrewritten  ${rewritten}`)
+console.log('\n')
+console.log(`rewritten  ${rewritten}`)
 if (skipped) console.log(`skipped    ${skipped}`)
 if (failed) console.log(`failed     ${failed}`)
+console.log(`took       ${fmtDuration((Date.now() - startedAt) / 1000)}`)
 if (dryRun) console.log('\nDry run — nothing was written.')
 
 db.close()
