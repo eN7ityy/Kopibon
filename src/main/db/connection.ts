@@ -267,6 +267,16 @@ function runMigrations(sqlite: Database.Database): void {
       updated_at INTEGER NOT NULL DEFAULT (unixepoch())
     );
 
+    CREATE TABLE IF NOT EXISTS sync_queue (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      library_item_id INTEGER NOT NULL UNIQUE,
+      status TEXT NOT NULL DEFAULT 'pending',
+      error_message TEXT,
+      started_at INTEGER,
+      completed_at INTEGER,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch())
+    );
+
     CREATE TABLE IF NOT EXISTS series (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
@@ -339,6 +349,9 @@ function runMigrations(sqlite: Database.Database): void {
 
   // The grouped library query joins on this for every page it renders.
   sqlite.exec('CREATE INDEX IF NOT EXISTS idx_library_item_series_id ON library_item(series_id)')
+
+  // The sync loop claims the next pending row on every item.
+  sqlite.exec('CREATE INDEX IF NOT EXISTS idx_sync_queue_status ON sync_queue(status)')
 
   // conversion_queue was created keyed only on file_path, which is not enough to
   // resume: the path changes from .pdf to .cbz the moment an item succeeds, and

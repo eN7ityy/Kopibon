@@ -210,6 +210,12 @@ const api = {
     syncItem: (itemId: number) => ipcRenderer.invoke('library:syncItem', itemId),
     syncBatch: (ids: number[]) => ipcRenderer.invoke('library:syncBatch', ids),
     isSyncing: (itemId: number) => ipcRenderer.invoke('library:isSyncing', itemId),
+    /** Outstanding sync work left by a crash or quit. */
+    getSyncQueue: () => ipcRenderer.invoke('library:getSyncQueue'),
+    /** Discard the sync queue, including anything still pending. */
+    clearSyncQueue: () => ipcRenderer.invoke('library:clearSyncQueue'),
+    /** Continue a sync that was interrupted. Takes no ids: the queue is the list. */
+    resumeSync: () => ipcRenderer.invoke('library:syncBatch', []),
     /** Stop a running batch sync after the item currently in flight. */
     cancelSync: () => ipcRenderer.invoke('library:cancelSync'),
     /** Groups and galleries that switching grouping on would produce. */

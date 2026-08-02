@@ -27,6 +27,7 @@
 import { getRawDatabase } from '../db/connection'
 import { settingsRepo } from '../db/repositories/settings.repo'
 import { seriesRepo } from '../db/repositories/series.repo'
+import { syncRepo } from '../db/repositories/sync.repo'
 import { getLogger } from './logger'
 
 export interface MaintenanceResult {
@@ -36,6 +37,8 @@ export interface MaintenanceResult {
   orphanedArtistsRemoved: number
   /** Items linked to their series group. 0 when grouping is switched off. */
   seriesLinked: number
+  /** Sync rows left mid-flight by a crash or quit, put back in the queue. */
+  syncRequeued: number
 }
 
 export interface MaintenanceOptions {
@@ -55,7 +58,8 @@ export function runStartupMaintenance(options: MaintenanceOptions = {}): Mainten
     scanQueueCleared: 0,
     completedDownloadsPruned: 0,
     orphanedArtistsRemoved: 0,
-    seriesLinked: 0
+    seriesLinked: 0,
+    syncRequeued: 0
   }
 
   const sweep = db.transaction(() => {
@@ -120,6 +124,16 @@ export function runStartupMaintenance(options: MaintenanceOptions = {}): Mainten
    * go, so this is a backstop rather than the mechanism, and it costs one
    * statement over the table.
    */
+  /*
+   * A sync row still marked 'syncing' means the app went away mid-item. Nothing
+   * is running now, so it goes back in the queue for the resume banner to offer.
+   */
+  try {
+    result.syncRequeued = syncRepo.requeueInterrupted()
+  } catch (err) {
+    getLogger('startup').warn('Sync requeue failed', { error: String(err) })
+  }
+
   try {
     if (settingsRepo.get('seriesGrouping') === 'true') {
       result.seriesLinked = seriesRepo.backfillAll().linked
@@ -133,14 +147,16 @@ export function runStartupMaintenance(options: MaintenanceOptions = {}): Mainten
     result.scanQueueCleared +
     result.completedDownloadsPruned +
     result.orphanedArtistsRemoved +
-    result.seriesLinked
+    result.seriesLinked +
+    result.syncRequeued
   if (total > 0) {
     getLogger('startup').info('Maintenance sweep', {
       downloadPagesCleared: result.downloadPagesCleared,
       scanQueueCleared: result.scanQueueCleared,
       completedDownloadsPruned: result.completedDownloadsPruned,
       orphanedArtistsRemoved: result.orphanedArtistsRemoved,
-      seriesLinked: result.seriesLinked
+      seriesLinked: result.seriesLinked,
+      syncRequeued: result.syncRequeued
     })
   }
 

@@ -3,6 +3,7 @@ import { Worker } from 'worker_threads'
 import { join as pathJoin } from 'path'
 import { libraryRepo } from '../db/repositories/library.repo'
 import { seriesRepo } from '../db/repositories/series.repo'
+import { syncRepo } from '../db/repositories/sync.repo'
 import { galleryRepo } from '../db/repositories/gallery.repo'
 import { settingsRepo } from '../db/repositories/settings.repo'
 import { conversionRepo } from '../db/repositories/conversion.repo'
@@ -2011,6 +2012,24 @@ export function registerLibraryIpc(): void {
    * mid-write is how a file ends up truncated — the same reasoning the CBZ
    * conversion cancel already follows.
    */
+  /** Outstanding sync work, for the resume banner. */
+  handle('library:getSyncQueue', async () => {
+    const counts = syncRepo.counts()
+    return {
+      success: true,
+      data: {
+        ...counts,
+        outstanding: counts.pending + counts.syncing,
+        errors: syncRepo.recentErrors()
+      }
+    }
+  })
+
+  /** Discard the queue, including anything still pending. */
+  handle('library:clearSyncQueue', async () => {
+    return { success: true, data: { cleared: syncRepo.clear() } }
+  })
+
   handle('library:cancelSync', async () => {
     syncCancelled = true
     log.info('sync cancellation requested')
@@ -2019,16 +2038,39 @@ export function registerLibraryIpc(): void {
 
   handle(
     'library:syncBatch',
-    async (event, ids: number[]) => {
+    async (event, ids: number[] = []) => {
       const win = BrowserWindow.fromWebContents(
         event.sender
       )
       let succeeded = 0
       let failed = 0
       let cancelled = false
-      const total = ids.length
       const startTime = Date.now()
       syncCancelled = false
+
+      /*
+       * The queue is the work list, not this array.
+       *
+       * A batch runs at roughly 40 items a minute, so a few hundred galleries
+       * is long enough that quitting or crashing part-way through is expected.
+       * Holding the list in a local variable meant an interrupted run lost its
+       * place entirely.
+       *
+       * An empty `ids` means resume: take whatever is already queued. A
+       * non-empty one starts a fresh batch, clearing finished rows first so the
+       * counts describe this run rather than every run before it.
+       */
+      if (ids.length > 0) {
+        syncRepo.clearFinished()
+        syncRepo.enqueue(ids)
+      }
+
+      const outstanding = syncRepo.counts()
+      const total = outstanding.pending + outstanding.syncing
+      if (total === 0) {
+        return { success: true, data: { succeeded: 0, failed: 0, total: 0, cancelled: false } }
+      }
+      let done = 0
 
       /*
        * Pace from the documented limit for the endpoint the worker calls, not
@@ -2057,46 +2099,55 @@ export function registerLibraryIpc(): void {
         })
       }
 
-      for (let i = 0; i < ids.length; i++) {
+      for (;;) {
         if (syncCancelled) {
           cancelled = true
           break
         }
+        // Claimed one at a time, so a crash leaves exactly one row marked
+        // in-flight for startup to put back rather than losing the rest.
+        const itemId = syncRepo.claimNext()
+        if (itemId == null) break
+
         const startedItemAt = Date.now()
-        const item = libraryRepo.findById(ids[i])
+        const item = libraryRepo.findById(itemId)
         if (
           !item ||
           !item.galleryId ||
-          syncingItems.has(ids[i]) ||
-          isConversionLocked(ids[i])
+          syncingItems.has(itemId) ||
+          isConversionLocked(itemId)
         ) {
+          syncRepo.finish(itemId, 'No nhentai id, or the file is in use')
           failed++
+          done++
           continue
         }
 
-        syncingItems.add(ids[i])
+        syncingItems.add(itemId)
         const result = await spawnSyncWorker(
-          ids[i],
+          itemId,
           item.galleryId,
           item.filePath,
           item.format || 'pdf'
         )
+        syncRepo.finish(itemId, result.success ? null : result.message || 'Sync failed')
 
         if (result.success) succeeded++
         else failed++
+        done++
 
         if (win) {
           const elapsed =
             (Date.now() - startTime) / 1000
-          const rate = (i + 1) / Math.max(elapsed, 1)
+          const rate = done / Math.max(elapsed, 1)
           const eta =
             rate > 0
-              ? Math.round((total - i - 1) / rate)
+              ? Math.round((total - done) / rate)
               : null
           win.webContents.send(
             'library:syncProgress',
             {
-              current: i + 1,
+              current: done,
               total,
               title: `Syncing #${item?.galleryId || '?'}`,
               etaSeconds: eta
@@ -2110,7 +2161,7 @@ export function registerLibraryIpc(): void {
          * second — and the old code added its delay on top instead of counting
          * it, so every item cost the work plus the full wait.
          */
-        if (i < ids.length - 1 && !syncCancelled) {
+        if (done < total && !syncCancelled) {
           const remaining = intervalMs - (Date.now() - startedItemAt)
           if (remaining > 0) await new Promise((r) => setTimeout(r, remaining))
         }
