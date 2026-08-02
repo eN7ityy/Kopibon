@@ -511,6 +511,24 @@ describe('syncing keeps the series, which nhentai does not know about', () => {
   })
 })
 
+describe('a default FileMetadata is always writable', () => {
+  // Regression: the custom-PDF path passed a gallery-shaped object where an
+  // XmpMetadata was expected, so buildXmpXml hit `metadata.creators.map` on
+  // undefined and threw. The call site was typed `Record<string, unknown>`, so
+  // nothing caught it. Both emitters must cope with the emptiest input there is.
+  it('renders ComicInfo from defaults without throwing', () => {
+    expect(() => buildComicInfoXml(makeFileMetadata({}))).not.toThrow()
+  })
+
+  it('renders XMP from defaults without throwing', () => {
+    expect(() => buildXmpXml(makeFileMetadata({}))).not.toThrow()
+  })
+
+  it('renders the docinfo from defaults without throwing', () => {
+    expect(() => buildDocInfo(makeFileMetadata({}))).not.toThrow()
+  })
+})
+
 // ─── The property that started all of this ───────────────────────────────────
 
 describe('every entry point describes the same gallery the same way', () => {

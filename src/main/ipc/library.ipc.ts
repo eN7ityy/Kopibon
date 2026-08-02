@@ -28,7 +28,10 @@ import { handle } from './handle'
 import { getLogger } from '../services/logger'
 import { attachWorkerLogForwarding } from '../services/worker-logger'
 import { sortNatural } from '../services/natural-sort'
-import { fileMetadataFromLibraryItem } from '../services/metadata/file-metadata'
+import {
+  fileMetadataFromLibraryItem,
+  makeFileMetadata
+} from '../services/metadata/file-metadata'
 import type {
   FileMetadata,
   MangaDirection
@@ -105,7 +108,7 @@ function regroupAllSeries(): void {
 function spawnMetadataWorker(command: {
   type: 'apply'
   pdfPath: string
-  metadata: Record<string, unknown>
+  metadata: FileMetadata
 }): Promise<void> {
   return new Promise((resolve, reject) => {
     const workerPath = pathJoin(__dirname, 'services/metadata.worker.js')
@@ -1303,46 +1306,28 @@ export function registerLibraryIpc(): void {
         finalPath = destPath
 
         report('Writing metadata')
+        const customDate = metadata.date
+          ? new Date(metadata.date)
+          : null
+
         await spawnMetadataWorker({
           type: 'apply',
           pdfPath: finalPath,
-          metadata: {
-            id: 0,
-            title: {
-              english: metadata.title,
-              japanese: null,
-              pretty: metadata.title
-            },
-            tags: [
-              ...tagList.map((name) => ({
-                id: 0,
-                type: 'tag',
-                name
-              })),
-              ...metadata.artists.map((name) => ({
-                id: 0,
-                type: 'artist',
-                name
-              })),
-              ...(metadata.language
-                ? [
-                    {
-                      id: 0,
-                      type: 'language',
-                      name: metadata.language
-                    }
-                  ]
-                : [])
-            ],
-            uploadDate: metadata.date
-              ? Math.floor(
-                  new Date(metadata.date).getTime() / 1000
-                )
-              : Math.floor(Date.now() / 1000),
-            numPages: 0,
-            seriesName: metadata.series,
-            description: metadata.description
-          }
+          metadata: makeFileMetadata({
+            title: metadata.title,
+            seriesName: metadata.series || null,
+            artists: metadata.artists,
+            tags: tagList,
+            allTags: tagList,
+            language: metadata.language || null,
+            description: metadata.description || null,
+            releaseDate:
+              customDate &&
+              Number.isFinite(customDate.getTime())
+                ? customDate
+                : null,
+            format: 'pdf'
+          })
         })
       }
 
