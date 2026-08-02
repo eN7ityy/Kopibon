@@ -52,6 +52,18 @@ export const libraryItem = sqliteTable('library_item', {
   language: text('language'),
   publisher: text('publisher'),
   description: text('description'),
+  /**
+   * Pages in the file itself.
+   *
+   * Stored rather than derived. Counting means opening the archive — about
+   * 25ms each — so a fifteen-volume series panel would spend a third of a
+   * second re-counting every time it opened, and the cached gallery row is
+   * usable for only 63 of 4,635 items because scanner rows store zero.
+   *
+   * Written whenever the file is written: download, conversion, sync. Null
+   * means not yet known, and is filled the first time it is asked for.
+   */
+  pageCount: integer('page_count'),
   readProgress: integer('read_progress').notNull().default(0),
   fileMtime: integer('file_mtime'),
   thumbnailPath: text('thumbnail_path'),

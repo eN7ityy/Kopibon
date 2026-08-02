@@ -61,7 +61,7 @@ function execAsync(cmd: string, args: string[], timeoutMs = 0): Promise<string> 
  * `pdfinfo` output includes a `Pages:` line. Never use gallery.page_count
  * from the database — it is 0 for all scanner-stub rows (§7.2, §C.2).
  */
-async function getPdfPageCount(pdfPath: string): Promise<number> {
+export async function getPdfPageCount(pdfPath: string): Promise<number> {
   // Metadata read only — fast even on huge files, so a ceiling here is a real
   // hang detector rather than a false alarm on big input.
   const out = await execAsync('pdfinfo', [pdfPath], 60_000)

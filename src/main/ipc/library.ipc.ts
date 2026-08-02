@@ -28,6 +28,7 @@ import { handle } from './handle'
 import { getLogger } from '../services/logger'
 import { attachWorkerLogForwarding } from '../services/worker-logger'
 import { sortNatural } from '../services/natural-sort'
+import { countPages } from '../services/page-count'
 import { endpointLimitPerMinute } from '../services/rate-limiter'
 
 const log = getLogger('library')
@@ -618,11 +619,17 @@ export function registerLibraryIpc(): void {
    */
   handle('library:getPageCount', async (_event, id: number) => {
     const item = libraryRepo.findById(id)
-    if (!item?.filePath || !existsSync(item.filePath)) return { success: true, data: null }
-    if ((item.format || '').toLowerCase() !== 'cbz') return { success: true, data: null }
+    if (!item) return { success: true, data: null }
 
-    const { countCbzPages } = await import('../services/apply-metadata')
-    return { success: true, data: await countCbzPages(item.filePath) }
+    // Stored value wins. Counting costs about 25ms, which is nothing once and
+    // far too much on every render.
+    if (item.pageCount != null) return { success: true, data: item.pageCount }
+
+    const pages = await countPages(item.filePath, item.format)
+    // Filled on read as well as on write, so the existing library backfills as
+    // it is browsed rather than needing a migration pass over 4,635 archives.
+    if (pages != null) libraryRepo.update(id, { pageCount: pages })
+    return { success: true, data: pages }
   })
 
   /**
@@ -1916,7 +1923,7 @@ export function registerLibraryIpc(): void {
 
       worker.on(
         'message',
-        (msg: {
+        async (msg: {
           type: string
           itemId: number
           success?: boolean
@@ -1936,6 +1943,16 @@ export function registerLibraryIpc(): void {
               const updateData: Record<string, unknown> = {
                 synced: 1,
                 syncedAt: now
+              }
+              /*
+               * A sync repacks the archive, so the count is re-derived rather
+               * than assumed unchanged. Cheap, and it means a file whose pages
+               * changed outside the app is corrected the next time it syncs.
+               */
+              const syncedItem = libraryRepo.findById(msg.itemId)
+              if (syncedItem) {
+                const pages = await countPages(syncedItem.filePath, syncedItem.format)
+                if (pages != null) updateData.pageCount = pages
               }
               if (msg.metadata) {
                 updateData.customTitle =
@@ -2769,7 +2786,7 @@ export function registerLibraryIpc(): void {
 
           worker.on(
             'message',
-            (msg: {
+            async (msg: {
               type: string
               itemId?: number
               success?: boolean
@@ -2797,6 +2814,8 @@ export function registerLibraryIpc(): void {
                       currentCover,
                       msg.newPath
                     )
+                  // The file was just rewritten, so its page count is new.
+                  const convertedPages = await countPages(msg.newPath, 'cbz')
                   try {
                     libraryRepo.update(
                       currentId,
@@ -2804,6 +2823,7 @@ export function registerLibraryIpc(): void {
                         filePath:
                           msg.newPath,
                         format: 'cbz',
+                        pageCount: convertedPages,
                         fileSize:
                           msg.fileSize ??
                           0,

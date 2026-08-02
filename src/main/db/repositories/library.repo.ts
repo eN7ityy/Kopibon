@@ -615,6 +615,14 @@ export const libraryRepo = {
     matchCount: number
     totalCount: number
     fileSize: number
+    /**
+     * Pages across the whole series, summed from what each member knows.
+     *
+     * Null when no member has a count yet. Reported rather than recomputed:
+     * counting means opening every archive, about 25ms each, which a fifteen
+     * volume series cannot afford on every open.
+     */
+    pageCount: number | null
     artists: string[]
     languages: string[]
     /**
@@ -736,6 +744,11 @@ export const libraryRepo = {
       matchCount: members.filter((m) => m.matches).length,
       totalCount: members.length,
       fileSize: members.reduce((sum, m) => sum + (m.fileSize ?? 0), 0),
+      // Summed over members that know their count. Partly-known is still worth
+      // showing; entirely unknown renders nothing rather than a misleading 0.
+      pageCount: members.some((m) => m.pageCount != null)
+        ? members.reduce((sum, m) => sum + (m.pageCount ?? 0), 0)
+        : null,
       artists: facts.artists,
       languages: facts.languages,
       tags: facts.tags,

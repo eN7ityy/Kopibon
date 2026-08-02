@@ -341,6 +341,9 @@ function runMigrations(sqlite: Database.Database): void {
   if (!colNames.has('series_id')) {
     sqlite.exec('ALTER TABLE library_item ADD COLUMN series_id INTEGER')
   }
+  if (!colNames.has('page_count')) {
+    sqlite.exec('ALTER TABLE library_item ADD COLUMN page_count INTEGER')
+  }
 
   const seriesCols = sqlite.prepare("PRAGMA table_info('series')").all() as Array<{ name: string }>
   if (!seriesCols.some((c) => c.name === 'is_dissolved')) {

@@ -10,6 +10,7 @@ import { settingsRepo } from '../db/repositories/settings.repo'
 import { libraryRepo } from '../db/repositories/library.repo'
 import { getApiClient } from './api-client'
 import { resolveLanguageName } from './xml-utils'
+import { countPages } from './page-count'
 import type { GalleryMetadata } from './metadata-writer'
 import type { GalleryDetail } from './api-client'
 
@@ -647,8 +648,13 @@ export class DownloadManager {
           }
         }
 
+        // Counted from the file just written, not from gallery.num_pages: a
+        // download that dropped a page should report what is actually there.
+        const downloadedPages = await countPages(outputPath, active.outputFormat || 'pdf')
+
         libraryRepo.update(libItem.id, {
           isCustom: 0,
+          pageCount: downloadedPages,
           customTitle: gallery.title.pretty,
           customTags: tagNames,
           customLanguage: languageIso,

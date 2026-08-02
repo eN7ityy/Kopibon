@@ -40,6 +40,7 @@ interface SeriesFacts {
   matchCount: number
   totalCount: number
   fileSize: number
+  pageCount: number | null
   coverItemId: number | null
   artists: string[]
   languages: string[]
@@ -402,6 +403,9 @@ export default function SeriesDetail({
 
               <dl className="space-y-2 text-sm">
                 <Fact label="Galleries" value={<span className="tnum">{facts.totalCount}</span>} />
+                {facts.pageCount != null && (
+                  <Fact label="Pages" value={<span className="tnum">{facts.pageCount}</span>} />
+                )}
                 {facts.fileSize > 0 && (
                   <Fact
                     label="Size"
