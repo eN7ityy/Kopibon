@@ -607,6 +607,57 @@ export function registerLibraryIpc(): void {
     return { success: true }
   })
 
+  /**
+   * Page count for one item, read from the archive.
+   *
+   * Not stored anywhere: library_item has no such column, and the cached
+   * gallery row carries a usable count for only 63 of 4,635 items because
+   * scanner-created rows store zero. The archive always knows.
+   *
+   * Only the central directory is read, so this does not inflate anything.
+   */
+  handle('library:getPageCount', async (_event, id: number) => {
+    const item = libraryRepo.findById(id)
+    if (!item?.filePath || !existsSync(item.filePath)) return { success: true, data: null }
+    if ((item.format || '').toLowerCase() !== 'cbz') return { success: true, data: null }
+
+    const { countCbzPages } = await import('../services/apply-metadata')
+    return { success: true, data: await countCbzPages(item.filePath) }
+  })
+
+  /**
+   * Attach an nhentai id to an item that has none.
+   *
+   * 237 items were scanned from files whose names carry no `[nhentai-<id>]`,
+   * so nothing could ever be synced for them. This is the way to correct that
+   * by hand.
+   *
+   * The id is checked against the rest of the library first: `gallery_id` is
+   * unique, so without this the insert fails on a constraint and the user is
+   * shown a database error instead of being told which gallery already has it.
+   */
+  handle('library:setGalleryId', async (_event, itemId: number, galleryId: number) => {
+    const id = Number(galleryId)
+    if (!Number.isInteger(id) || id <= 0) {
+      return { success: false, error: 'An nhentai id is a positive whole number' }
+    }
+
+    const item = libraryRepo.findById(itemId)
+    if (!item) return { success: false, error: 'That item no longer exists' }
+
+    const taken = libraryRepo.findByGalleryId(id)
+    if (taken && taken.id !== itemId) {
+      return {
+        success: false,
+        error: `Gallery ${id} is already attached to "${taken.customTitle || taken.filePath}"`
+      }
+    }
+
+    libraryRepo.update(itemId, { galleryId: id })
+    log.info('attached an nhentai id by hand', { itemId, galleryId: id })
+    return { success: true, data: { galleryId: id } }
+  })
+
   handle('library:search', async (_event, query: string) => {
     const items = libraryRepo.searchByTitle(query)
     return { success: true, data: items }

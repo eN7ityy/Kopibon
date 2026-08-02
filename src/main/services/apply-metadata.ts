@@ -125,6 +125,20 @@ function listEntryNames(filePath: string): Promise<string[]> {
 }
 
 /**
+ * How many page images a CBZ holds.
+ *
+ * `library_item` has no page-count column, and only 63 of 4,635 rows can join
+ * one from the cached gallery table — scanner-created gallery rows store zero.
+ * The archive itself is the only source that answers for every file.
+ *
+ * Cheap: yauzl reads the central directory, so nothing is inflated.
+ */
+export async function countCbzPages(filePath: string): Promise<number> {
+  const names = await listEntryNames(filePath)
+  return names.filter(isImageEntry).length
+}
+
+/**
  * Rewrite ComicInfo.xml inside an existing CBZ.
  *
  * A ZIP entry cannot be replaced in place, so the archive is rebuilt:

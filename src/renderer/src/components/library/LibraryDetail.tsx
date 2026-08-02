@@ -105,6 +105,13 @@ export default function LibraryDetail({
   const [typedTags, setTypedTags] = useState<{ galleryId: number; tags: TagLike[] } | null>(
     null
   )
+  /** Pages in the archive, keyed by item so a previous one's count cannot show. */
+  const [pageCount, setPageCount] = useState<{ id: number; pages: number | null } | null>(null)
+  /** Draft nhentai id, for an item scanned from a filename without one. */
+  const [idDraft, setIdDraft] = useState('')
+  const [linkingId, setLinkingId] = useState(false)
+  const [linkError, setLinkError] = useState<string | null>(null)
+
   /** The openable group for this gallery's series, keyed by the name it is for. */
   const [seriesRef, setSeriesRef] = useState<{
     name: string
@@ -250,6 +257,40 @@ export default function LibraryDetail({
     finally { setSaving(false) }
   }
 
+  /**
+   * Attach an nhentai id the scanner could not read from the filename.
+   *
+   * Main rejects an id another item already holds and says which, since
+   * `gallery_id` is unique and the bare constraint error would be useless.
+   * A successful attach syncs straight away — attaching an id is only ever a
+   * prelude to wanting the metadata behind it.
+   */
+  const handleAttachId = async (): Promise<void> => {
+    const parsed = Number(idDraft.trim())
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+      setLinkError('An nhentai id is a positive whole number')
+      return
+    }
+
+    setLinkingId(true)
+    setLinkError(null)
+    try {
+      const r = await window.api.library.setGalleryId(detail.id, parsed)
+      if (!r?.success) {
+        setLinkError(r?.error || 'Could not attach that id')
+        return
+      }
+      await window.api.library.syncItem(detail.id)
+      setIdDraft('')
+      setRefreshKey((k) => k + 1)
+      onUpdated()
+    } catch (err) {
+      setLinkError(String(err))
+    } finally {
+      setLinkingId(false)
+    }
+  }
+
   const handleDelete = async (mode: 'remove' | 'deleteFile') => {
     setDeleting(true)
     try {
@@ -316,6 +357,31 @@ export default function LibraryDetail({
       })
       .catch(() => {
         /* the field stays plain text, which is the pre-grouping behaviour */
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [freshItem, item])
+
+  /*
+   * Page count, read from the archive.
+   *
+   * Nothing stores it: library_item has no such column and the cached gallery
+   * row is usable for only a handful of items. Keyed by id and set only from
+   * the promise callback, so a slow read cannot attribute one item's count to
+   * another.
+   */
+  useEffect(() => {
+    const id = (freshItem || item)?.id
+    if (!id) return
+    let cancelled = false
+    window.api.library
+      .getPageCount(id)
+      .then((r) => {
+        if (!cancelled && r?.success) setPageCount({ id, pages: r.data as number | null })
+      })
+      .catch(() => {
+        /* the row simply does not render */
       })
     return () => {
       cancelled = true
@@ -630,9 +696,21 @@ export default function LibraryDetail({
 
             <div className="border-t border-line pt-3 space-y-2">
               <div><span className="text-xs font-medium text-fg-muted">Format</span><p className="text-sm text-fg">{detail.format?.toUpperCase() || 'PDF'}</p></div>
-              <div><span className="text-xs font-medium text-fg-muted">File Size</span><p className="text-sm text-fg">{formatFileSize(detail.fileSize)}</p></div>
+              <div className="flex gap-6">
+                <div>
+                  <span className="text-xs font-medium text-fg-muted">File Size</span>
+                  <p className="text-sm text-fg">{formatFileSize(detail.fileSize)}</p>
+                </div>
+                {/* Only for the item on screen, and only when the archive gave a count. */}
+                {pageCount && pageCount.id === detail.id && pageCount.pages != null && (
+                  <div>
+                    <span className="text-xs font-medium text-fg-muted">Pages</span>
+                    <p className="tnum text-sm text-fg">{pageCount.pages}</p>
+                  </div>
+                )}
+              </div>
               <div><span className="text-xs font-medium text-fg-muted">File Path</span><p className="text-xs text-fg-muted break-all font-mono mt-0.5">{detail.filePath}</p></div>
-              {detail.galleryId && (
+              {detail.galleryId ? (
                 <div>
                   <span className="text-xs font-medium text-fg-muted">nhentai ID</span>
                   <div className="flex items-center gap-2">
@@ -659,6 +737,43 @@ export default function LibraryDetail({
                       {detailSyncing ? '⟳ Syncing...' : '⟳ Sync'}
                     </button>
                   </div>
+                </div>
+              ) : (
+                /*
+                  237 items were scanned from filenames carrying no
+                  `[nhentai-<id>]`, so nothing could ever be synced for them.
+                  This is how that gets corrected by hand.
+                */
+                <div>
+                  <span className="text-xs font-medium text-fg-muted">nhentai ID</span>
+                  <p className="text-xs text-fg-faint mb-1">
+                    None attached, so this item cannot be synced.
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={idDraft}
+                      placeholder="e.g. 651024"
+                      disabled={linkingId}
+                      onChange={(e) => {
+                        setIdDraft(e.target.value)
+                        setLinkError(null)
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') void handleAttachId()
+                      }}
+                      className="w-32 rounded border border-line bg-surface px-2 py-1 text-sm text-fg focus:ring-2 focus:ring-accent"
+                    />
+                    <button
+                      onClick={() => void handleAttachId()}
+                      disabled={linkingId || !idDraft.trim()}
+                      className="rounded border border-accent px-2 py-1 text-xs text-accent transition-colors hover:bg-accent-wash disabled:opacity-40"
+                    >
+                      {linkingId ? 'Attaching…' : 'Attach'}
+                    </button>
+                  </div>
+                  {linkError && <p className="mt-1 text-xs text-danger">{linkError}</p>}
                 </div>
               )}
             </div>

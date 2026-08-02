@@ -176,6 +176,11 @@ const api = {
     delete: (id: number) => ipcRenderer.invoke('library:delete', id),
     deleteFile: (id: number) => ipcRenderer.invoke('library:deleteFile', id),
     getThumbnail: (id: number) => ipcRenderer.invoke('library:getThumbnail', id),
+    /** Page count read from the archive; null when it cannot be determined. */
+    getPageCount: (id: number) => ipcRenderer.invoke('library:getPageCount', id),
+    /** Attach an nhentai id to an item scanned without one. */
+    setGalleryId: (itemId: number, galleryId: number) =>
+      ipcRenderer.invoke('library:setGalleryId', itemId, galleryId),
     updateMetadata: (
       id: number,
       metadata: Record<string, string | number | null>,
