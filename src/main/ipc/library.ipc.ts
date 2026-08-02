@@ -436,6 +436,36 @@ export function registerLibraryIpc(): void {
         showUnmatchedOnly?: boolean
       } = {}
     ) => {
+      /*
+       * Fill any member that has no page count yet, before the total is summed.
+       *
+       * Individual items fill themselves on first read, but a series is asked
+       * about its members without opening them, so their counts would stay null
+       * and the total would read low or not at all.
+       *
+       * Counting is roughly 25ms per archive, so a fifteen-volume series costs
+       * a noticeable moment the first time it is opened and nothing afterwards
+       * — the counts are stored. It is awaited rather than blocking: reading a
+       * central directory yields, so the window keeps painting.
+       *
+       * Bounded concurrency. A series is small here, but nothing guarantees
+       * that, and opening every archive in one go would be unkind to a network
+       * mount.
+       */
+      const missing = seriesRepo
+        .memberIds(seriesId)
+        .map((id) => libraryRepo.findById(id))
+        .filter((item): item is NonNullable<typeof item> => !!item && item.pageCount == null)
+
+      for (let i = 0; i < missing.length; i += 4) {
+        await Promise.all(
+          missing.slice(i, i + 4).map(async (item) => {
+            const pages = await countPages(item.filePath, item.format)
+            if (pages != null) libraryRepo.update(item.id, { pageCount: pages })
+          })
+        )
+      }
+
       const facts = libraryRepo.seriesFacts(seriesId, params)
       if (!facts) return { success: false, error: 'That series no longer exists' }
       return { success: true, data: facts }
