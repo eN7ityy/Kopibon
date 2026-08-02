@@ -1355,7 +1355,12 @@ export default function LibraryPage(): React.JSX.Element {
               <h4 className="text-sm font-medium text-fg mb-2">Other</h4>
               <label className="flex items-center gap-2 text-sm text-fg-muted cursor-pointer hover:text-fg">
                 <input type="checkbox" checked={showUnmatchedOnly} onChange={() => setShowUnmatchedOnly(!showUnmatchedOnly)} className="w-3.5 h-3.5 rounded border-line text-accent focus:ring-accent" />
-                Unmatched only
+                {/*
+                  Was "Unmatched only", which gave no clue that it finds the
+                  items with no nhentai id — the ones that cannot be synced and
+                  are the whole point of attaching one by hand.
+                */}
+                No nhentai ID
               </label>
             </div>
           </div>

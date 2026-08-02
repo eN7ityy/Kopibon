@@ -178,8 +178,8 @@ const api = {
     getThumbnail: (id: number) => ipcRenderer.invoke('library:getThumbnail', id),
     /** Page count read from the archive; null when it cannot be determined. */
     getPageCount: (id: number) => ipcRenderer.invoke('library:getPageCount', id),
-    /** Attach an nhentai id to an item scanned without one. */
-    setGalleryId: (itemId: number, galleryId: number) =>
+    /** Attach an nhentai id, or pass null to detach a wrong one. */
+    setGalleryId: (itemId: number, galleryId: number | null) =>
       ipcRenderer.invoke('library:setGalleryId', itemId, galleryId),
     updateMetadata: (
       id: number,

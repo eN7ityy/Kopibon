@@ -636,14 +636,29 @@ export function registerLibraryIpc(): void {
    * unique, so without this the insert fails on a constraint and the user is
    * shown a database error instead of being told which gallery already has it.
    */
-  handle('library:setGalleryId', async (_event, itemId: number, galleryId: number) => {
+  handle('library:setGalleryId', async (_event, itemId: number, galleryId: number | null) => {
+    const item = libraryRepo.findById(itemId)
+    if (!item) return { success: false, error: 'That item no longer exists' }
+
+    /*
+     * Null detaches. An id read from a filename can simply be wrong — the
+     * scanner takes whatever `[nhentai-<n>]` says — and until now a wrong one
+     * could not be removed, only replaced by another guess.
+     *
+     * Only the link is cleared. Title, tags and everything a previous sync
+     * wrote stay: they may well be right, and re-deriving them is what a
+     * fresh sync is for.
+     */
+    if (galleryId === null) {
+      libraryRepo.update(itemId, { galleryId: null })
+      log.info('detached an nhentai id', { itemId, was: item.galleryId })
+      return { success: true, data: { galleryId: null } }
+    }
+
     const id = Number(galleryId)
     if (!Number.isInteger(id) || id <= 0) {
       return { success: false, error: 'An nhentai id is a positive whole number' }
     }
-
-    const item = libraryRepo.findById(itemId)
-    if (!item) return { success: false, error: 'That item no longer exists' }
 
     const taken = libraryRepo.findByGalleryId(id)
     if (taken && taken.id !== itemId) {

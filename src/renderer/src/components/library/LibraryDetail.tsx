@@ -291,6 +291,32 @@ export default function LibraryDetail({
     }
   }
 
+  /**
+   * Remove a wrong nhentai id.
+   *
+   * The scanner takes whatever `[nhentai-<n>]` in the filename says, so an id
+   * can simply be wrong, and until now it could only be replaced by another
+   * guess. Detaching leaves the title and tags alone — they may be correct, and
+   * a fresh sync is what re-derives them.
+   */
+  const handleDetachId = async (): Promise<void> => {
+    setLinkingId(true)
+    setLinkError(null)
+    try {
+      const r = await window.api.library.setGalleryId(detail.id, null)
+      if (!r?.success) {
+        setLinkError(r?.error || 'Could not detach that id')
+        return
+      }
+      setRefreshKey((k) => k + 1)
+      onUpdated()
+    } catch (err) {
+      setLinkError(String(err))
+    } finally {
+      setLinkingId(false)
+    }
+  }
+
   const handleDelete = async (mode: 'remove' | 'deleteFile') => {
     setDeleting(true)
     try {
@@ -736,7 +762,16 @@ export default function LibraryDetail({
                     >
                       {detailSyncing ? '⟳ Syncing...' : '⟳ Sync'}
                     </button>
+                    <button
+                      onClick={() => void handleDetachId()}
+                      disabled={linkingId || detailSyncing}
+                      title="Remove this id — the scanner reads it from the filename and it can be wrong"
+                      className="rounded border border-warning px-2 py-0.5 text-xs text-warning transition-colors hover:bg-warning-wash disabled:opacity-40"
+                    >
+                      {linkingId ? 'Detaching…' : 'Detach'}
+                    </button>
                   </div>
+                  {linkError && <p className="mt-1 text-xs text-danger">{linkError}</p>}
                 </div>
               ) : (
                 /*

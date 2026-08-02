@@ -63,6 +63,12 @@ function buildLibraryFilter(params: LibraryFilterParams): SQL | undefined {
     const anyColumnMatches = columns.map(
       (column) => sql`${column} LIKE ${pattern} ESCAPE '\\' COLLATE NOCASE`
     )
+    /*
+     * The nhentai id too, cast to text so a numeric column can be matched the
+     * same way. Typing an id is the obvious way to find one gallery, and it
+     * used to return nothing at all.
+     */
+    anyColumnMatches.push(sql`CAST(${libraryItem.galleryId} AS TEXT) LIKE ${pattern} ESCAPE '\\'`)
     conditions.push(sql`(${sql.join(anyColumnMatches, sql` OR `)})`)
   }
 
