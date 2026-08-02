@@ -266,6 +266,31 @@ body {
 }
 
 /*
+ * Nothing in this application is draggable.
+ *
+ * Links and images are draggable by default, and dragging one starts a native
+ * drag that Chromium hands to the desktop. In this app that reliably hangs the
+ * window: catching a sidebar tab and moving the pointer slightly shows the drag
+ * ghost — the tab's label and its localhost URL — and the window then stops
+ * responding and has to be killed. The same thing used to happen with cover
+ * images, which is why several cards already prevent it one at a time.
+ *
+ * Declared once for the whole document rather than per element. The piecemeal
+ * version only ever covered the places someone had already been bitten by, and
+ * the sidebar — the most clickable thing in the app — was not one of them.
+ *
+ * This does not affect dropping files *into* the app, which is a different set
+ * of events. The app has no drag-and-drop of any kind: no onDrop, no
+ * dataTransfer, nothing marked draggable.
+ */
+a,
+img,
+[draggable='true'] {
+  -webkit-user-drag: none;
+  user-drag: none;
+}
+
+/*
  * A shared label treatment, since it is the one step of the scale that needs
  * more than a size to work.
  */

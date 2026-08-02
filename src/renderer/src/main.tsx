@@ -58,6 +58,35 @@ window.addEventListener('unhandledrejection', (event) => {
   })
 })
 
+// ─── Native drag suppression ────────────────────────────────────────────────
+
+/**
+ * Refuse every native drag, application-wide.
+ *
+ * Links and images are draggable by default. Starting one hands Chromium a
+ * native drag, and in this app that reliably hangs the window: catch a sidebar
+ * tab, move the pointer a little, and the drag ghost appears with the tab's
+ * label and its localhost URL — then nothing responds and the app has to be
+ * killed. Cover images used to do the same, which is why a handful of cards
+ * already prevent it individually.
+ *
+ * Registered here rather than on components so it cannot be missed. The CSS
+ * rule in styles.css stops most drags from starting at all; this is the
+ * authoritative half, because a drag can begin through paths that
+ * `-webkit-user-drag` does not cover.
+ *
+ * Capture phase, so it runs before anything downstream and does not depend on
+ * the event reaching the document by bubbling. Nothing legitimate is lost: the
+ * app has no drag-and-drop, and dropping files *in* uses different events.
+ */
+window.addEventListener('dragstart', (event) => event.preventDefault(), { capture: true })
+
+// `drop` and `dragover` on the document would otherwise let a file dragged in
+// from the desktop navigate the window away from the app, replacing the UI with
+// whatever was dropped.
+window.addEventListener('dragover', (event) => event.preventDefault(), { capture: true })
+window.addEventListener('drop', (event) => event.preventDefault(), { capture: true })
+
 // ─── Mount React ────────────────────────────────────────────────────────────
 
 rendererLog('info', 'renderer', 'main.tsx loaded, mounting React...')
