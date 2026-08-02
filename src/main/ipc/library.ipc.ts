@@ -29,6 +29,7 @@ import { getLogger } from '../services/logger'
 import { attachWorkerLogForwarding } from '../services/worker-logger'
 import { sortNatural } from '../services/natural-sort'
 import { countPages } from '../services/page-count'
+import { applyGalleryIdToFilename } from '../services/gallery-filename'
 import { endpointLimitPerMinute } from '../services/rate-limiter'
 
 const log = getLogger('library')
@@ -673,6 +674,59 @@ export function registerLibraryIpc(): void {
    * unique, so without this the insert fails on a constraint and the user is
    * shown a database error instead of being told which gallery already has it.
    */
+  /**
+   * Bring a file's name in line with the id now attached to it.
+   *
+   * The name is not decoration: the scanner reads the id back out of it and the
+   * ComicInfo rewrite tool matches files by it, so a stale name means the
+   * database and the disk disagree about what the file is.
+   *
+   * Best-effort. Attaching has already succeeded by the time this runs, and a
+   * rename that cannot happen — a locked file, a name already taken — must not
+   * undo it. The id survives a rescan regardless, since the scanner prefers
+   * ComicInfo's Web and Notes over the filename.
+   *
+   * Returns the fields to update, so the caller writes the row once.
+   */
+  function renameForGalleryId(
+    item: NonNullable<ReturnType<typeof libraryRepo.findById>>,
+    galleryId: number | null
+  ): Record<string, unknown> {
+    if (!item.filePath || !existsSync(item.filePath)) return {}
+
+    const nextPath = join(
+      dirname(item.filePath),
+      applyGalleryIdToFilename(basename(item.filePath), galleryId)
+    )
+    if (nextPath === item.filePath) return {}
+
+    if (existsSync(nextPath)) {
+      log.warn('skipped rename: a file already has that name', {
+        from: item.filePath,
+        to: nextPath
+      })
+      return {}
+    }
+
+    try {
+      renameSync(item.filePath, nextPath)
+    } catch (err) {
+      log.warn('could not rename after changing the nhentai id', {
+        from: item.filePath,
+        error: String(err)
+      })
+      return {}
+    }
+
+    // Covers are keyed by a hash of the file path, so a rename orphans the
+    // thumbnail unless it moves with the file.
+    const movedCover = renameThumbnailForPath(item.customCoverPath, nextPath)
+    return {
+      filePath: nextPath,
+      ...(movedCover ? { customCoverPath: movedCover, thumbnailPath: movedCover } : {})
+    }
+  }
+
   handle('library:setGalleryId', async (_event, itemId: number, galleryId: number | null) => {
     const item = libraryRepo.findById(itemId)
     if (!item) return { success: false, error: 'That item no longer exists' }
@@ -687,7 +741,7 @@ export function registerLibraryIpc(): void {
      * fresh sync is for.
      */
     if (galleryId === null) {
-      libraryRepo.update(itemId, { galleryId: null })
+      libraryRepo.update(itemId, { galleryId: null, ...renameForGalleryId(item, null) })
       log.info('detached an nhentai id', { itemId, was: item.galleryId })
       return { success: true, data: { galleryId: null } }
     }
@@ -705,7 +759,7 @@ export function registerLibraryIpc(): void {
       }
     }
 
-    libraryRepo.update(itemId, { galleryId: id })
+    libraryRepo.update(itemId, { galleryId: id, ...renameForGalleryId(item, id) })
     log.info('attached an nhentai id by hand', { itemId, galleryId: id })
     return { success: true, data: { galleryId: id } }
   })
