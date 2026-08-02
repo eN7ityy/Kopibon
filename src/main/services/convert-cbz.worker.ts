@@ -14,8 +14,12 @@ import { statSync, existsSync, renameSync, unlinkSync, mkdirSync } from 'fs'
 import { join, basename, extname } from 'path'
 import { extractPdfImages } from './pdf-extract'
 import { generateCbz } from './cbz-generator'
-import { parseComicInfoXml, type ComicInfoMetadata } from './comicinfo'
-import { resolveLanguageName } from './xml-utils'
+import { parseComicInfoXml } from './comicinfo'
+import {
+  fileMetadataFromLibraryItem,
+  type FileMetadata,
+  type MangaDirection
+} from './metadata/file-metadata'
 import { open } from 'yauzl'
 import { createWorkerLogger } from './worker-logger'
 
@@ -50,29 +54,9 @@ interface ConvertCommand {
        */
       originalsRoot: string
       userDataDir: string
-      mangaDirection: 'Yes' | 'YesAndRightToLeft' | 'No'
+      mangaDirection: MangaDirection
       parodyAsCollection: boolean
     }
-  }
-}
-
-// ─── Gallery row detection (§7.3) ────────────────────────────────────────────
-
-interface TagLike {
-  id?: number
-  type: string
-  name: string
-}
-
-function isRealGalleryRow(rawTagsJson: string | null | undefined): boolean {
-  if (!rawTagsJson) return false
-  try {
-    const tags: TagLike[] = JSON.parse(rawTagsJson)
-    if (!Array.isArray(tags) || tags.length === 0) return false
-    const types = new Set(tags.map((t) => t.type))
-    return !(types.size === 1 && types.has('tag'))
-  } catch {
-    return false
   }
 }
 
@@ -99,99 +83,24 @@ function safePathSegment(name: string | null | undefined): string {
 
 // ─── Metadata builder for conversion (§7.3) ─────────────────────────────────
 
+/**
+ * The library row this conversion is for, as canonical metadata.
+ *
+ * Everything that used to be decided here — the series test, the artist
+ * fallback, whether a scanner stub may contribute a release date — now happens
+ * in the adapter and the mapper, so a conversion and a download describe the
+ * same gallery the same way.
+ */
 function buildConversionMetadata(
   item: ConvertCommand['item'],
   pageCount: number,
-  mangaDirection: 'Yes' | 'YesAndRightToLeft' | 'No',
+  mangaDirection: MangaDirection,
   parodyAsCollection: boolean
-): ComicInfoMetadata {
-  const meta = item.metadata
-  const title = meta.customTitle || `Gallery #${meta.galleryId || item.id}`
-
-  // Series: use the assigned series if one exists; otherwise title fallback
-  /*
-   * Having a series name is the whole test.
-   *
-   * This used to also require the name to differ from the title, which is
-   * wrong whenever a series is named after its first instalment — the usual
-   * case. Volume 1 then came out unnumbered while volume 2 was numbered, and
-   * Kavita filed volume 1 as a Special.
-   */
-  const hasRealSeries = !!(meta.seriesName && meta.seriesName.trim())
-  const series = meta.seriesName || title
-
-  // Writers (§4.5 — reuse resolveCreatorsAndPublisher)
-  const writers = meta.primaryArtist ? [meta.primaryArtist] : ['Unknown']
-
-  // Tags: typed when real gallery row, otherwise flat customTags
-  let tags: string[] = []
-  let genres: string[] = []
-  let characters: string[] = []
-  let publisher: string | null = null
-  let language: string | null = null
-  let releaseDate: Date | undefined = undefined
-  let seriesGroup: string | undefined = undefined
-
-  if (isRealGalleryRow(meta.rawTagsJson)) {
-    const parsed: TagLike[] = JSON.parse(meta.rawTagsJson!)
-
-    tags = parsed.filter((t) => t.type === 'tag').map((t) => t.name)
-    genres = parsed.filter((t) => t.type === 'category').map((t) => t.name)
-    characters = parsed.filter((t) => t.type === 'character').map((t) => t.name)
-
-    const groupTag = parsed.find((t) => t.type === 'group')
-    publisher = groupTag?.name || meta.publisher || null
-
-    // Every language-type tag is a candidate, then the item's own column.
-    // Taking only the first would pick 'translated' — see resolveLanguageName().
-    language = resolveLanguageName([
-      ...parsed.filter((t) => t.type === 'language').map((t) => t.name),
-      meta.customLanguage
-    ])
-
-    // Release date ONLY for real gallery rows (§4.2, §C.2)
-    if (meta.uploadDate != null) {
-      const d = new Date(meta.uploadDate * 1000)
-      if (Number.isFinite(d.getTime())) releaseDate = d
-    }
-
-    if (parodyAsCollection) {
-      const parodyTag = parsed.find((t) => t.type === 'parody')
-      if (parodyTag) seriesGroup = parodyTag.name
-    }
-  } else {
-    // Scanner stub: flat tags only
-    tags = meta.customTags
-      ? meta.customTags.split(',').map((t) => t.trim()).filter(Boolean)
-      : []
-    language = meta.customLanguage || null
-    publisher = meta.publisher || null
-    // NO release date for stubs — upload_date is our own tooling's timestamp
-    // and 4,321 rows read '2026-07' which would corrupt Kavita's series data
-  }
-
-  return {
-    title,
-    series,
-    volume: hasRealSeries && meta.seriesIndex != null ? meta.seriesIndex : undefined,
-    partOfSeries: hasRealSeries,
-    summary: meta.description || undefined,
-    writers,
-    publisher,
-    genres,
-    tags,
-    characters,
-    webUrl: meta.galleryId ? `https://nhentai.net/g/${meta.galleryId}` : undefined,
-    notes: meta.galleryId
-      ? `Tagged by Doujin Downloader — nhentai gallery ${meta.galleryId}`
-      : undefined,
-    pageCount,
-    languageIso: language,
-    releaseDate,
-    ageRating: 'Adults Only 18+',
-    manga: mangaDirection,
-    seriesGroup
-  }
+): FileMetadata {
+  return fileMetadataFromLibraryItem(
+    { ...item.metadata, id: item.id },
+    { pageCount, mangaDirection, parodyAsCollection, format: 'cbz' }
+  )
 }
 
 // ─── CBZ Verification (§10.3) ───────────────────────────────────────────────

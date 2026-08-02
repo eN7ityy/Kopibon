@@ -11,7 +11,7 @@ import { libraryRepo } from '../db/repositories/library.repo'
 import { getApiClient } from './api-client'
 import { resolveLanguageName } from './xml-utils'
 import { countPages } from './page-count'
-import type { GalleryMetadata } from './metadata-writer'
+import type { GalleryMetadata } from './metadata/file-metadata'
 import type { GalleryDetail } from './api-client'
 
 // ─── Cached gallery metadata ─────────────────────────────────────────────────

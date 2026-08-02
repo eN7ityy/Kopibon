@@ -13,7 +13,8 @@ import * as yazl from 'yazl'
 import { tempSiblingPath } from './temp-path'
 import { createWriteStream, renameSync, statSync, mkdirSync, rmSync } from 'fs'
 import { basename, join } from 'path'
-import { buildComicInfoXml, type ComicInfoMetadata } from './comicinfo'
+import { buildComicInfoXml } from './metadata/mappers'
+import type { FileMetadata } from './metadata/file-metadata'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -41,7 +42,7 @@ export interface CbzOptions {
  *
  * @param imagePaths - Paths to image files in page order
  * @param outputPath - Destination path (will get .part suffix during write)
- * @param metadata - ComicInfo metadata
+ * @param metadata - Canonical file metadata; the page count is overridden
  * @param options - Quality/maxDimension options
  * @param onProgress - Optional progress callback
  * @returns The final output path
@@ -49,7 +50,7 @@ export interface CbzOptions {
 export async function generateCbz(
   imagePaths: string[],
   outputPath: string,
-  metadata: ComicInfoMetadata,
+  metadata: FileMetadata,
   options: CbzOptions,
   onProgress?: (current: number, total: number) => void
 ): Promise<string> {
@@ -57,12 +58,9 @@ export async function generateCbz(
   // the 255-byte limit, and one real library file sat exactly there.
   const partPath = tempSiblingPath(outputPath)
 
-  // Step 1: Build ComicInfo with accurate page count
-  const ciMeta: ComicInfoMetadata = {
-    ...metadata,
-    pageCount: imagePaths.length
-  }
-  const ciXml = buildComicInfoXml(ciMeta)
+  // Step 1: Build ComicInfo with accurate page count. Derived rather than
+  // trusted: the caller counted something, we are about to write these pages.
+  const ciXml = buildComicInfoXml({ ...metadata, pageCount: imagePaths.length })
 
   // Step 2: Re-encode pages, if asked.
   //

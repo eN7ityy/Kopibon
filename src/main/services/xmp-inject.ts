@@ -1,148 +1,19 @@
 /**
- * XMP Inject Utility — Dr Stein Format
+ * Writing PDF metadata via Python + pikepdf.
  *
- * Generates Kavita-compatible XMP metadata in the Dr Stein (pikepdf) format
- * and applies it to PDFs via Python/pikepdf.
+ * Building the XMP packet no longer happens here. The bytes come from
+ * `resources/metadata-templates/pdf-xmp.template`, mapped from a `FileMetadata`
+ * by `services/metadata/mappers.ts`. What is left is the part that has to be
+ * code: shelling out to pikepdf, which is required because
  *
- * The pikepdf approach is required because:
  * - pdf-lib cannot write custom XMP namespaces (calibre:series, pdfx:isbn)
  * - exiftool flattens nested rdf:Resource structures
- * - Only pikepdf produces the exact byte format Kavita expects
+ * - only pikepdf produces the exact byte format Kavita expects
  */
 
 import { spawn } from 'child_process'
-import { escapeXml, toIsoLanguage } from './xml-utils'
-
-// ─── Types ───────────────────────────────────────────────────────────────────
-
-export interface XmpMetadata {
-  title: string
-  creators: string[]
-  tags: string[]
-  nhentaiId?: number | null
-  seriesName?: string | null
-  seriesIndex?: number | null
-  description?: string | null
-  publisher?: string | null
-  language?: string | null
-  date?: string | null
-}
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-/** Alias kept for backward compatibility with existing callers. */
-const escXml = escapeXml
-
-/**
- * Build the docinfo /Keywords token list.
- *
- * Kavita reads XMP, but our own library scanner also parses these tokens as a
- * fallback (and prefers them for language/series), so everything that matters
- * for a rescan-from-disk round trip is written here too.
- */
-export function buildKeywordTokens(metadata: XmpMetadata): string[] {
-  const tokens = [...metadata.tags]
-  if (metadata.nhentaiId != null) tokens.push(`nhentai:${metadata.nhentaiId}`)
-  if (metadata.seriesName) tokens.push(`calibre_series:${metadata.seriesName}`)
-  if (metadata.seriesIndex != null) tokens.push(`series_index:${metadata.seriesIndex}`)
-  // Human-readable here on purpose: the scanner reads this back into the UI,
-  // while dc:language carries the ISO code that Kavita expects.
-  if (metadata.language) tokens.push(`language:${metadata.language}`)
-  if (metadata.publisher) tokens.push(`publisher:${metadata.publisher}`)
-  return tokens
-}
-
-// ─── XMP Builder ─────────────────────────────────────────────────────────────
-
-export function buildXmpXml(metadata: XmpMetadata): string {
-  const creatorItems = metadata.creators
-    .map((c) => `          <rdf:li>${escXml(c)}</rdf:li>`)
-    .join('\n')
-  const tagItems = metadata.tags
-    .map((t) => `          <rdf:li>${escXml(t)}</rdf:li>`)
-    .join('\n')
-
-  const nhentaiId = metadata.nhentaiId || ''
-  const description = metadata.description || ''
-  const publisher = metadata.publisher || ''
-  const date = metadata.date || new Date().toISOString()
-  const now = new Date().toISOString().replace(/\.\d{3}Z$/, '.000000+00:00')
-
-  // dc:language must be an rdf:Bag of ISO 639-1 codes — this is the shape
-  // calibre's `ebook-meta --language` produces and the only one Kavita reads
-  // ("Kavita will only take the first" refers to the first rdf:li). A
-  // plain-text <dc:language>en</dc:language> child is silently ignored.
-  const isoLanguage = toIsoLanguage(metadata.language)
-  const languageBlock = isoLanguage
-    ? `
-      <dc:language>
-        <rdf:Bag>
-          <rdf:li>${escXml(isoLanguage)}</rdf:li>
-        </rdf:Bag>
-      </dc:language>`
-    : ''
-
-  // Emit the calibre series block whenever there is a series name. The volume
-  // number is optional — gating the whole block on it meant a series without
-  // volumes was written nowhere in the file, so Kavita couldn't group it.
-  let seriesBlock = ''
-  if (metadata.seriesName) {
-    const authorSort = metadata.creators[0]?.split(' ').reverse().join(' ') || 'unknown'
-    const seriesIndexLine =
-      metadata.seriesIndex != null
-        ? `\n        <calibreSI:series_index>${metadata.seriesIndex.toFixed(2)}</calibreSI:series_index>`
-        : ''
-    seriesBlock = `
-    <rdf:Description xmlns:calibreSI="http://calibre-ebook.com/xmp-namespace-series-index" xmlns:calibre="http://calibre-ebook.com/xmp-namespace" rdf:about="">
-      <calibre:series rdf:parseType="Resource">
-        <rdf:value>${escXml(metadata.seriesName)}</rdf:value>${seriesIndexLine}
-      </calibre:series>
-      <calibre:timestamp>${escXml(date)}</calibre:timestamp>
-      <calibre:title_sort>${escXml(metadata.title)}</calibre:title_sort>
-      <calibre:author_sort>${escXml(authorSort)}</calibre:author_sort>
-    </rdf:Description>`
-  }
-
-  return `<?xpacket begin="\uFEFF" id="W5M0MpCehiHzreSzNTczkc9d"?>
-<x:xmpmeta xmlns:x="adobe:ns:meta/">
-  <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
-    <rdf:Description xmlns:dc="http://purl.org/dc/elements/1.1/" rdf:about="">
-      <dc:title>
-        <rdf:Alt>
-          <rdf:li xml:lang="x-default">${escXml(metadata.title)}</rdf:li>
-        </rdf:Alt>
-      </dc:title>
-      <dc:description>
-        <rdf:Alt>
-          <rdf:li xml:lang="x-default">${escXml(description)}</rdf:li>
-        </rdf:Alt>
-      </dc:description>
-      <dc:creator>
-        <rdf:Seq>
-${creatorItems}
-        </rdf:Seq>
-      </dc:creator>
-      <dc:subject>
-        <rdf:Bag>
-${tagItems}
-        </rdf:Bag>
-      </dc:subject>
-      <dc:publisher>
-        <rdf:Bag>${publisher ? `<rdf:li>${escXml(publisher)}</rdf:li>` : ''}</rdf:Bag>
-      </dc:publisher>${languageBlock}
-      <dc:date>
-        <rdf:Seq>
-          <rdf:li>${escXml(date)}</rdf:li>
-        </rdf:Seq>
-      </dc:date>
-    <pdfx:isbn xmlns:pdfx="http://ns.adobe.com/pdfx/1.3/">${nhentaiId}</pdfx:isbn><prism2:isbn xmlns:prism2="http://prismstandard.org/namespaces/basic/2.0/">${nhentaiId}</prism2:isbn><pdf:Producer xmlns:pdf="http://ns.adobe.com/pdf/1.3/">pikepdf 10.8.0</pdf:Producer></rdf:Description>
-    <rdf:Description xmlns:xmp="http://ns.adobe.com/xap/1.0/" rdf:about="">
-      <xmp:MetadataDate>${now}</xmp:MetadataDate>
-    </rdf:Description>${seriesBlock}
-  </rdf:RDF>
-</x:xmpmeta>
-<?xpacket end="w"?>`
-}
+import { buildXmpXml, buildDocInfo } from './metadata/mappers'
+import type { FileMetadata } from './metadata/file-metadata'
 
 // ─── Pikepdf Invocation ──────────────────────────────────────────────────────
 
@@ -161,7 +32,7 @@ pdf = Pdf.open(pdf_path)
 pdf.docinfo['/Title'] = data.get('title', '')
 pdf.docinfo['/Author'] = data.get('author', '')
 pdf.docinfo['/Keywords'] = data.get('keywords', '')
-pdf.docinfo['/Producer'] = 'pikepdf 10.8.0'
+pdf.docinfo['/Producer'] = data.get('producer', 'pikepdf 10.8.0')
 pdf.docinfo['/Trapped'] = '/False'
 
 # Nuke existing catalog Metadata reference
@@ -199,6 +70,7 @@ interface PikepdfPayload {
   title: string
   author: string
   keywords: string
+  producer: string
 }
 
 function runPikepdf(payload: PikepdfPayload): Promise<{ success: boolean; error?: string }> {
@@ -262,37 +134,17 @@ function runPikepdf(payload: PikepdfPayload): Promise<{ success: boolean; error?
   return attempt(0)
 }
 
-function buildPayload(metadata: XmpMetadata, pdfPath: string, outputPath?: string): PikepdfPayload {
-  return {
-    pdfPath,
-    ...(outputPath ? { outputPath } : {}),
-    xmp: buildXmpXml(metadata),
-    title: metadata.title,
-    author: metadata.creators.join(', '),
-    keywords: buildKeywordTokens(metadata).join(', ')
-  }
-}
-
 /**
- * Apply XMP metadata to a PDF file using pikepdf.
- * The PDF is modified in-place (docinfo nuked, XMP injected).
+ * Apply metadata to a PDF in place: docinfo nuked, XMP packet injected.
+ *
+ * The packet and the Info dictionary are both derived from the same
+ * `FileMetadata`, so they cannot disagree about the title or the language.
  */
 export function applyXmpWithPikepdf(
   pdfPath: string,
-  metadata: XmpMetadata
+  metadata: FileMetadata
 ): Promise<{ success: boolean; error?: string }> {
-  return runPikepdf(buildPayload(metadata, pdfPath))
-}
-
-/**
- * Apply XMP metadata to a PDF file, saving to a new output path.
- */
-export function applyXmpToNewFile(
-  pdfPath: string,
-  outputPath: string,
-  metadata: XmpMetadata
-): Promise<{ success: boolean; error?: string }> {
-  return runPikepdf(buildPayload(metadata, pdfPath, outputPath))
+  return runPikepdf({ pdfPath, xmp: buildXmpXml(metadata), ...buildDocInfo(metadata) })
 }
 
 /**

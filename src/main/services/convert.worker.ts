@@ -15,7 +15,7 @@
  */
 
 import { parentPort } from 'worker_threads'
-import { type XmpMetadata } from './xmp-inject'
+import { type MetadataPayload } from './metadata/file-metadata'
 import { applyMetadata } from './apply-metadata'
 import { renameSync, existsSync } from 'fs'
 import { createWorkerLogger } from './worker-logger'
@@ -28,7 +28,7 @@ interface ConvertCommand {
     filePath: string
     /** 'pdf' | 'cbz' — defaults to 'pdf' for older callers. */
     format?: string
-    metadata: XmpMetadata
+    metadata: MetadataPayload
   }
 }
 

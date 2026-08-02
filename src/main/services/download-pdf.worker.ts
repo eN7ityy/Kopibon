@@ -15,10 +15,10 @@
 
 import { parentPort } from 'worker_threads'
 import { generatePdf } from './pdf-generator'
-import { applyXmpWithPikepdf, type XmpMetadata } from './xmp-inject'
+import { applyXmpWithPikepdf } from './xmp-inject'
 import type { PdfOptions } from './pdf-generator'
-import type { GalleryMetadata } from './metadata-writer'
-import { resolveLanguageName } from './xml-utils'
+import { fileMetadataFromGallery, type GalleryMetadata } from './metadata/file-metadata'
+import { resolveLanguageValue } from './metadata/mappers'
 import { createWorkerLogger } from './worker-logger'
 
 interface GenerateCommand {
@@ -30,50 +30,6 @@ interface GenerateCommand {
   firstImagePath?: string
   thumbnailDir?: string
   galleryId?: number
-}
-
-function convertMetadata(meta: GalleryMetadata, language: string | null): XmpMetadata {
-  const tagNames = meta.tags.map((t) => t.name)
-  const artistNames = meta.tags.filter((t) => t.type === 'artist').map((t) => t.name)
-  const groupNames = meta.tags.filter((t) => t.type === 'group').map((t) => t.name)
-  // Every language-type tag is a candidate. The first is commonly 'translated',
-  // which is not a language — see resolveLanguageName(). The result is a
-  // canonical name ('English'); xmp-inject converts it to an ISO code on write.
-  const langCode =
-    language || resolveLanguageName(meta.tags.filter((t) => t.type === 'language').map((t) => t.name))
-
-  // Artist/group/publisher logic:
-  // - No artist + group → group is artist AND publisher
-  // - Artist + group → artist is creator, group is publisher
-  // - Artist only → artist is creator
-  // - Neither → 'Unknown'
-  const hasArtist = artistNames.length > 0
-  const hasGroup = groupNames.length > 0
-  const publisher = hasGroup ? groupNames[0] : meta.publisher || null
-
-  let creators: string[]
-  if (hasArtist) {
-    creators = artistNames
-  } else if (hasGroup) {
-    creators = groupNames
-  } else {
-    creators = ['Unknown']
-  }
-
-  return {
-    title: meta.title.pretty,
-    creators,
-    tags: tagNames,
-    nhentaiId: meta.id,
-    language: langCode,
-    publisher,
-    date: meta.uploadDate
-      ? new Date(meta.uploadDate * 1000).toISOString()
-      : null,
-    seriesName: meta.seriesName || null,
-    seriesIndex: meta.seriesIndex != null ? meta.seriesIndex : null,
-    description: meta.description || null
-  }
 }
 
 parentPort?.on('message', async (cmd: GenerateCommand) => {
@@ -102,10 +58,10 @@ parentPort?.on('message', async (cmd: GenerateCommand) => {
     // Step 2: Apply full XMP metadata via pikepdf (Dr Stein format)
     if (cmd.metadata) {
       try {
-        const xmpMeta = convertMetadata(
-          cmd.metadata,
-          null
-        )
+        const xmpMeta = fileMetadataFromGallery(cmd.metadata, {
+          pageCount: cmd.imagePaths.length,
+          format: 'pdf'
+        })
         const result = await applyXmpWithPikepdf(outputPath, xmpMeta)
         if (!result.success) {
           // Non-fatal: the PDF is usable, but Kavita will show no metadata for
@@ -113,7 +69,7 @@ parentPort?.on('message', async (cmd: GenerateCommand) => {
           // user sees is "the language/tags are missing" with nothing to
           // explain why.
           log.warn(`XMP injection failed, PDF has no embedded metadata: ${result.error}`, {
-            language: xmpMeta.language
+            language: resolveLanguageValue(xmpMeta)
           })
         }
       } catch (metaErr) {

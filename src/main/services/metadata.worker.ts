@@ -8,19 +8,20 @@
  * fresh XMP in the Dr Stein format that Kavita requires.
  *
  * Message Protocol:
- *   Main → Worker: { type: 'apply', pdfPath, metadata: XmpMetadata }
+ *   Main → Worker: { type: 'apply', pdfPath, metadata: FileMetadata }
  *   Worker → Main: { type: 'complete' }
  *                  { type: 'error', message }
  */
 
 import { parentPort } from 'worker_threads'
-import { applyXmpWithPikepdf, type XmpMetadata } from './xmp-inject'
+import { applyXmpWithPikepdf } from './xmp-inject'
+import type { FileMetadata } from './metadata/file-metadata'
 import { createWorkerLogger } from './worker-logger'
 
 interface ApplyCommand {
   type: 'apply'
   pdfPath: string
-  metadata: XmpMetadata
+  metadata: FileMetadata
 }
 
 const log = createWorkerLogger('worker:metadata')

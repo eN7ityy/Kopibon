@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ComicInfo xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="ComicInfo.xsd">
+  <Title>{{title}}</Title>
+  <Series>{{series}}</Series>
+  <Number>{{number?}}</Number>
+  <Summary>{{summary?}}</Summary>
+  <Writer>{{writers?}}</Writer>
+  <Penciller>{{writers?}}</Penciller>
+  <Publisher>{{publisher?}}</Publisher>
+  <Genre>{{genres?}}</Genre>
+  <Tags>{{tags?}}</Tags>
+  <Characters>{{characters?}}</Characters>
+  <Web>https://nhentai.net/g/{{galleryId?}}</Web>
+  <Notes>Tagged by Doujin Downloader — nhentai gallery {{galleryId?}}</Notes>
+  <PageCount>{{pageCount}}</PageCount>
+  <LanguageISO>{{languageIso?}}</LanguageISO>
+  <Year>{{year?}}</Year>
+  <Month>{{month?}}</Month>
+  <Day>{{day?}}</Day>
+  <AgeRating>{{ageRating}}</AgeRating>
+  <Manga>{{manga}}</Manga>
+  <SeriesGroup>{{seriesGroup?}}</SeriesGroup>
+</ComicInfo>

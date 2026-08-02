@@ -16,6 +16,11 @@ asarUnpack:
 # Most bundled dependencies (MIT, BSD, ISC, Apache-2.0) require their notice to
 # travel with the software, and libvips is LGPL-3.0-or-later.
 extraResources:
+  # The metadata templates decide the exact bytes written into every CBZ and
+  # PDF. Shipped unpacked so they can be read (and, in the userData copy the app
+  # seeds from them, edited) without unpacking the asar.
+  - from: resources/metadata-templates
+    to: metadata-templates
   - from: LICENSE
     to: LICENSE
   - from: THIRD-PARTY-NOTICES.md

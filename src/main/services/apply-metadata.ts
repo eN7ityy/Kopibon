@@ -1,39 +1,29 @@
 /**
- * applyMetadata — Format-aware metadata dispatcher.
+ * applyMetadata — the format-aware write dispatcher.
  *
- * Routes metadata writes to the correct handler based on the item's format:
- * - PDF: uses pikepdf (via metadata.worker.ts / xmp-inject.ts)
- * - CBZ: rewrites ComicInfo.xml inside the archive (§7.4)
+ * The single entry point for editing metadata on a file that already exists, so
+ * that no caller can forget the format branch:
  *
- * This is the single entry point for all metadata write operations so that
- * no caller can forget the format branch (§2.2).
+ * - PDF: docinfo nuked and an XMP packet injected, via pikepdf
+ * - CBZ: ComicInfo.xml rewritten inside the archive
+ *
+ * Both sides start from the same `FileMetadata` and go through the same two
+ * mappers, so a CBZ and a PDF of the same gallery describe it identically.
  */
 
-import { applyXmpWithPikepdf, type XmpMetadata } from './xmp-inject'
+import { applyXmpWithPikepdf } from './xmp-inject'
 import { tempSiblingPath } from './temp-path'
-import { buildComicInfoXml, type ComicInfoMetadata } from './comicinfo'
+import { buildComicInfoXml } from './metadata/mappers'
+import { fileMetadataFromPayload, type FileMetadata, type MetadataPayload } from './metadata/file-metadata'
 import { open } from 'yauzl'
 import * as yazl from 'yazl'
 import { createWriteStream, renameSync, unlinkSync } from 'fs'
 
-// ─── Types ───────────────────────────────────────────────────────────────────
-
-export interface MetadataPayload {
-  title: string
-  creators: string[]
-  tags: string[]
-  nhentaiId?: number | null
-  seriesName?: string | null
-  seriesIndex?: number | null
-  description?: string | null
-  publisher?: string | null
-  language?: string | null
-  date?: string | null
-}
+export type { MetadataPayload }
 
 // ─── Artist/group/publisher logic ─────────────────────────────────────────────
-// Reused in download-pdf.worker.ts and sync.worker.ts — extracted here
-// so there is a single source of truth (§4.5).
+// Kept here because callers outside the metadata pipeline use it to fill in a
+// library row. The mapper applies the same rule via resolveWriters().
 
 export function resolveCreatorsAndPublisher(
   artistNames: string[],
@@ -54,44 +44,6 @@ export function resolveCreatorsAndPublisher(
   }
 
   return { creators, publisher }
-}
-
-// ─── ComicInfoMetadata builder ───────────────────────────────────────────────
-
-/** Return a valid Date or undefined — rejects Invalid Date and zero-length strings. */
-function validateDate(dateStr: string | null | undefined): Date | undefined {
-  if (!dateStr) return undefined
-  const d = new Date(dateStr)
-  return Number.isFinite(d.getTime()) ? d : undefined
-}
-
-function buildComicInfoMeta(payload: MetadataPayload): ComicInfoMetadata {
-  return {
-    title: payload.title,
-    series: payload.seriesName || payload.title, // §4.3 — always write Series
-    volume: payload.seriesIndex ?? undefined,
-    // A series name was supplied, so this file is part of one — even when that
-    // name happens to match its title, as volume 1 of a series usually does.
-    partOfSeries: Boolean(payload.seriesName && payload.seriesName.trim()),
-    summary: payload.description || undefined,
-    writers: payload.creators,
-    publisher: payload.publisher || undefined,
-    genres: [], // nhentai category tags — not typically available via this path
-    tags: payload.tags,
-    characters: [],
-    webUrl: payload.nhentaiId ? `https://nhentai.net/g/${payload.nhentaiId}` : undefined,
-    notes: payload.nhentaiId
-      ? `Tagged by Doujin Downloader — nhentai gallery ${payload.nhentaiId}`
-      : undefined,
-    // Placeholder only. The CBZ rewriter derives the real count from the
-    // archive's own entries, so no caller has to supply it.
-    pageCount: 0,
-    languageIso: payload.language || undefined,
-    releaseDate: validateDate(payload.date),
-    ageRating: 'Adults Only 18+',
-    manga: 'YesAndRightToLeft',
-    seriesGroup: undefined
-  }
 }
 
 // ─── ComicInfo Rewrite (§7.4) ────────────────────────────────────────────────
@@ -156,10 +108,7 @@ export async function countCbzPages(filePath: string): Promise<number> {
  * Images are STORED in our archives, so copying re-stores them without any
  * recompression.
  */
-async function rewriteComicInfoInCbz(
-  filePath: string,
-  ciMeta: ComicInfoMetadata
-): Promise<void> {
+async function rewriteComicInfoInCbz(filePath: string, meta: FileMetadata): Promise<void> {
   // Same 255-byte limit as the CBZ writer: the file that broke conversion
   // would have broken a metadata rewrite on sync for the same reason.
   const partPath = tempSiblingPath(filePath)
@@ -169,9 +118,9 @@ async function rewriteComicInfoInCbz(
     const names = await listEntryNames(filePath)
     const imageCount = names.filter(isImageEntry).length
     const ciXml = buildComicInfoXml({
-      ...ciMeta,
+      ...meta,
       // The caller cannot know this; derive it rather than trusting the payload.
-      pageCount: imageCount > 0 ? imageCount : ciMeta.pageCount
+      pageCount: imageCount > 0 ? imageCount : meta.pageCount
     })
 
     // ── Pass 2: rebuild, ComicInfo first, entries copied sequentially ───────
@@ -254,10 +203,11 @@ export async function applyMetadata(
   format: string,
   payload: MetadataPayload
 ): Promise<{ success: boolean; error?: string }> {
+  const meta = fileMetadataFromPayload(payload, { format })
+
   if (format === 'cbz') {
     try {
-      const ciMeta = buildComicInfoMeta(payload)
-      await rewriteComicInfoInCbz(filePath, ciMeta)
+      await rewriteComicInfoInCbz(filePath, meta)
       return { success: true }
     } catch (err) {
       return { success: false, error: String(err) }
@@ -265,18 +215,5 @@ export async function applyMetadata(
   }
 
   // Default: PDF path (pikepdf)
-  const xmpMeta: XmpMetadata = {
-    title: payload.title,
-    creators: payload.creators,
-    tags: payload.tags,
-    nhentaiId: payload.nhentaiId,
-    seriesName: payload.seriesName,
-    seriesIndex: payload.seriesIndex,
-    description: payload.description,
-    publisher: payload.publisher,
-    language: payload.language,
-    date: payload.date
-  }
-
-  return applyXmpWithPikepdf(filePath, xmpMeta)
+  return applyXmpWithPikepdf(filePath, meta)
 }

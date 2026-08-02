@@ -14,9 +14,14 @@
 
 import { parentPort } from 'worker_threads'
 import { generateCbz } from './cbz-generator'
-import type { ComicInfoMetadata } from './comicinfo'
-import type { GalleryMetadata } from './metadata-writer'
-import { resolveLanguageName } from './xml-utils'
+import {
+  fileMetadataFromGallery,
+  makeFileMetadata,
+  type FileMetadata,
+  type GalleryMetadata,
+  type MangaDirection
+} from './metadata/file-metadata'
+import { resolveLanguageValue } from './metadata/mappers'
 import { createWorkerLogger } from './worker-logger'
 
 interface GenerateCommand {
@@ -32,68 +37,7 @@ interface GenerateCommand {
    * because a worker has no business opening its own settings connection — and
    * this was previously hardcoded, so the setting had no effect on downloads.
    */
-  mangaDirection?: 'Yes' | 'YesAndRightToLeft' | 'No'
-}
-
-/**
- * Build ComicInfoMetadata from a GalleryMetadata payload.
- *
- * Reuses the same artist/group/publisher logic as the PDF worker
- * but produces ComicInfo fields instead of XMP.
- */
-function convertToComicInfoMeta(
-  meta: GalleryMetadata,
-  pageCount: number,
-  mangaDirection: 'YesAndRightToLeft' | 'Yes' | 'No'
-): ComicInfoMetadata {
-  const artistNames = meta.tags.filter((t) => t.type === 'artist').map((t) => t.name)
-  const groupNames = meta.tags.filter((t) => t.type === 'group').map((t) => t.name)
-  // Every language-type tag is a candidate; the first is commonly 'translated'.
-  // buildComicInfoXml converts the canonical name to an ISO code for the
-  // LanguageISO field.
-  const languageIso = resolveLanguageName(meta.tags.filter((t) => t.type === 'language').map((t) => t.name))
-  const categoryTags = meta.tags.filter((t) => t.type === 'category').map((t) => t.name)
-  const characterTags = meta.tags.filter((t) => t.type === 'character').map((t) => t.name)
-  const tagTags = meta.tags.filter((t) => t.type === 'tag').map((t) => t.name)
-  const parodyTags = meta.tags.filter((t) => t.type === 'parody').map((t) => t.name)
-
-  // Artist/group/publisher logic (§4.5)
-  const hasArtist = artistNames.length > 0
-  const hasGroup = groupNames.length > 0
-  const publisher = hasGroup ? groupNames[0] : meta.publisher || null
-
-  let writers: string[]
-  if (hasArtist) {
-    writers = artistNames
-  } else if (hasGroup) {
-    writers = groupNames
-  } else {
-    writers = ['Unknown']
-  }
-
-  return {
-    title: meta.title.pretty,
-    series: meta.seriesName || meta.title.pretty, // §4.3 — always write Series
-    volume: meta.seriesIndex ?? undefined,
-    // Stated rather than inferred. Left unset, the emitter falls back to
-    // `series !== title`, which refuses to number volume 1 of a series named
-    // after it — the case that had Kavita filing those as Specials.
-    partOfSeries: Boolean(meta.seriesName && meta.seriesName.trim()),
-    summary: meta.description || undefined,
-    writers,
-    publisher,
-    genres: categoryTags,
-    tags: tagTags,
-    characters: characterTags,
-    webUrl: `https://nhentai.net/g/${meta.id}`,
-    notes: `Tagged by Doujin Downloader -- nhentai gallery ${meta.id}`,
-    pageCount,
-    languageIso,
-    releaseDate: meta.uploadDate ? new Date(meta.uploadDate * 1000) : undefined,
-    ageRating: 'Adults Only 18+',
-    manga: mangaDirection,
-    seriesGroup: parodyTags.length > 0 ? parodyTags[0] : undefined
-  }
+  mangaDirection?: MangaDirection
 }
 
 parentPort?.on('message', async (cmd: GenerateCommand) => {
@@ -110,27 +54,28 @@ parentPort?.on('message', async (cmd: GenerateCommand) => {
 
     // Step 1: Build ComicInfo metadata
     const mangaDirection = cmd.mangaDirection ?? 'YesAndRightToLeft'
-    let ciMeta: ComicInfoMetadata
+    let ciMeta: FileMetadata
 
     if (cmd.metadata) {
-      ciMeta = convertToComicInfoMeta(cmd.metadata, pageCount, mangaDirection)
+      ciMeta = fileMetadataFromGallery(cmd.metadata, {
+        pageCount,
+        mangaDirection,
+        format: 'cbz',
+        // A freshly downloaded gallery's parody becomes its collection. The
+        // conversion path gates this on `cbzParodyAsCollection`; downloads
+        // never have, and changing that here would silently restructure
+        // collections in Kavita.
+        parodyAsCollection: true
+      })
       // LanguageISO is the field Kavita silently ignores when it is wrong, so
       // record what was resolved. Unresolved means the gallery's language tags
       // were all non-languages (commonly just 'translated').
-      log.debug(`ComicInfo: language=${ciMeta.languageIso ?? 'unresolved'} manga=${mangaDirection}`)
+      log.debug(
+        `ComicInfo: language=${resolveLanguageValue(ciMeta) ?? 'unresolved'} manga=${mangaDirection}`
+      )
     } else {
-      // Minimal metadata when no gallery data is available
-      ciMeta = {
-        title: 'Untitled',
-        series: 'Untitled',
-        writers: ['Unknown'],
-        genres: [],
-        tags: [],
-        characters: [],
-        pageCount,
-        ageRating: 'Adults Only 18+',
-        manga: mangaDirection
-      }
+      // Nothing but the pages themselves.
+      ciMeta = makeFileMetadata({ pageCount, mangaDirection, format: 'cbz' })
     }
 
     // Step 2: Generate CBZ

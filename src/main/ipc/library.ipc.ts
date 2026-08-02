@@ -1137,31 +1137,26 @@ export function registerLibraryIpc(): void {
         const { generateCbz } = await import(
           '../services/cbz-generator'
         )
-        const { resolveLanguageName } = await import(
-          '../services/xml-utils'
+        const { makeFileMetadata } = await import(
+          '../services/metadata/file-metadata'
         )
         const { rmSync } = await import('fs')
 
-        const ciMeta = {
+        const ciMeta = makeFileMetadata({
           title: metadata.title,
-          series: metadata.series || metadata.title,
-          writers:
-            metadata.artists.length > 0
-              ? metadata.artists
-              : ['Unknown'],
-          genres: [] as string[],
+          seriesName: metadata.series || null,
+          artists: metadata.artists,
           tags: tagList,
-          characters: [] as string[],
-          summary: metadata.description || undefined,
-          pageCount: 0,
-          languageIso: resolveLanguageName([metadata.language]),
-          ageRating: 'Adults Only 18+',
-          manga: (settingsRepo.get('cbzMangaDirection') ||
+          allTags: tagList,
+          description: metadata.description || null,
+          language: metadata.language || null,
+          format: 'cbz',
+          mangaDirection: (settingsRepo.get('cbzMangaDirection') ||
             'YesAndRightToLeft') as
             | 'Yes'
             | 'YesAndRightToLeft'
             | 'No'
-        }
+        })
 
         let scratch: string | null = null
         try {

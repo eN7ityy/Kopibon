@@ -8,6 +8,10 @@
  *   --dry-run   Report what would change, write nothing.
  *   --limit=N   Stop after N files. Useful for a trial run.
  *   --db=PATH   Database location. Defaults to the app's.
+ *   --templates=PATH
+ *               Metadata template directory. Defaults to the copy the app
+ *               seeded under userData, so this writes exactly what the app
+ *               writes — including any edits made to the templates.
  *
  * Why this exists
  * ---------------
@@ -42,6 +46,22 @@ const limitArg = argv.find((a) => a.startsWith('--limit='))
 const limit = limitArg ? Number(limitArg.slice(8)) || 0 : 0
 const dbArg = argv.find((a) => a.startsWith('--db='))
 const dbPath = dbArg ? dbArg.slice(5) : join(homedir(), '.config', 'doujin-downloader', 'db.sqlite')
+
+/*
+ * Use the same templates the app uses.
+ *
+ * Otherwise this tool would rewrite thousands of files with the shipped
+ * defaults, silently undoing whatever the user changed. The repository copy is
+ * the fallback, which is what a checkout with no installed app has.
+ */
+const templateArg = argv.find((a) => a.startsWith('--templates='))
+const userTemplates = join(homedir(), '.config', 'doujin-downloader', 'metadata-templates')
+const templateDir = templateArg
+  ? templateArg.slice(12)
+  : existsSync(userTemplates)
+    ? userTemplates
+    : null
+if (templateDir) process.env.DOUJIN_TEMPLATE_DIR = templateDir
 
 if (!target || !existsSync(target)) {
   console.error('Usage: node tools/rewrite-comicinfo.mjs <directory> [--dry-run] [--db=PATH]')
@@ -83,6 +103,8 @@ async function loadApplyMetadata() {
 }
 
 const applyMetadata = await loadApplyMetadata()
+
+console.log(`Templates: ${templateDir || 'repository defaults'}`)
 
 const db = new Database(dbPath, { readonly: true })
 

@@ -11,7 +11,6 @@
  */
 
 import { parentPort } from 'worker_threads'
-import { applyXmpWithPikepdf, type XmpMetadata } from './xmp-inject'
 import { applyMetadata, type MetadataPayload } from './apply-metadata'
 import { resolveLanguageName } from './xml-utils'
 import { createWorkerLogger, type WorkerLogger } from './worker-logger'
@@ -111,28 +110,22 @@ parentPort?.on('message', async (cmd: SyncCommand) => {
 
     const format = cmd.format || 'pdf'
 
-    if (format === 'cbz') {
-      const meta: MetadataPayload = { title, creators, tags: allTags, nhentaiId: cmd.nhentaiId, language, publisher, date }
-      const result = await applyMetadata(cmd.filePath, 'cbz', meta)
+    // One call for both formats: applyMetadata already branches on format, and
+    // building the payload twice is how the two sides used to drift apart.
+    const meta: MetadataPayload = { title, creators, tags: allTags, nhentaiId: cmd.nhentaiId, language, publisher, date }
+    const result = await applyMetadata(cmd.filePath, format, meta)
 
-      if (!result.success) {
-        log.error(`ComicInfo rewrite failed: ${result.error || 'unknown error'}`, {
-          filePath: cmd.filePath
-        })
-        parentPort?.postMessage({ type: 'error', itemId: cmd.itemId, message: result.error || 'ComicInfo rewrite failed' })
-        return
-      }
-    } else {
-      const meta: XmpMetadata = { title, creators, tags: allTags, nhentaiId: cmd.nhentaiId, language, publisher, date }
-      const result = await applyXmpWithPikepdf(cmd.filePath, meta)
-
-      if (!result.success) {
-        log.error(`XMP write failed: ${result.error || 'unknown error'}`, {
-          filePath: cmd.filePath
-        })
-        parentPort?.postMessage({ type: 'error', itemId: cmd.itemId, message: result.error || 'pikepdf failed' })
-        return
-      }
+    if (!result.success) {
+      const what = format === 'cbz' ? 'ComicInfo rewrite' : 'XMP write'
+      log.error(`${what} failed: ${result.error || 'unknown error'}`, {
+        filePath: cmd.filePath
+      })
+      parentPort?.postMessage({
+        type: 'error',
+        itemId: cmd.itemId,
+        message: result.error || `${what} failed`
+      })
+      return
     }
 
     log.info(`Sync complete for gallery ${cmd.nhentaiId}`, {

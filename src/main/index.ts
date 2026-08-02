@@ -16,6 +16,7 @@ import { checkToolchain } from './services/toolchain'
 import { runStartupMaintenance } from './services/startup-maintenance'
 import { createLogger, getLogger } from './services/logger'
 import { handle } from './ipc/handle'
+import { installUserTemplates } from './services/metadata/templates'
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -100,6 +101,19 @@ app.whenReady().then(async () => {
     platform: process.platform,
     arch: process.arch
   })
+
+  // ─── Metadata templates ──────────────────────────────────────────────
+  //
+  // Before any worker is spawned: the workers inherit process.env, and this is
+  // what tells them where the templates are. Seeded into userData so a user can
+  // edit what gets written into their files without rebuilding the app.
+
+  const templateDir = installUserTemplates(app.getPath('userData'))
+  logger.info(
+    templateDir
+      ? `Metadata templates: ${templateDir}`
+      : 'Metadata templates: using the shipped copies (userData not writable)'
+  )
 
   // ─── Crash handlers (§1.7) ───────────────────────────────────────────
 
