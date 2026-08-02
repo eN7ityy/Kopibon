@@ -10,6 +10,7 @@
  */
 
 import { applyXmpWithPikepdf, type XmpMetadata } from './xmp-inject'
+import { tempSiblingPath } from './temp-path'
 import { buildComicInfoXml, type ComicInfoMetadata } from './comicinfo'
 import { open } from 'yauzl'
 import * as yazl from 'yazl'
@@ -142,7 +143,9 @@ async function rewriteComicInfoInCbz(
   filePath: string,
   ciMeta: ComicInfoMetadata
 ): Promise<void> {
-  const partPath = filePath + '.part'
+  // Same 255-byte limit as the CBZ writer: the file that broke conversion
+  // would have broken a metadata rewrite on sync for the same reason.
+  const partPath = tempSiblingPath(filePath)
 
   try {
     // ── Pass 1: entry names, so PageCount reflects reality ──────────────────

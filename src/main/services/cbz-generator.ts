@@ -10,6 +10,7 @@
  */
 
 import * as yazl from 'yazl'
+import { tempSiblingPath } from './temp-path'
 import { createWriteStream, renameSync, statSync, mkdirSync, rmSync } from 'fs'
 import { basename, join } from 'path'
 import { buildComicInfoXml, type ComicInfoMetadata } from './comicinfo'
@@ -52,7 +53,9 @@ export async function generateCbz(
   options: CbzOptions,
   onProgress?: (current: number, total: number) => void
 ): Promise<string> {
-  const partPath = outputPath + '.part'
+  // Not `outputPath + '.part'`: a 251-byte name plus the suffix is 256, over
+  // the 255-byte limit, and one real library file sat exactly there.
+  const partPath = tempSiblingPath(outputPath)
 
   // Step 1: Build ComicInfo with accurate page count
   const ciMeta: ComicInfoMetadata = {

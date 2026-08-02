@@ -272,9 +272,17 @@ parentPort?.on('message', async (cmd: ConvertCommand) => {
   const log = createWorkerLogger('worker:convert-cbz', String(id))
 
   try {
-    // Step 1: Verify the source PDF exists and format is pdf
+    /*
+     * Step 1: Verify the source PDF exists and format is pdf.
+     *
+     * Names the path. "Source file not found" on its own said nothing about
+     * which file or where it was expected, and the case it reported turned out
+     * to involve a path that existed by the time anyone looked — so the message
+     * has to carry enough to tell a stale queue row from a genuinely missing
+     * file, and to distinguish either from a network mount that blinked.
+     */
     if (!existsSync(filePath)) {
-      throw new Error('Source file not found')
+      throw new Error(`Source file not found: ${filePath}`)
     }
 
     // Step 2: Extract images to userData scratch
