@@ -10,10 +10,11 @@ import { registerLibraryIpc } from './ipc/library.ipc'
 import { registerSettingsIpc } from './ipc/settings.ipc'
 import { registerSearchSettingsIpc } from './ipc/search-settings.ipc'
 import { registerAuthIpc, restoreAuthFromDb } from './ipc/auth.ipc'
+import { inFlightHandlers } from './ipc/handle'
 import { getDownloadManager } from './services/download-manager'
 import { checkToolchain } from './services/toolchain'
 import { runStartupMaintenance } from './services/startup-maintenance'
-import { createLogger } from './services/logger'
+import { createLogger, getLogger } from './services/logger'
 import { handle } from './ipc/handle'
 
 function createWindow(): void {
@@ -36,6 +37,39 @@ function createWindow(): void {
 
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()
+  })
+
+  /*
+   * Freeze detection.
+   *
+   * The common failure here is not a crash but a hang: the window stops
+   * painting and has to be force-quit, leaving nothing in the log because
+   * nothing threw. Electron already notices — it fires 'unresponsive' when the
+   * renderer stops servicing its message loop — and until now nothing listened,
+   * so every one of these went unrecorded.
+   *
+   * The in-flight IPC list is the useful half. A hang while the renderer waits
+   * on a slow handler looks identical, from the outside, to a hang caused by a
+   * render loop in the renderer itself; which channels are running at the
+   * moment it locks up separates the two.
+   */
+  let unresponsiveSince: number | null = null
+
+  mainWindow.on('unresponsive', () => {
+    unresponsiveSince = Date.now()
+    getLogger('window').error('Window stopped responding', {
+      inFlightIpc: inFlightHandlers(),
+      // No in-flight handler means main was idle, so the freeze is in the
+      // renderer — a render loop or a very long synchronous task there.
+      likelyIn: inFlightHandlers().length > 0 ? 'main' : 'renderer'
+    })
+  })
+
+  mainWindow.on('responsive', () => {
+    getLogger('window').warn('Window recovered', {
+      frozenForMs: unresponsiveSince ? Date.now() - unresponsiveSince : null
+    })
+    unresponsiveSince = null
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
