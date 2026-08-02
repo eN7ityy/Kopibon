@@ -62,16 +62,53 @@ describe('buildComicInfoXml — Kavita field rules', () => {
     expect(field(buildComicInfoXml(meta()), 'Series')).toBe('A Title')
   })
 
-  it('omits Volume when Series is only a title fallback (§C.4)', () => {
-    // ~1200 library rows have a series_index but no real series name; emitting
-    // Volume there produces "volume 1 of a one-item series".
+  it('leaves a one-shot unnumbered', () => {
+    // Series falling back to the title means this is not part of anything.
+    // Numbering it would make Kavita show a one-chapter series per file.
     const xml = buildComicInfoXml(meta({ title: 'Solo', series: 'Solo', volume: 1 }))
+    expect(xml).not.toContain('<Number>')
     expect(xml).not.toContain('<Volume>')
   })
 
-  it('writes Volume for a genuine series', () => {
+  it('numbers a genuine series member', () => {
+    // The reported failure: instalments of a series arrived in Kavita loose,
+    // and some as Specials, because nothing numbered them. Kavita groups on
+    // Series and orders on Number; a file with neither Number nor Volume is
+    // filed as a Special.
     const xml = buildComicInfoXml(meta({ title: 'Ep 7', series: 'Real Series', volume: 7 }))
-    expect(field(xml, 'Volume')).toBe('7')
+    expect(field(xml, 'Number')).toBe('7')
+  })
+
+  it('numbers volume 1 even when the series is named after it', () => {
+    // The Special bug. "Seijo no Mita Yume" volume 1 is titled exactly that, so
+    // the old `series !== title` test called it a one-shot and left it
+    // unnumbered while volume 2 got a number — Kavita filed volume 1 as a
+    // Special. Whether a series name was supplied is the real question.
+    const xml = buildComicInfoXml(
+      meta({
+        title: 'Seijo no Mita Yume',
+        series: 'Seijo no Mita Yume',
+        volume: 1,
+        partOfSeries: true
+      })
+    )
+    expect(field(xml, 'Number')).toBe('1')
+  })
+
+  it('leaves a one-shot unnumbered even when it carries an index', () => {
+    // Most one-shots have series_index 1 from a defaulted field. Numbering
+    // those would make a one-chapter series per file.
+    const xml = buildComicInfoXml(
+      meta({ title: 'Solo', series: 'Solo', volume: 1, partOfSeries: false })
+    )
+    expect(xml).not.toContain('<Number>')
+  })
+
+  it('uses Number rather than Volume for an instalment', () => {
+    // Volume would nest each file in a volume of its own holding a single
+    // chapter — it groups, but describes something the data does not mean.
+    const xml = buildComicInfoXml(meta({ title: 'Ep 7', series: 'Real Series', volume: 7 }))
+    expect(xml).not.toContain('<Volume>')
   })
 
   it('never writes Count (Kavita would mark the series Ended/Completed, §4.4)', () => {
@@ -82,8 +119,19 @@ describe('buildComicInfoXml — Kavita field rules', () => {
     expect(buildComicInfoXml(meta())).not.toContain('<Format>')
   })
 
-  it('never writes Number alongside Volume', () => {
-    expect(buildComicInfoXml(meta({ series: 'S', volume: 2 }))).not.toContain('<Number>')
+  it('still never writes Volume, even for a numbered member', () => {
+    expect(buildComicInfoXml(meta({ series: 'S', volume: 2 }))).not.toContain('<Volume>')
+  })
+
+  it('reads back an index written as Volume by the previous emitter', () => {
+    // Every file in the existing library carries Volume, and the scanner takes
+    // seriesIndex from this. Reading only Number would drop the index from all
+    // of them on the next rescan.
+    const legacy = buildComicInfoXml(meta({ title: 'Ep 3', series: 'S', volume: 3 })).replace(
+      '<Number>3</Number>',
+      '<Volume>3</Volume>'
+    )
+    expect(parseComicInfoXml(legacy).volume).toBe(3)
   })
 
   it('mirrors writers into Penciller as well as Writer', () => {

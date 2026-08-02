@@ -109,7 +109,15 @@ function buildConversionMetadata(
   const title = meta.customTitle || `Gallery #${meta.galleryId || item.id}`
 
   // Series: use the assigned series if one exists; otherwise title fallback
-  const hasRealSeries = !!(meta.seriesName && meta.seriesName !== title)
+  /*
+   * Having a series name is the whole test.
+   *
+   * This used to also require the name to differ from the title, which is
+   * wrong whenever a series is named after its first instalment — the usual
+   * case. Volume 1 then came out unnumbered while volume 2 was numbered, and
+   * Kavita filed volume 1 as a Special.
+   */
+  const hasRealSeries = !!(meta.seriesName && meta.seriesName.trim())
   const series = meta.seriesName || title
 
   // Writers (§4.5 — reuse resolveCreatorsAndPublisher)
@@ -166,6 +174,7 @@ function buildConversionMetadata(
     title,
     series,
     volume: hasRealSeries && meta.seriesIndex != null ? meta.seriesIndex : undefined,
+    partOfSeries: hasRealSeries,
     summary: meta.description || undefined,
     writers,
     publisher,

@@ -31,6 +31,20 @@ export interface ComicInfoMetadata {
   ageRating: string // 'Adults Only 18+'
   manga: 'Yes' | 'YesAndRightToLeft' | 'No'
   seriesGroup?: string | null // optional parody -> collections
+  /**
+   * Whether this file genuinely belongs to a series.
+   *
+   * Decides whether it gets a Number. It has to be stated rather than inferred:
+   * the old test was `series !== title`, which is wrong whenever a series is
+   * named after its first instalment — a very common case. "Seijo no Mita
+   * Yume" volume 1 is titled exactly that, so it went unnumbered while volume 2
+   * got a number, and Kavita filed volume 1 as a Special. That is the bug this
+   * field exists to close.
+   *
+   * Callers know the answer: they either had a series name to pass or they did
+   * not. Left unset, the old heuristic still applies.
+   */
+  partOfSeries?: boolean
 }
 
 // ─── Build ────────────────────────────────────────────────────────────────────
@@ -40,7 +54,7 @@ export interface ComicInfoMetadata {
  *
  * Rules enforced:
  * - `Series` is always written (§4.3)
- * - `Volume` is only written when a real seriesName exists (§4.2, §C.4)
+ * - `Number` is written only for a genuine series member; `Volume` never is
  * - `Count` and `Format` are NEVER written (§4.4, §4.6)
  * - `Year/Month/Day` only written when releaseDate is provided (§C.2)
  * - `LanguageISO` only written when value is a recognised ISO code (§4.2, §C.5)
@@ -58,15 +72,34 @@ export function buildComicInfoXml(meta: ComicInfoMetadata): string {
   // Series — ALWAYS written (§4.3). Falls back to title when no series name.
   lines.push(`  <Series>${escapeXml(meta.series)}</Series>`)
 
-  // Volume — only when a real series name exists (§4.2, §C.4)
-  // Volume is meaningless when Series is just the title fallback.
-  // Detect: if series equals title, it's a fallback — gate Volume.
-  const seriesIsFallback = meta.series === meta.title
-  if (meta.volume != null && meta.volume > 0 && !seriesIsFallback) {
-    lines.push(`  <Volume>${meta.volume}</Volume>`)
+  /*
+   * Number — the position of this file within its series.
+   *
+   * Kavita groups on Series and orders on Number. A file carrying neither
+   * Number nor Volume is filed as a **Special**, which is what a library of
+   * these looked like: every instalment of a series showing up loose, and some
+   * of them as Specials.
+   *
+   * Number rather than Volume. Each file here is one instalment, so Number
+   * gives a series with N ordered chapters. Volume would nest each file in a
+   * volume of its own containing a single chapter — it groups, but describes
+   * something the data does not mean.
+   *
+   * Still gated on the series being real. When Series falls back to the title
+   * the file is a one-shot, and a one-shot is not chapter 1 of anything;
+   * numbering it would create a one-chapter series per file, which is the same
+   * mess from the other direction.
+   *
+   * This replaces a rule that wrote Volume under the same condition and never
+   * wrote Number at all. That rule cited a spec section which is not in this
+   * repository, and it produced exactly the grouping failure above.
+   */
+  const inSeries = meta.partOfSeries ?? meta.series !== meta.title
+  if (meta.volume != null && meta.volume > 0 && inSeries) {
+    lines.push(`  <Number>${meta.volume}</Number>`)
   }
 
-  // NEVER write Number, Count, or Format (§4.4, §4.6)
+  // Count and Format are still never written.
 
   // Summary
   if (meta.summary) {
@@ -181,9 +214,18 @@ export function parseComicInfoXml(xml: string): Partial<ComicInfoMetadata> {
   const series = extract('Series')
   if (series) result.series = series
 
-  const volumeStr = extract('Volume')
-  if (volumeStr) {
-    const parsed = parseFloat(volumeStr)
+  /*
+   * Position within the series, from Number first and Volume second.
+   *
+   * The writer emits Number. Volume is still read because every file written
+   * before that change used it, and the scanner takes `seriesIndex` from here
+   * — reading only Number would drop the index from the whole existing library
+   * on the next rescan, and reading only Volume would drop it from everything
+   * written from now on.
+   */
+  const indexStr = extract('Number') || extract('Volume')
+  if (indexStr) {
+    const parsed = parseFloat(indexStr)
     if (!isNaN(parsed)) result.volume = parsed
   }
 

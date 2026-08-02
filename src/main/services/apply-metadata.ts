@@ -70,6 +70,9 @@ function buildComicInfoMeta(payload: MetadataPayload): ComicInfoMetadata {
     title: payload.title,
     series: payload.seriesName || payload.title, // §4.3 — always write Series
     volume: payload.seriesIndex ?? undefined,
+    // A series name was supplied, so this file is part of one — even when that
+    // name happens to match its title, as volume 1 of a series usually does.
+    partOfSeries: Boolean(payload.seriesName && payload.seriesName.trim()),
     summary: payload.description || undefined,
     writers: payload.creators,
     publisher: payload.publisher || undefined,
