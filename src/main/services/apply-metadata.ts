@@ -9,17 +9,20 @@
  *
  * Both sides start from the same `FileMetadata` and go through the same two
  * mappers, so a CBZ and a PDF of the same gallery describe it identically.
+ *
+ * It takes a `FileMetadata` rather than a flat payload on purpose. The flat
+ * shape it used to take had no room for parodies, categories or characters, so
+ * every edit silently stripped them from the file — and it had no room for the
+ * series either, so syncing a series member erased its Kavita grouping.
  */
 
 import { applyXmpWithPikepdf } from './xmp-inject'
 import { tempSiblingPath } from './temp-path'
 import { buildComicInfoXml } from './metadata/mappers'
-import { fileMetadataFromPayload, type FileMetadata, type MetadataPayload } from './metadata/file-metadata'
+import type { FileMetadata } from './metadata/file-metadata'
 import { open } from 'yauzl'
 import * as yazl from 'yazl'
 import { createWriteStream, renameSync, unlinkSync } from 'fs'
-
-export type { MetadataPayload }
 
 // ─── Artist/group/publisher logic ─────────────────────────────────────────────
 // Kept here because callers outside the metadata pipeline use it to fill in a
@@ -195,16 +198,14 @@ async function rewriteComicInfoInCbz(filePath: string, meta: FileMetadata): Prom
  *
  * @param filePath - Path to the file
  * @param format - 'pdf' or 'cbz'
- * @param payload - Metadata to apply
+ * @param meta - Canonical metadata to write
  * @returns Promise resolving to success status
  */
 export async function applyMetadata(
   filePath: string,
   format: string,
-  payload: MetadataPayload
+  meta: FileMetadata
 ): Promise<{ success: boolean; error?: string }> {
-  const meta = fileMetadataFromPayload(payload, { format })
-
   if (format === 'cbz') {
     try {
       await rewriteComicInfoInCbz(filePath, meta)

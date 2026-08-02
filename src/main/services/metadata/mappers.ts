@@ -88,9 +88,18 @@ export function resolveLanguageValue(meta: FileMetadata): string | null {
   return meta.language ?? resolveLanguageName(meta.languageTags)
 }
 
-/** A parody becomes a collection only when the setting asks for it. */
+/**
+ * The collection this file belongs to.
+ *
+ * Kavita turns SeriesGroup into a Collection — a grouping above series, so
+ * every doujinshi parodying the same work sits together regardless of which
+ * series each belongs to.
+ *
+ * The first parody, unconditionally. Only two galleries in a library of ~4,600
+ * carry more than one, and a comma-joined value would be read as a single
+ * collection with a nonsense name rather than as two.
+ */
 export function resolveSeriesGroup(meta: FileMetadata): string | null {
-  if (!meta.parodyAsCollection) return null
   return meta.parodies[0] ?? null
 }
 
@@ -125,7 +134,15 @@ function commonContext(meta: FileMetadata): TemplateContext {
     writers: escAll(resolveWriters(meta)),
     characters: escAll(meta.characters),
     parodies: escAll(meta.parodies),
-    genres: escAll(meta.genres),
+    categories: escAll(meta.categories),
+    /*
+     * ComicInfo Genre is a comma-separated list, and Kavita splits it into
+     * separate genres — verified against a live Kavita scan. Putting the
+     * parody in alongside the category means a work shows up under both
+     * `doujinshi` and `blue archive`, and Kavita's Related panel then links
+     * everything sharing a parody.
+     */
+    genres: escAll([...meta.categories, ...meta.parodies]),
     tags: escAll(meta.tags),
     allTags: escAll(meta.allTags),
 

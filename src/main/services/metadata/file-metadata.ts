@@ -118,8 +118,8 @@ export interface FileMetadata {
   groups: string[]
   characters: string[]
   parodies: string[]
-  /** nhentai `category`-type tags, which ComicInfo calls Genre. */
-  genres: string[]
+  /** nhentai `category`-type tags — `doujinshi`, `manga`. */
+  categories: string[]
   /** nhentai `tag`-type tags only. */
   tags: string[]
   /** Every tag name whatever its type — what PDF XMP writes as dc:subject. */
@@ -147,8 +147,6 @@ export interface FileMetadata {
   format: string | null
   mangaDirection: MangaDirection
   ageRating: string
-  /** Whether a parody becomes a ComicInfo SeriesGroup. */
-  parodyAsCollection: boolean
 }
 
 /**
@@ -170,7 +168,7 @@ export const DEFAULT_FILE_METADATA: FileMetadata = {
   groups: [],
   characters: [],
   parodies: [],
-  genres: [],
+  categories: [],
   tags: [],
   allTags: [],
   languageTags: [],
@@ -182,8 +180,7 @@ export const DEFAULT_FILE_METADATA: FileMetadata = {
   galleryPageCount: null,
   format: null,
   mangaDirection: 'YesAndRightToLeft',
-  ageRating: 'Adults Only 18+',
-  parodyAsCollection: false
+  ageRating: 'Adults Only 18+'
 }
 
 /** Build a FileMetadata from a partial one, filling the rest with defaults. */
@@ -262,7 +259,7 @@ export function fileMetadataFromGallery(
     groups: namesOfType(meta.tags, 'group'),
     characters: namesOfType(meta.tags, 'character'),
     parodies: namesOfType(meta.tags, 'parody'),
-    genres: namesOfType(meta.tags, 'category'),
+    categories: namesOfType(meta.tags, 'category'),
     tags: namesOfType(meta.tags, 'tag'),
     allTags: meta.tags.map((t) => t.name),
     languageTags: namesOfType(meta.tags, 'language'),
@@ -300,7 +297,7 @@ export function fileMetadataFromLibraryItem(
     groups: namesOfType(parsed, 'group'),
     characters: namesOfType(parsed, 'character'),
     parodies: namesOfType(parsed, 'parody'),
-    genres: namesOfType(parsed, 'category'),
+    categories: namesOfType(parsed, 'category'),
     tags: real ? namesOfType(parsed, 'tag') : splitList(row.customTags),
     allTags: real ? parsed.map((t) => t.name) : splitList(row.customTags),
     languageTags: real ? [...namesOfType(parsed, 'language'), row.customLanguage || ''] : [],

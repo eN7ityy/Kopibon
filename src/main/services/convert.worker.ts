@@ -15,7 +15,7 @@
  */
 
 import { parentPort } from 'worker_threads'
-import { type MetadataPayload } from './metadata/file-metadata'
+import { type FileMetadata } from './metadata/file-metadata'
 import { applyMetadata } from './apply-metadata'
 import { renameSync, existsSync } from 'fs'
 import { createWorkerLogger } from './worker-logger'
@@ -28,7 +28,7 @@ interface ConvertCommand {
     filePath: string
     /** 'pdf' | 'cbz' — defaults to 'pdf' for older callers. */
     format?: string
-    metadata: MetadataPayload
+    metadata: FileMetadata
   }
 }
 
@@ -63,10 +63,10 @@ parentPort?.on('message', async (cmd: ConvertCommand) => {
     }
 
     // Step 2: Rename file if needed (move [nhentai-XXXXX] to end)
-    if (metadata.nhentaiId != null) {
+    if (metadata.galleryId != null) {
       const dir = dirname(filePath)
       const currentName = basename(filePath)
-      const prefixPattern = new RegExp(`^\\[nhentai-${metadata.nhentaiId}\\]\\s*`)
+      const prefixPattern = new RegExp(`^\\[nhentai-${metadata.galleryId}\\]\\s*`)
 
       if (prefixPattern.test(currentName)) {
         // Preserve the real extension — this used to hardcode .pdf, which
@@ -75,7 +75,7 @@ parentPort?.on('message', async (cmd: ConvertCommand) => {
         const ext = extMatch ? extMatch[0] : format === 'cbz' ? '.cbz' : '.pdf'
         const newName = currentName
           .replace(prefixPattern, '')
-          .replace(/\.[A-Za-z0-9]+$/, '') + ` [nhentai-${metadata.nhentaiId}]${ext}`
+          .replace(/\.[A-Za-z0-9]+$/, '') + ` [nhentai-${metadata.galleryId}]${ext}`
         newPath = join(dir, newName)
 
         if (newPath !== filePath && existsSync(filePath)) {

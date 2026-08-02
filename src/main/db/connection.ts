@@ -116,7 +116,6 @@ function seedDefaults(sqlite: Database.Database): void {
     pageSize: 'Dynamic',
     blackBackground: 'true',
     cbzMangaDirection: 'YesAndRightToLeft',
-    cbzParodyAsCollection: 'false',
     cbzKeepOriginal: 'true'
   }
 

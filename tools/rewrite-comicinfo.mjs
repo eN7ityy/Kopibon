@@ -85,7 +85,7 @@ async function loadApplyMetadata() {
   const { build } = require('esbuild')
   const out = join(projectRoot, '.rewrite-comicinfo.bundle.cjs')
   await build({
-    entryPoints: [join(projectRoot, 'src/main/services/apply-metadata.ts')],
+    entryPoints: [join(projectRoot, 'src/main/services/metadata-entry.ts')],
     bundle: true,
     platform: 'node',
     format: 'cjs',
@@ -99,10 +99,10 @@ async function loadApplyMetadata() {
   } catch {
     /* leftover bundle is harmless */
   }
-  return mod.applyMetadata
+  return mod
 }
 
-const applyMetadata = await loadApplyMetadata()
+const { applyMetadata, fileMetadataFromLibraryItem } = await loadApplyMetadata()
 
 console.log(`Templates: ${templateDir || 'repository defaults'}`)
 
@@ -162,7 +162,18 @@ function report() {
   )
 }
 
-const byGallery = db.prepare('SELECT * FROM library_item WHERE gallery_id = ?')
+/*
+ * The gallery join is not optional.
+ *
+ * `library_item` holds no typed tags, and a rewrite rebuilds ComicInfo.xml from
+ * scratch — so without the join this tool would strip every parody, category
+ * and character out of the files it touched.
+ */
+const byGallery = db.prepare(`
+  SELECT li.*, g.raw_tags_json AS rawTagsJson, g.upload_date AS uploadDate
+    FROM library_item li
+    LEFT JOIN gallery g ON g.id = li.gallery_id
+   WHERE li.gallery_id = ?`)
 
 /*
  * How many library items share a series name.
@@ -218,22 +229,25 @@ for (const file of files) {
     continue
   }
 
-  const result = await applyMetadata(file, 'cbz', {
-    title: row.custom_title || basename(file),
-    creators: [row.primary_artist || 'Unknown'],
-    tags: row.custom_tags
-      ? row.custom_tags
-          .split(',')
-          .map((t) => t.trim())
-          .filter(Boolean)
-      : [],
-    nhentaiId: row.gallery_id,
-    seriesName: series,
-    seriesIndex: row.series_index,
-    language: row.custom_language || row.language,
-    publisher: row.publisher,
-    description: row.description
-  })
+  const result = await applyMetadata(
+    file,
+    'cbz',
+    fileMetadataFromLibraryItem(
+      {
+        galleryId: row.gallery_id,
+        customTitle: row.custom_title || basename(file),
+        primaryArtist: row.primary_artist,
+        customTags: row.custom_tags,
+        customLanguage: row.custom_language || row.language,
+        publisher: row.publisher,
+        description: row.description,
+        rawTagsJson: row.rawTagsJson,
+        uploadDate: row.uploadDate,
+        id: row.id
+      },
+      { seriesName: series, seriesIndex: row.series_index, format: 'cbz' }
+    )
+  )
 
   if (result.success) rewritten++
   else {

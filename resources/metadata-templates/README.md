@@ -124,7 +124,8 @@ they are there so you can add them without a code change.
 | `groups` | Circle names |
 | `writers` | Who to credit: artists, else circles, else `Unknown` |
 | `characters`, `parodies` | From the gallery's tags |
-| `genres` | nhentai `category` tags |
+| `categories` | nhentai `category` tags — `doujinshi`, `manga` |
+| `genres` | **`categories` + `parodies`** — what goes in `<Genre>`. Kavita splits this on commas into separate genres, and links works sharing one under "Related". Use `{{categories?}}` instead if you want the category alone |
 | `tags` | nhentai `tag` tags only |
 | `allTags` | Every tag, whatever its type |
 | `publisher` | The circle if there is one, else whatever was supplied |
@@ -145,7 +146,7 @@ ComicInfo also gets:
 | `number` | Position in the series. Empty for a one-shot |
 | `seriesIndex` | The raw index, ungated |
 | `summary` | Same as `description` |
-| `seriesGroup` | The parody, when the collections setting is on |
+| `seriesGroup` | The first parody. Kavita reads it as a Collection |
 | `year`, `month`, `day` | Release date parts, all empty together |
 | `dateIso` | The release date in full |
 

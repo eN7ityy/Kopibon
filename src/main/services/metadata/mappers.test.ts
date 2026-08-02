@@ -168,11 +168,36 @@ describe('buildComicInfoXml — Kavita field rules', () => {
     expect(buildComicInfoXml(meta({ galleryId: null }))).not.toContain('<Web>')
   })
 
-  it('writes a parody as SeriesGroup only when the setting asks', () => {
+  it('always writes the parody as SeriesGroup, which Kavita reads as a Collection', () => {
+    expect(field(buildComicInfoXml(meta({ parodies: ['P'] })), 'SeriesGroup')).toBe('P')
+    expect(buildComicInfoXml(meta())).not.toContain('<SeriesGroup>')
+  })
+
+  it('takes only the first of several parodies for the collection', () => {
+    // A comma-joined value would be read as one collection with a nonsense
+    // name rather than as two. Only two galleries in ~4,600 have more than one.
+    expect(field(buildComicInfoXml(meta({ parodies: ['A', 'B'] })), 'SeriesGroup')).toBe('A')
+  })
+
+  it('puts categories AND parodies in Genre, which Kavita splits on commas', () => {
+    // Verified against a live Kavita scan: both show as separate genres, and
+    // Kavita's Related panel then links works sharing a parody.
     expect(
-      field(buildComicInfoXml(meta({ parodies: ['P'], parodyAsCollection: true })), 'SeriesGroup')
-    ).toBe('P')
-    expect(buildComicInfoXml(meta({ parodies: ['P'] }))).not.toContain('<SeriesGroup>')
+      field(
+        buildComicInfoXml(meta({ categories: ['doujinshi'], parodies: ['blue archive'] })),
+        'Genre'
+      )
+    ).toBe('doujinshi, blue archive')
+  })
+
+  it('writes every parody as a Genre, not just the first', () => {
+    expect(
+      field(buildComicInfoXml(meta({ categories: ['doujinshi'], parodies: ['A', 'B'] })), 'Genre')
+    ).toBe('doujinshi, A, B')
+  })
+
+  it('omits Genre when there is neither a category nor a parody', () => {
+    expect(buildComicInfoXml(meta())).not.toContain('<Genre>')
   })
 })
 
@@ -362,7 +387,7 @@ describe('fileMetadataFromGallery', () => {
     const m = fileMetadataFromGallery(gallery)
     expect(m.artists).toEqual(['The Artist'])
     expect(m.groups).toEqual(['The Circle'])
-    expect(m.genres).toEqual(['doujinshi'])
+    expect(m.categories).toEqual(['doujinshi'])
     expect(m.tags).toEqual(['a tag'])
     expect(m.characters).toEqual(['someone'])
     expect(m.parodies).toEqual(['a parody'])
@@ -430,6 +455,59 @@ describe('fileMetadataFromPayload', () => {
     const m = fileMetadataFromPayload({ title: 'T', creators: ['C'], tags: ['a', 'b'] })
     expect(m.tags).toEqual(['a', 'b'])
     expect(m.allTags).toEqual(['a', 'b'])
+  })
+})
+
+// ─── Regressions: what a rewrite used to destroy ─────────────────────────────
+
+describe('rewriting a file preserves what only the gallery knows', () => {
+  // A metadata write rebuilds ComicInfo.xml from scratch, so anything the
+  // caller cannot express is not merely skipped — it is deleted from the file.
+  // The flat payload these paths used to build had no room for typed tags, so
+  // editing one field stripped every parody, category and character.
+  const row = {
+    galleryId: 900,
+    customTitle: 'Some Doujin',
+    primaryArtist: 'The Artist',
+    seriesName: 'A Series',
+    seriesIndex: 3,
+    rawTagsJson: JSON.stringify(gallery.tags)
+  }
+
+  it('keeps the parody as a Genre and a Collection through an edit', () => {
+    const xml = buildComicInfoXml(fileMetadataFromLibraryItem(row, { title: 'Edited Title' }))
+    expect(field(xml, 'Genre')).toBe('doujinshi, a parody')
+    expect(field(xml, 'SeriesGroup')).toBe('a parody')
+  })
+
+  it('keeps the characters through an edit', () => {
+    expect(field(buildComicInfoXml(fileMetadataFromLibraryItem(row)), 'Characters')).toBe('someone')
+  })
+
+  it('keeps the series and its number through an edit', () => {
+    const xml = buildComicInfoXml(fileMetadataFromLibraryItem(row))
+    expect(field(xml, 'Series')).toBe('A Series')
+    expect(field(xml, 'Number')).toBe('3')
+  })
+})
+
+describe('syncing keeps the series, which nhentai does not know about', () => {
+  // A sync fetches the gallery from the API and rewrites the file. The series
+  // is the user's own grouping and exists only in our database, so the worker
+  // has to be told it — otherwise Series fell back to the file's own title and
+  // no Number was written, dissolving the series in Kavita.
+  it('numbers the file when the caller supplies the series', () => {
+    const xml = buildComicInfoXml(
+      fileMetadataFromGallery(gallery, { seriesName: 'A Series', seriesIndex: 2 })
+    )
+    expect(field(xml, 'Series')).toBe('A Series')
+    expect(field(xml, 'Number')).toBe('2')
+  })
+
+  it('falls back to a one-shot when there genuinely is no series', () => {
+    const xml = buildComicInfoXml(fileMetadataFromGallery(gallery))
+    expect(field(xml, 'Series')).toBe('Pretty Title')
+    expect(xml).not.toContain('<Number>')
   })
 })
 

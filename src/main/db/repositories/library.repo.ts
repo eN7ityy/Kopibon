@@ -722,7 +722,7 @@ export const libraryRepo = {
 
         for (const tag of parsed as Array<{ id?: number; type?: string; name?: string }>) {
           if (!tag?.type || !tag?.name) continue
-          const key = `${tag.type} ${tag.name.toLowerCase()}`
+          const key = `${tag.type}\x00${tag.name.toLowerCase()}`
           if (seen.has(key)) continue
           seen.add(key)
           typedTags.push({ id: tag.id ?? 0, type: tag.type, name: tag.name })

@@ -31,7 +31,7 @@ describe('parseComicInfoXml — round trip', () => {
       description: `A summary ${AMP} more`,
       artists: ['dr. stein', `second ${AMP} artist`],
       publisher: `Group ${AMP} Co`,
-      genres: ['doujinshi'],
+      categories: ['doujinshi'],
       tags: ['mind control', `x ${AMP} y`],
       characters: ['someone'],
       galleryId: 595016,
@@ -47,7 +47,7 @@ describe('parseComicInfoXml — round trip', () => {
     expect(parsed.summary).toBe(original.description)
     expect(parsed.writers).toEqual(original.artists)
     expect(parsed.publisher).toBe(original.publisher)
-    expect(parsed.genres).toEqual(original.genres)
+    expect(parsed.genres).toEqual(original.categories)
     expect(parsed.tags).toEqual(original.tags)
     expect(parsed.characters).toEqual(original.characters)
     expect(parsed.webUrl).toBe('https://nhentai.net/g/595016')
@@ -86,7 +86,7 @@ describe('parseComicInfoXml — round trip', () => {
 
   it('does not confuse Series with SeriesGroup', () => {
     const xml = buildComicInfoXml(
-      meta({ seriesName: 'Real Series', parodies: ['Collection X'], parodyAsCollection: true })
+      meta({ seriesName: 'Real Series', parodies: ['Collection X'] })
     )
     expect(parseComicInfoXml(xml).series).toBe('Real Series')
     expect(parseComicInfoXml(xml).seriesGroup).toBe('Collection X')

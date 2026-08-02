@@ -73,7 +73,6 @@ export const SAFE_SETTING_KEYS = [
   'blackBackground',
   'showNotifications',
   'cbzMangaDirection',
-  'cbzParodyAsCollection',
   'cbzKeepOriginal',
   'completedRetentionDays',
   // Search defaults. `searchDefaultQuery` is deliberately absent: it is a query

@@ -5,13 +5,15 @@
  * regenerates the file's metadata (XMP for PDF, ComicInfo for CBZ).
  *
  * Message Protocol:
- *   Main -> Worker: { type: 'sync', itemId, nhentaiId, filePath, apiKey, format }
+ *   Main -> Worker: { type: 'sync', itemId, nhentaiId, filePath, apiKey, format,
+ *                      seriesName, seriesIndex }
  *   Worker -> Main: { type: 'complete', itemId, success }
  *                  { type: 'error', itemId, message }
  */
 
 import { parentPort } from 'worker_threads'
-import { applyMetadata, type MetadataPayload } from './apply-metadata'
+import { applyMetadata } from './apply-metadata'
+import { fileMetadataFromGallery } from './metadata/file-metadata'
 import { resolveLanguageName } from './xml-utils'
 import { createWorkerLogger, type WorkerLogger } from './worker-logger'
 
@@ -22,6 +24,16 @@ interface SyncCommand {
   filePath: string
   apiKey?: string
   format?: string
+  /**
+   * The series this file belongs to, from the library row.
+   *
+   * Sent because nhentai has no concept of a series — it is the user's own
+   * grouping, held only in our database. Without it a sync wrote Series as the
+   * file's own title and no Number at all, so syncing a series member silently
+   * dissolved it in Kavita and filed it as a Special.
+   */
+  seriesName?: string | null
+  seriesIndex?: number | null
 }
 
 const MAX_RETRIES = 3
@@ -104,15 +116,33 @@ parentPort?.on('message', async (cmd: SyncCommand) => {
       creators = ['Unknown']
     }
 
-    const date = gallery.upload_date
-      ? new Date(gallery.upload_date * 1000).toISOString()
-      : null
-
     const format = cmd.format || 'pdf'
+
+    /*
+     * Built from the API gallery, so the typed tags survive: parodies and
+     * categories become Genres, characters become Characters. The flat payload
+     * this used to build had none of those fields, so every sync stripped them.
+     *
+     * The series comes from our own database — nhentai does not have one.
+     */
+    const meta = fileMetadataFromGallery(
+      {
+        id: cmd.nhentaiId,
+        title: gallery.title || { english: title, japanese: null, pretty: title },
+        tags,
+        uploadDate: gallery.upload_date ?? 0,
+        numPages: gallery.num_pages ?? 0
+      },
+      {
+        title,
+        seriesName: cmd.seriesName ?? null,
+        seriesIndex: cmd.seriesIndex ?? null,
+        format
+      }
+    )
 
     // One call for both formats: applyMetadata already branches on format, and
     // building the payload twice is how the two sides used to drift apart.
-    const meta: MetadataPayload = { title, creators, tags: allTags, nhentaiId: cmd.nhentaiId, language, publisher, date }
     const result = await applyMetadata(cmd.filePath, format, meta)
 
     if (!result.success) {

@@ -55,7 +55,6 @@ interface ConvertCommand {
       originalsRoot: string
       userDataDir: string
       mangaDirection: MangaDirection
-      parodyAsCollection: boolean
     }
   }
 }
@@ -94,12 +93,11 @@ function safePathSegment(name: string | null | undefined): string {
 function buildConversionMetadata(
   item: ConvertCommand['item'],
   pageCount: number,
-  mangaDirection: MangaDirection,
-  parodyAsCollection: boolean
+  mangaDirection: MangaDirection
 ): FileMetadata {
   return fileMetadataFromLibraryItem(
     { ...item.metadata, id: item.id },
-    { pageCount, mangaDirection, parodyAsCollection, format: 'cbz' }
+    { pageCount, mangaDirection, format: 'cbz' }
   )
 }
 
@@ -221,7 +219,6 @@ parentPort?.on('message', async (cmd: ConvertCommand) => {
       cmd.item,
       extractResult.pageCount,
       options.mangaDirection,
-      options.parodyAsCollection
     )
 
     // Step 4: Generate CBZ

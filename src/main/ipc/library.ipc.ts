@@ -28,6 +28,12 @@ import { handle } from './handle'
 import { getLogger } from '../services/logger'
 import { attachWorkerLogForwarding } from '../services/worker-logger'
 import { sortNatural } from '../services/natural-sort'
+import { fileMetadataFromLibraryItem } from '../services/metadata/file-metadata'
+import type {
+  FileMetadata,
+  MangaDirection
+} from '../services/metadata/file-metadata'
+import type { LibraryItem } from '../db/repositories/library.repo'
 import { countPages } from '../services/page-count'
 import { applyGalleryIdToFilename } from '../services/gallery-filename'
 import { endpointLimitPerMinute } from '../services/rate-limiter'
@@ -248,6 +254,38 @@ async function buildThumbnailFor(
     // A missing thumbnail is cosmetic; the entry is still valid without one.
     return null
   }
+}
+
+/**
+ * A library row as canonical metadata, with its cached gallery folded in.
+ *
+ * The gallery join is the point. `library_item` has no typed tags, so anything
+ * built from the row alone loses parodies, categories and characters — and
+ * since a metadata write rebuilds ComicInfo.xml from scratch, "loses" means
+ * "deletes from the file". Four call sites each used to build their own flat
+ * payload with exactly those fields missing.
+ */
+function metaForItem(
+  item: LibraryItem,
+  over: Partial<FileMetadata> = {}
+): FileMetadata {
+  const gallery =
+    item.galleryId != null ? galleryRepo.findById(item.galleryId) : undefined
+
+  return fileMetadataFromLibraryItem(
+    {
+      ...item,
+      rawTagsJson: gallery?.rawTagsJson,
+      uploadDate: gallery?.uploadDate
+    },
+    {
+      format: item.format || 'pdf',
+      pageCount: item.pageCount ?? 0,
+      mangaDirection: (settingsRepo.get('cbzMangaDirection') ||
+        'YesAndRightToLeft') as MangaDirection,
+      ...over
+    }
+  )
 }
 
 export function registerLibraryIpc(): void {
@@ -568,19 +606,11 @@ export function registerLibraryIpc(): void {
 
       try {
         const { applyMetadata } = await import('../services/apply-metadata')
-        await applyMetadata(item.filePath, item.format || 'pdf', {
-          title: item.customTitle || `Gallery #${item.galleryId || item.id}`,
-          creators: [item.primaryArtist || 'Unknown'],
-          tags: item.customTags
-            ? item.customTags.split(',').map((t: string) => t.trim()).filter(Boolean)
-            : [],
-          nhentaiId: item.galleryId,
-          seriesName: trimmed,
-          seriesIndex: item.seriesIndex ?? undefined,
-          language: item.language || item.customLanguage,
-          publisher: item.publisher || undefined,
-          description: item.description || undefined
-        })
+        await applyMetadata(
+          item.filePath,
+          item.format || 'pdf',
+          metaForItem(item, { seriesName: trimmed })
+        )
       } catch (err) {
         errors.push(`Could not update metadata for ${basename(item.filePath)}: ${String(err)}`)
       }
@@ -985,24 +1015,14 @@ export function registerLibraryIpc(): void {
               '../services/apply-metadata'
             )
             const format = item.format || 'pdf'
-            await applyMetadata(item.filePath, format, {
-              title:
-                item.customTitle ||
-                `Gallery #${item.galleryId || item.id}`,
-              creators: [item.primaryArtist || 'Unknown'],
-              tags: item.customTags
-                ? item.customTags
-                    .split(',')
-                    .map((t: string) => t.trim())
-                    .filter(Boolean)
-                : [],
-              nhentaiId: item.galleryId,
-              seriesName,
-              seriesIndex: volume ?? undefined,
-              language: item.language || item.customLanguage,
-              publisher: item.publisher || undefined,
-              description: item.description || undefined
-            })
+            await applyMetadata(
+              item.filePath,
+              format,
+              metaForItem(item, {
+                seriesName,
+                seriesIndex: volume
+              })
+            )
           } catch (err) {
             errors.push(
               `Failed to embed series in ${item.format || 'PDF'} for item ${entry.id}: ${String(err)}`
@@ -1581,27 +1601,45 @@ export function registerLibraryIpc(): void {
         }
 
         const format = item.format || 'pdf'
-        await applyMetadata(item.filePath, format, {
-          title:
-            newTitle ||
-            `Gallery #${item.galleryId || item.id}`,
-          creators: newPrimaryArtist
-            ? [newPrimaryArtist]
-            : [item.primaryArtist || 'Unknown'],
-          tags: tagList.map((t: { name: string }) => t.name),
-          nhentaiId: item.galleryId ?? undefined,
-          seriesName:
-            newSeriesName ?? item.seriesName ?? undefined,
-          seriesIndex:
-            newSeriesIndex ?? item.seriesIndex ?? undefined,
-          language:
-            newLanguage || item.language || undefined,
-          publisher:
-            newPublisher || item.publisher || undefined,
-          description:
-            newDescription || item.description || undefined,
-          date: newDate || undefined
-        })
+        const editedTags = tagList.map(
+          (t: { name: string }) => t.name
+        )
+        const editedDate = newDate ? new Date(newDate) : null
+
+        /*
+         * The edited fields win; everything else — parodies, categories,
+         * characters — comes from the cached gallery. Building this by hand
+         * was how an edit to one field wiped every typed tag out of the file.
+         */
+        await applyMetadata(
+          item.filePath,
+          format,
+          metaForItem(item, {
+            title:
+              newTitle ||
+              `Gallery #${item.galleryId || item.id}`,
+            artists: newPrimaryArtist
+              ? [newPrimaryArtist]
+              : item.primaryArtist
+                ? [item.primaryArtist]
+                : [],
+            tags: editedTags,
+            allTags: editedTags,
+            seriesName: newSeriesName ?? item.seriesName,
+            seriesIndex:
+              newSeriesIndex ?? item.seriesIndex,
+            language:
+              newLanguage || item.language || null,
+            publisher:
+              newPublisher || item.publisher || null,
+            description:
+              newDescription || item.description || null,
+            ...(editedDate &&
+            Number.isFinite(editedDate.getTime())
+              ? { releaseDate: editedDate }
+              : {})
+          })
+        )
       } catch (embedErr) {
         // Non-fatal: metadata embedding failure shouldn't block the update
         log.error('Failed to re-embed metadata', { err: embedErr })
@@ -1772,27 +1810,8 @@ export function registerLibraryIpc(): void {
 
       function buildMetadata(
         item: ReturnType<typeof libraryRepo.findById>
-      ): Record<string, unknown> {
-        if (!item) return {}
-        const tags = item.customTags
-          ? item.customTags
-              .split(',')
-              .map((t: string) => t.trim())
-              .filter(Boolean)
-          : []
-        return {
-          title:
-            item.customTitle ||
-            `Gallery #${item.galleryId || item.id}`,
-          creators: [item.primaryArtist || 'Unknown'],
-          tags,
-          nhentaiId: item.galleryId,
-          seriesName: item.seriesName,
-          seriesIndex: item.seriesIndex,
-          language: item.language || item.customLanguage,
-          publisher: item.publisher,
-          description: item.description
-        }
+      ): FileMetadata | null {
+        return item ? metaForItem(item) : null
       }
 
       function spawnWorker(): Promise<void> {
@@ -1972,7 +1991,9 @@ export function registerLibraryIpc(): void {
     itemId: number,
     nhentaiId: number,
     filePath: string,
-    format?: string
+    format?: string,
+    seriesName?: string | null,
+    seriesIndex?: number | null
   ): Promise<{ success: boolean; message?: string }> {
     return new Promise((resolve) => {
       const workerPath = pathJoin(
@@ -2128,7 +2149,9 @@ export function registerLibraryIpc(): void {
         nhentaiId,
         filePath,
         apiKey,
-        format
+        format,
+        seriesName,
+        seriesIndex
       })
     })
   }
@@ -2156,7 +2179,9 @@ export function registerLibraryIpc(): void {
         itemId,
         item.galleryId,
         item.filePath,
-        item.format || 'pdf'
+        item.format || 'pdf',
+        item.seriesName,
+        item.seriesIndex
       )
 
       if (result.success) {
@@ -2290,7 +2315,9 @@ export function registerLibraryIpc(): void {
           itemId,
           item.galleryId,
           item.filePath,
-          item.format || 'pdf'
+          item.format || 'pdf',
+          item.seriesName,
+          item.seriesIndex
         )
         syncRepo.finish(itemId, result.success ? null : result.message || 'Sync failed')
 
@@ -2643,9 +2670,6 @@ export function registerLibraryIpc(): void {
         settingsRepo.get('cbzMangaDirection') ||
         'YesAndRightToLeft'
       ) as 'Yes' | 'YesAndRightToLeft' | 'No'
-      const parodyAsCollection =
-        settingsRepo.get('cbzParodyAsCollection') ===
-        'true'
 
       if (dryRun) {
         const items = ids
@@ -2856,8 +2880,7 @@ export function registerLibraryIpc(): void {
                     app.getPath(
                       'userData'
                     ),
-                  mangaDirection,
-                  parodyAsCollection
+                  mangaDirection
                 }
               }
             })

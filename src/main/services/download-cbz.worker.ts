@@ -60,12 +60,7 @@ parentPort?.on('message', async (cmd: GenerateCommand) => {
       ciMeta = fileMetadataFromGallery(cmd.metadata, {
         pageCount,
         mangaDirection,
-        format: 'cbz',
-        // A freshly downloaded gallery's parody becomes its collection. The
-        // conversion path gates this on `cbzParodyAsCollection`; downloads
-        // never have, and changing that here would silently restructure
-        // collections in Kavita.
-        parodyAsCollection: true
+        format: 'cbz'
       })
       // LanguageISO is the field Kavita silently ignores when it is wrong, so
       // record what was resolved. Unresolved means the gallery's language tags
