@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import type { GalleryDetail as GalleryDetailType, DownloadStatus, CdnConfig } from '../../types/api.types'
+import type { GalleryDetail as GalleryDetailType, DownloadStatus } from '../../types/api.types'
 import StatusBadge from '../shared/StatusBadge'
 import LoadingSkeleton from '../shared/LoadingSkeleton'
 import FormatSelector from '../shared/FormatSelector'
@@ -10,6 +10,8 @@ import { sortDescriptiveTags, tagClass } from '../shared/tags'
 import { useBlocked, blockedChipClass, blockedChipTitle } from '../shared/use-blocked'
 import { TileCover, TileFormatBadge, TileMeta } from '../shared/GalleryTile'
 import { resolveLibraryFacts, type LibraryFacts } from '../shared/library-facts'
+import { useCdnConfigStore } from '../../stores/cdn.store'
+import { useImageRotation } from '../shared/use-image-rotation'
 import { AlertCircle, BookOpen, Check, FolderOpen, Heart, ListX, Loader2, Trash2 } from 'lucide-react'
 
 interface GalleryDetailProps {
@@ -24,7 +26,8 @@ interface GalleryDetailProps {
 interface RelatedGallery {
   id: number
   title: string
-  thumbnailUrl: string | null
+  /** Raw API thumbnail path, rotated through CDN servers at render time. */
+  thumbPath: string | null
   pages: number
 }
 
@@ -51,7 +54,6 @@ export default function GalleryDetailPanel({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [downloadStatus, setDownloadStatus] = useState<DownloadStatus>('not_downloaded')
-  const [imgError, setImgError] = useState(false)
   const [showRedownloadConfirm, setShowRedownloadConfirm] = useState(false)
   const [libraryPath, setLibraryPath] = useState<string | null>(null)
   const [relatedGalleries, setRelatedGalleries] = useState<RelatedGallery[]>([])
@@ -62,7 +64,10 @@ export default function GalleryDetailPanel({
   const [deleting, setDeleting] = useState(false)
   const [libraryItemId, setLibraryItemId] = useState<number | null>(null)
   const [showViewer, setShowViewer] = useState(false)
-  const [cdnConfig, setCdnConfig] = useState<CdnConfig | null>(null)
+
+  // Live CDN server list, shared with every card via the module-scope store.
+  const thumbServers = useCdnConfigStore((s) => s.thumbServers)
+  const cdnLoaded = useCdnConfigStore((s) => s.loaded)
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -120,15 +125,6 @@ export default function GalleryDetailPanel({
     return () => { cancelled = true }
   }, [detail, galleryId, auth.loggedIn])
 
-  // Fetch CDN config for gallery viewer
-  useEffect(() => {
-    window.api.getCdnConfig().then((result) => {
-      if (result.success && result.data) {
-        setCdnConfig(result.data)
-      }
-    }).catch(() => { /* silently ignore */ })
-  }, [])
-
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent): void => {
       // Don't close panel if viewer is open (viewer handles its own Escape)
@@ -151,9 +147,7 @@ export default function GalleryDetailPanel({
         const related = result.data.result.slice(0, 12).map((item) => ({
           id: item.id,
           title: item.english_title || item.japanese_title || `Gallery #${item.id}`,
-          thumbnailUrl: item.thumbnail
-            ? `https://t.nhentai.net/${item.thumbnail}`
-            : null,
+          thumbPath: item.thumbnail || null,
           pages: item.num_pages || 0
         }))
         setRelatedGalleries(related)
@@ -173,10 +167,12 @@ export default function GalleryDetailPanel({
     return () => { cancelled = true }
   }, [detail, loading, galleryId])
 
-  // Cover URL: path from cover object, prefixed with standard thumbnail CDN
-  const coverUrl = detail?.cover?.path
-    ? `https://t.nhentai.net/${detail.cover.path}`
-    : null
+  // Cover URL: rotate through the live CDN thumb servers. Once every server has
+  // failed the hook returns null and the standard placeholder renders instead.
+  const { url: coverUrl, onError: coverOnError } = useImageRotation(
+    detail?.cover?.path ?? null,
+    thumbServers
+  )
 
   const isInLibrary = downloadStatus === 'in_library'
   const isDownloading = downloadStatus === 'downloading' || downloadStatus === 'queued' || downloadStatus === 'converting'
@@ -244,13 +240,13 @@ export default function GalleryDetailPanel({
               className="aspect-[3/4] max-w-sm mx-auto mb-6 bg-raised rounded-lg overflow-hidden block w-full relative group cursor-pointer"
               title="Read gallery"
             >
-              {coverUrl && !imgError ? (
+              {coverUrl ? (
                 <>
                   <img
                     src={coverUrl}
                     alt={detail.title.pretty}
                     draggable={false}
-                    onError={() => setImgError(true)}
+                    onError={coverOnError}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                   />
                   {/* Hover overlay */}
@@ -386,47 +382,21 @@ export default function GalleryDetailPanel({
 
                 <div className="-mx-1 overflow-x-auto px-1 pb-2">
                   <div className="flex gap-3 w-max">
-                    {relatedGalleries.map((rg) => {
-                      const facts = relatedFacts[rg.id]
-                      return (
-                        <button
-                          key={rg.id}
-                          onClick={() => {
-                            if (onGalleryChange) {
-                              onGalleryChange(rg.id)
-                            } else {
-                              window.api.shell.openExternal(`https://nhentai.net/g/${rg.id}`)
-                            }
-                          }}
-                          title={rg.title}
-                          className="group w-36 shrink-0 overflow-hidden rounded-lg border border-line bg-surface text-left transition-all duration-200 hover:border-accent hover:shadow-lg"
-                        >
-                          {/*
-                            The same parts as the main grids, so a related card
-                            carries the same information in the same places: page
-                            count bottom right, format and in-library tick top
-                            right, artist and language under the title.
-                          */}
-                          <TileCover
-                            src={rg.thumbnailUrl}
-                            alt={rg.title}
-                            stat={rg.pages > 0 ? `${rg.pages}p` : null}
-                            badge={
-                              <TileFormatBadge
-                                format={facts?.format}
-                                owned={facts?.status === 'in_library'}
-                                busy={facts?.status === 'downloading'}
-                              />
-                            }
-                          />
-                          <TileMeta
-                            title={rg.title}
-                            artist={facts?.artist}
-                            language={facts?.language}
-                          />
-                        </button>
-                      )
-                    })}
+                    {relatedGalleries.map((rg) => (
+                      <RelatedGalleryCard
+                        key={rg.id}
+                        rg={rg}
+                        facts={relatedFacts[rg.id]}
+                        thumbServers={thumbServers}
+                        onOpen={() => {
+                          if (onGalleryChange) {
+                            onGalleryChange(rg.id)
+                          } else {
+                            window.api.shell.openExternal(`https://nhentai.net/g/${rg.id}`)
+                          }
+                        }}
+                      />
+                    ))}
                   </div>
                 </div>
               </div>
@@ -584,16 +554,66 @@ export default function GalleryDetailPanel({
       </div>
 
       {/* Gallery Viewer */}
-      {showViewer && detail && cdnConfig && (
+      {showViewer && detail && cdnLoaded && (
         <GalleryViewer
           galleryId={detail.id}
           pages={detail.pages}
-          cdnServers={cdnConfig.image_servers}
-          thumbServers={cdnConfig.thumb_servers}
           title={detail.title.pretty}
           onClose={() => setShowViewer(false)}
         />
       )}
     </>
+  )
+}
+
+// ─── Related Gallery Card ────────────────────────────────────────────────────
+//
+// Its own component rather than a hook call inside the `.map()`: each card needs
+// per-image rotation state, and Rules of Hooks forbid calling a hook per loop
+// iteration.
+
+function RelatedGalleryCard({
+  rg,
+  facts,
+  thumbServers,
+  onOpen
+}: {
+  rg: RelatedGallery
+  facts?: LibraryFacts
+  thumbServers: string[]
+  onOpen: () => void
+}): React.JSX.Element {
+  const { url, onError } = useImageRotation(rg.thumbPath, thumbServers)
+
+  return (
+    <button
+      onClick={onOpen}
+      title={rg.title}
+      className="group w-36 shrink-0 overflow-hidden rounded-lg border border-line bg-surface text-left transition-all duration-200 hover:border-accent hover:shadow-lg"
+    >
+      {/*
+        The same parts as the main grids, so a related card carries the same
+        information in the same places: page count bottom right, format and
+        in-library tick top right, artist and language under the title.
+      */}
+      <TileCover
+        src={url}
+        alt={rg.title}
+        stat={rg.pages > 0 ? `${rg.pages}p` : null}
+        onError={onError}
+        badge={
+          <TileFormatBadge
+            format={facts?.format}
+            owned={facts?.status === 'in_library'}
+            busy={facts?.status === 'downloading'}
+          />
+        }
+      />
+      <TileMeta
+        title={rg.title}
+        artist={facts?.artist}
+        language={facts?.language}
+      />
+    </button>
   )
 }

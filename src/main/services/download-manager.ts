@@ -122,6 +122,15 @@ export class DownloadManager {
   private progressCallback: ProgressCallback | null = null
   private processingQueue = false
 
+  /** Consecutive non-404 errors before a server is demoted. */
+  private static readonly DEMOTE_THRESHOLD = 3
+
+  /** Consecutive non-404 errors each server has accumulated, keyed by bare hostname. */
+  private serverFailures = new Map<string, number>()
+
+  /** Servers currently considered unreliable, keyed by bare hostname. */
+  private demotedServers = new Set<string>()
+
   constructor(maxConcurrent = 3) {
     this.maxConcurrent = maxConcurrent
   }
@@ -234,6 +243,20 @@ export class DownloadManager {
       speedKBps: Math.round(speedKBps * 10) / 10,
       etaSeconds: Math.round(etaSeconds)
     })
+  }
+
+  /**
+   * Reorder the CDN server list so reliable servers come first.
+   *
+   * Demoted servers stay in the list but sink to the end, so they are still
+   * tried as a last resort. Keys are the bare hostname (protocol stripped),
+   * which is what the failure trackers use.
+   */
+  private orderServers(servers: string[]): string[] {
+    const hostOf = (raw: string): string => raw.replace(/^https?:\/\//, '')
+    const reliable = servers.filter((s) => !this.demotedServers.has(hostOf(s)))
+    const demoted = servers.filter((s) => this.demotedServers.has(hostOf(s)))
+    return [...reliable, ...demoted]
   }
 
   /**
@@ -392,7 +415,7 @@ export class DownloadManager {
 
       // Step 2: Fetch CDN servers
       const cdn = await client.getCdnConfig()
-      const servers = [...cdn.image_servers].filter(Boolean)
+      const servers = this.orderServers([...cdn.image_servers].filter(Boolean))
 
       // Step 3: Insert page records
       for (let i = 1; i <= totalPages; i++) {
@@ -773,8 +796,30 @@ export class DownloadManager {
         const { writeFileSync } = await import('fs')
         writeFileSync(filePath, buffer)
 
+        // Re-promote the server: a success resets its failure count and clears
+        // any prior demotion, so a briefly flaky server is trusted again.
+        this.serverFailures.delete(server)
+        if (this.demotedServers.has(server)) {
+          this.demotedServers.delete(server)
+          getLogger('downloads').info(`Server ${server} re-promoted after successful download`)
+        }
+
         return filePath
       } catch (err) {
+        // ── Track server failure ──
+        // Only server-level problems count toward demotion. A 404 is a
+        // page-specific miss handled above via `continue`, so it never lands
+        // here. `server` is already protocol-stripped (see URL building above),
+        // which is also the key the failure trackers use.
+        const failureCount = (this.serverFailures.get(server) || 0) + 1
+        this.serverFailures.set(server, failureCount)
+        if (failureCount >= DownloadManager.DEMOTE_THRESHOLD) {
+          this.demotedServers.add(server)
+          getLogger('downloads').warn(
+            `Server ${server} demoted after ${failureCount} consecutive failures`
+          )
+        }
+
         if (attempt === maxRetries - 1) {
           getLogger('downloads').warn(
             `Page ${pageNumber} download failed after ${maxRetries} attempts`,

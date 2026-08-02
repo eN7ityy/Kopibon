@@ -1,9 +1,10 @@
-import { useState } from 'react'
 import type { GalleryListItem } from '../../types/api.types'
 import { EyeOff } from 'lucide-react'
 import { TileCover, TileFormatBadge, TileMeta } from '../shared/GalleryTile'
 import { UNOWNED, type LibraryFacts } from '../shared/library-facts'
 import type { GalleryMark } from './GalleryGrid'
+import { useCdnConfigStore } from '../../stores/cdn.store'
+import { useImageRotation } from '../shared/use-image-rotation'
 
 interface GalleryCardProps {
   gallery: GalleryListItem
@@ -31,13 +32,13 @@ export default function GalleryCard({
   mark,
   onClick
 }: GalleryCardProps): React.JSX.Element {
-  const [imgError, setImgError] = useState(false)
-
   const title = gallery.english_title || gallery.japanese_title || `#${gallery.id}`
 
-  // The API returns a path like "galleries/{media_id}/thumb.jpg".
-  const thumbUrl =
-    gallery.thumbnail && !imgError ? `https://t.nhentai.net/${gallery.thumbnail}` : null
+  // The API returns a path like "galleries/{media_id}/thumb.jpg". Rotate
+  // through the live CDN thumb servers instead of a hardcoded host, falling
+  // back to the standard placeholder once every server has failed.
+  const thumbServers = useCdnConfigStore((s) => s.thumbServers)
+  const { url: thumbUrl, onError: thumbOnError } = useImageRotation(gallery.thumbnail, thumbServers)
 
   const marked = Boolean(mark && (mark.matches.length > 0 || mark.blacklisted))
 
@@ -80,7 +81,7 @@ export default function GalleryCard({
         src={thumbUrl}
         alt={title}
         stat={gallery.num_pages > 0 ? `${gallery.num_pages}p` : null}
-        onError={() => setImgError(true)}
+        onError={thumbOnError}
         badge={
           <TileFormatBadge
             format={facts.format}

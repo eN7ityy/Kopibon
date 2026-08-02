@@ -9,6 +9,8 @@ import { Download, Pause, Play, Trash2 } from 'lucide-react'
 interface GalleryInfo {
   title: string
   thumbnailUrl: string | null
+  /** Raw cover path, rotated through CDN thumb servers by DownloadItem. */
+  coverPath?: string | null
   pageCount: number
   artists: string[]
   groups: string[]
@@ -42,6 +44,7 @@ export default function DownloadsPage(): React.JSX.Element {
         return {
           title: g.title.pretty,
           thumbnailUrl: g.cover?.path ? `https://t.nhentai.net/${g.cover.path}` : null,
+          coverPath: g.cover?.path ?? null,
           pageCount: g.num_pages,
           artists: g.tags.filter((t) => t.type === 'artist').map((t) => t.name),
           groups: g.tags.filter((t) => t.type === 'group').map((t) => t.name),
@@ -62,6 +65,7 @@ export default function DownloadsPage(): React.JSX.Element {
         return {
           title: libResult.data.customTitle || `Gallery #${galleryId}`,
           thumbnailUrl: null,
+          coverPath: null,
           pageCount: 0,
           artists: [],
           groups: [],
@@ -74,7 +78,7 @@ export default function DownloadsPage(): React.JSX.Element {
       // ignore
     }
 
-    return { title: `Gallery #${galleryId}`, thumbnailUrl: null, pageCount: 0, artists: [], groups: [], language: null, tags: [], filePath: null }
+    return { title: `Gallery #${galleryId}`, thumbnailUrl: null, coverPath: null, pageCount: 0, artists: [], groups: [], language: null, tags: [], filePath: null }
   }, [])
 
   const fetchDownloads = useCallback(async () => {

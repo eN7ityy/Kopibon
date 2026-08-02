@@ -1,12 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import type { PageInfo } from '../../types/api.types'
 import { BookOpen, X } from 'lucide-react'
+import { useCdnConfigStore } from '../../stores/cdn.store'
 
 interface GalleryViewerProps {
   galleryId: number
   pages: PageInfo[]
-  cdnServers: string[]
-  thumbServers: string[]
   title: string
   onClose: () => void
 }
@@ -24,11 +23,12 @@ function buildCdnUrl(host: string, path: string): string {
 export default function GalleryViewer({
   galleryId: _galleryId,
   pages,
-  cdnServers,
-  thumbServers,
   title,
   onClose
 }: GalleryViewerProps): React.JSX.Element {
+  const cdnServers = useCdnConfigStore((s) => s.imageServers)
+  const thumbServers = useCdnConfigStore((s) => s.thumbServers)
+
   const [mode, setMode] = useState<'grid' | 'reading'>('grid')
   const [currentPage, setCurrentPage] = useState(0)
   const [imageLoading, setImageLoading] = useState(true)

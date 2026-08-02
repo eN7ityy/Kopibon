@@ -6,10 +6,14 @@ import type {
 import DownloadProgressBar from './DownloadProgress'
 import { BookOpen, Check, FolderOpen } from 'lucide-react'
 import { tagClass } from '../shared/tags'
+import { useCdnConfigStore } from '../../stores/cdn.store'
+import { useImageRotation } from '../shared/use-image-rotation'
 
 interface GalleryInfo {
   title: string
   thumbnailUrl: string | null
+  /** Raw cover path, rotated through CDN thumb servers. */
+  coverPath?: string | null
   pageCount: number
   artists: string[]
   groups: string[]
@@ -39,6 +43,21 @@ export default function DownloadItem({
 }: DownloadItemProps): React.JSX.Element {
   const [imgError, setImgError] = useState(false)
 
+  const thumbServers = useCdnConfigStore((s) => s.thumbServers)
+  const cdnLoaded = useCdnConfigStore((s) => s.loaded)
+
+  // Rotate through live CDN thumb servers when the store has loaded and we have
+  // a raw cover path. Until then fall back to the legacy absolute thumbnailUrl.
+  const coverPath = galleryInfo?.coverPath ?? null
+  const useRotation = cdnLoaded && thumbServers.length > 0 && coverPath !== null
+  const { url: rotatedUrl, onError: rotatedOnError } = useImageRotation(
+    useRotation ? coverPath : null,
+    thumbServers
+  )
+  const thumbUrl = useRotation ? rotatedUrl : galleryInfo?.thumbnailUrl ?? null
+  const onThumbError = useRotation ? rotatedOnError : () => setImgError(true)
+  const showThumb = Boolean(thumbUrl) && (useRotation || !imgError)
+
   const isActive =
     item.status === 'downloading' || item.status === 'converting'
   const isPaused = item.status === 'paused'
@@ -54,12 +73,12 @@ export default function DownloadItem({
       <div className="flex items-start gap-4">
         {/* Thumbnail */}
         <div className="w-16 h-20 rounded bg-raised flex-shrink-0 flex items-center justify-center overflow-hidden">
-          {galleryInfo?.thumbnailUrl && !imgError ? (
+          {showThumb ? (
             <img
-              src={galleryInfo.thumbnailUrl}
+              src={thumbUrl ?? undefined}
               alt={title}
               draggable={false}
-              onError={() => setImgError(true)}
+              onError={onThumbError}
               className="w-full h-full object-cover"
             />
           ) : (
