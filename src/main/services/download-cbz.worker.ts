@@ -75,6 +75,10 @@ function convertToComicInfoMeta(
     title: meta.title.pretty,
     series: meta.seriesName || meta.title.pretty, // §4.3 — always write Series
     volume: meta.seriesIndex ?? undefined,
+    // Stated rather than inferred. Left unset, the emitter falls back to
+    // `series !== title`, which refuses to number volume 1 of a series named
+    // after it — the case that had Kavita filing those as Specials.
+    partOfSeries: Boolean(meta.seriesName && meta.seriesName.trim()),
     summary: meta.description || undefined,
     writers,
     publisher,
