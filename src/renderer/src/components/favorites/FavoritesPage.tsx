@@ -1,12 +1,13 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import type { GalleryListItem } from '../../types/api.types'
 import GalleryGrid from '../search/GalleryGrid'
-import { resolveLibraryFacts, type LibraryFacts } from '../shared/library-facts'
+import { resolveLibraryFacts } from '../shared/library-facts'
 import GalleryDetail from '../gallery/GalleryDetail'
 import LoadingSkeleton from '../shared/LoadingSkeleton'
 import EmptyState from '../shared/EmptyState'
 import ErrorState from '../shared/ErrorState'
 import Pagination from '../shared/Pagination'
+import { useFavoritesStore } from '../../stores/favorites.store'
 import { Star } from 'lucide-react'
 
 interface FavoritesResponse {
@@ -22,73 +23,89 @@ type PageState =
   | { status: 'empty' }
 
 export default function FavoritesPage(): React.JSX.Element {
-  const [pageState, setPageState] = useState<PageState>({ status: 'loading' })
-  const [page, setPage] = useState(1)
-  const [query, setQuery] = useState('')
+  const store = useFavoritesStore()
   const [searchInput, setSearchInput] = useState('')
-  const [libraryFacts, setLibraryFacts] = useState<Record<number, LibraryFacts>>({})
-  const [selectedGalleryId, setSelectedGalleryId] = useState<number | null>(null)
 
-
-
-  const fetchFavorites = useCallback(async (p: number, q?: string): Promise<void> => {
-    setPageState({ status: 'loading' })
+  const loadPage = useCallback(async (p: number, q?: string): Promise<void> => {
+    store.setLoading(true)
     try {
       const result = await window.api.getFavorites(p, q || undefined)
       if (result.success) {
         if (result.data.result.length === 0) {
-          setPageState({ status: 'empty' })
+          store.setResults([], 0, result.data.per_page)
         } else {
           const ids = result.data.result.map((r) => r.id)
           const facts = await resolveLibraryFacts(ids)
-          setLibraryFacts(facts)
-          setPageState({ status: 'loaded', data: result.data })
+          store.setLibraryFacts(facts)
+          store.setResults(result.data.result, result.data.num_pages, result.data.per_page)
         }
       } else {
-        setPageState({ status: 'error', error: result.error || 'Failed to load favorites' })
+        store.setError(result.error || 'Failed to load favorites')
       }
     } catch (err) {
-      setPageState({ status: 'error', error: String(err) })
+      store.setError(String(err))
     }
+  }, [store])
+
+  // Fetch on mount unless the store already holds results for the current
+  // query/page — that is a return visit, so show the cache and let the 2s
+  // polling refresh the facts in the background.
+  useEffect(() => {
+    if (store.results.length === 0) {
+      loadPage(store.page, store.query || undefined)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Fetch when page or query changes from user actions. The ref skips the
+  // initial mount run so a return visit never double-fetches.
+  const firstRenderRef = useRef(true)
   useEffect(() => {
-    fetchFavorites(page, query || undefined)
-  }, [page, query, fetchFavorites])
+    if (firstRenderRef.current) {
+      firstRenderRef.current = false
+      return
+    }
+    loadPage(store.page, store.query || undefined)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [store.page, store.query])
 
+  // 2s polling for library facts. Merges rather than replaces, reads the
+  // current results at tick time, and re-arms when the results array changes —
+  // so facts for one page can never overwrite (and blank) another page's.
   useEffect(() => {
-    if (pageState.status !== 'loaded') return
-    const interval = setInterval(async () => {
-      const ids = pageState.data.result.map((r) => r.id)
+    const refreshStatuses = async () => {
+      const state = useFavoritesStore.getState()
+      if (state.results.length === 0) return
+      const ids = state.results.map((r) => r.id)
       const facts = await resolveLibraryFacts(ids)
-      setLibraryFacts(facts)
-    }, 2000)
+      useFavoritesStore.getState().mergeLibraryFacts(facts)
+    }
+    refreshStatuses()
+    const interval = setInterval(refreshStatuses, 2000)
     return () => clearInterval(interval)
-  }, [pageState.status])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [store.results])
 
-  /**
-   * Submit the search box. An emptied box resets to the full favourites list.
-   *
-   * The trim matters: submitting whitespace would otherwise set a query that is
-   * falsy-but-changed, refetching without filtering while still rendering the
-   * "clear" affordance as though a search were active. Refetching explicitly
-   * rather than relying on the state change also makes an empty submit work when
-   * the query is already empty, so the button never looks inert.
-   */
   const handleSearch = (e: React.FormEvent): void => {
     e.preventDefault()
     const next = searchInput.trim()
-    setQuery(next)
-    setPage(1)
-    if (next === query && page === 1) fetchFavorites(1, next || undefined)
+    // Submitting the same query on page one would leave the store deps
+    // unchanged, so the change-effect below would not fire and the button would
+    // look inert. Refetch explicitly in that case, matching the original.
+    if (next === store.query && store.page === 1) {
+      loadPage(1, next || undefined)
+      return
+    }
+    store.setQuery(next)
+    store.setPage(1)
   }
 
   const handleGalleryClick = (id: number): void => {
-    setSelectedGalleryId(id)
+    store.setSelectedGalleryId(id)
   }
 
   const handleTagClick = (_tagType: string, _tagName: string): void => {
-    setSelectedGalleryId(null)
+    store.setSelectedGalleryId(null)
   }
 
   const handleDownload = useCallback(
@@ -96,20 +113,26 @@ export default function FavoritesPage(): React.JSX.Element {
       try {
         await window.api.downloads.addToQueue(galleryId, format)
         const facts = await resolveLibraryFacts([galleryId])
-        setLibraryFacts((prev) => ({ ...prev, ...facts }))
+        store.mergeLibraryFacts(facts)
       } catch {
         // silently ignore
       }
     },
-    []
+    [store]
   )
 
+  // Derive pageState from store for the four-branch render
+  const pageState = useMemo<PageState>(() => {
+    if (store.loading && store.results.length === 0) return { status: 'loading' }
+    if (store.error && store.results.length === 0) return { status: 'error', error: store.error }
+    if (!store.loading && store.results.length === 0) return { status: 'empty' }
+    return {
+      status: 'loaded',
+      data: { result: store.results, num_pages: store.numPages, per_page: store.perPage }
+    }
+  }, [store.loading, store.error, store.results, store.numPages, store.perPage])
+
   // One header, outside the state switch.
-  //
-  // It was previously repeated in all four branches, and had already drifted:
-  // the error branch was missing the description the other three had. Rendering
-  // it once means a change lands everywhere, and the search form no longer
-  // disappears while a page loads.
   const header = (
     <div className="mb-4 shrink-0">
       <h1 className="text-2xl font-bold tracking-tight text-fg">Favorites</h1>
@@ -132,13 +155,13 @@ export default function FavoritesPage(): React.JSX.Element {
         >
           Search
         </button>
-        {query && (
+        {store.query && (
           <button
             type="button"
             onClick={() => {
-              setQuery('')
+              store.setQuery('')
               setSearchInput('')
-              setPage(1)
+              store.setPage(1)
             }}
             className="px-4 py-2.5 rounded-lg border border-line text-fg-muted hover:bg-raised transition-colors"
           >
@@ -165,7 +188,7 @@ export default function FavoritesPage(): React.JSX.Element {
       <div className="flex flex-col h-full">
         {header}
         {searchForm}
-        <ErrorState message={pageState.error} onRetry={() => fetchFavorites(page, query || undefined)} />
+        <ErrorState message={pageState.error} onRetry={() => loadPage(store.page, store.query || undefined)} />
       </div>
     )
   }
@@ -178,7 +201,7 @@ export default function FavoritesPage(): React.JSX.Element {
         <EmptyState
           icon={Star}
           title="No favorites found"
-          description={query ? 'No favorites match your search query.' : 'Favorite some galleries on nhentai.net to see them here.'}
+          description={store.query ? 'No favorites match your search query.' : 'Favorite some galleries on nhentai.net to see them here.'}
         />
       </div>
     )
@@ -193,7 +216,7 @@ export default function FavoritesPage(): React.JSX.Element {
         <GalleryGrid
           galleries={pageState.data.result.map((g) => ({
             gallery: g,
-            facts: libraryFacts[g.id]
+            facts: store.libraryFacts[g.id]
           }))}
           onGalleryClick={handleGalleryClick}
         />
@@ -201,21 +224,21 @@ export default function FavoritesPage(): React.JSX.Element {
         {pageState.data.num_pages > 1 && (
           <div className="mt-6">
             <Pagination
-              page={page}
+              page={store.page}
               totalPages={pageState.data.num_pages}
-              onChange={setPage}
+              onChange={(newPage) => store.setPage(newPage)}
             />
           </div>
         )}
       </div>
 
-      {selectedGalleryId !== null && (
+      {store.selectedGalleryId !== null && (
         <GalleryDetail
-          galleryId={selectedGalleryId}
-          onClose={() => setSelectedGalleryId(null)}
+          galleryId={store.selectedGalleryId}
+          onClose={() => store.setSelectedGalleryId(null)}
           onDownload={handleDownload}
           onTagClick={handleTagClick}
-          onGalleryChange={(id) => setSelectedGalleryId(id)}
+          onGalleryChange={(id) => store.setSelectedGalleryId(id)}
         />
       )}
     </div>

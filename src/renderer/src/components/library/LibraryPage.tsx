@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useSearchStore } from '../../stores/search.store'
+import { useLibraryStore, type LibraryRow } from '../../stores/library.store'
 import { VirtuosoGrid, Virtuoso } from 'react-virtuoso'
 import type { LibraryItemData } from './LibraryCard'
 import LibraryCard from './LibraryCard'
 import SeriesCard, { type SeriesCardModel } from './SeriesCard'
-import SeriesDetail, { type SeriesRef } from './SeriesDetail'
+import SeriesDetail from './SeriesDetail'
 import AutocompleteInput from '../shared/AutocompleteInput'
 import SeriesAssignment from './SeriesAssignment'
 import CustomEntryForm from './CustomEntryForm'
@@ -31,16 +32,6 @@ import { Check, FileArchive, Grid3x3, Layers, LayoutGrid, Library, List, ListChe
 type SortField = 'added' | 'title' | 'artist'
 type ViewMode = 'grid' | 'compact' | 'list'
 
-/**
- * A row in the library grid: a gallery, or a series standing for several.
- *
- * Mirrors LibraryRow in library.repo. Declared here rather than imported
- * because main's types are not reachable from the renderer.
- */
-type LibraryRow =
-  | { kind: 'item'; item: LibraryItemData }
-  | { kind: 'series'; series: SeriesCardModel }
-
 /** Every gallery a row stands for — one for an item, the matches for a series. */
 function rowGalleryIds(row: LibraryRow): number[] {
   return row.kind === 'item' ? [row.item.id] : row.series.members.map((m) => m.id)
@@ -56,8 +47,6 @@ function rowGalleryIds(row: LibraryRow): number[] {
 function rowKey(row: LibraryRow): string {
   return row.kind === 'item' ? `i${row.item.id}` : `s${row.series.id}`
 }
-
-const VIEW_MODE_KEY = 'library.viewMode'
 
 interface ScanProgress {
   current: number
@@ -299,227 +288,147 @@ export default function LibraryPage(): React.JSX.Element {
   const navigate = useNavigate()
   const conversionStore = useConversionStore()
   const cbzRunning = useCbzConversionStore((s) => s.running)
-  // Single source of truth for where the library lives — this page used to
-  // hardcode a path, so changing the setting had no effect on scanning.
   const libraryRoot = useSettingsStore((s) => s.libraryPath)
 
-  /*
-   * Paginated data.
-   *
-   * `rows` is what the grid renders: galleries and series interleaved. When
-   * grouping is off every row is a gallery, so there is one code path rather
-   * than a branch on the setting.
-   *
-   * `totalCount` counts rows, since it drives pagination. `galleryCount` counts
-   * the galleries behind them, which is the number worth showing a person —
-   * collapsing fifteen volumes into one card must not look like losing fourteen
-   * items.
-   */
-  const [rows, setRows] = useState<LibraryRow[]>([])
-  const [totalCount, setTotalCount] = useState(0)
-  const [galleryCount, setGalleryCount] = useState(0)
-  const [loading, setLoading] = useState(true)
-  const [loadingMore, setLoadingMore] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const currentOffset = useRef(0)
+  // ── Store state (persisted across tab switches) ──────────────────────────
+  const rows = useLibraryStore((s) => s.rows)
+  const totalCount = useLibraryStore((s) => s.totalCount)
+  const galleryCount = useLibraryStore((s) => s.galleryCount)
+  const loading = useLibraryStore((s) => s.loading)
+  const error = useLibraryStore((s) => s.error)
+  const searchQuery = useLibraryStore((s) => s.searchQuery)
+  const sortField = useLibraryStore((s) => s.sortField)
+  const selectedArtistFilters = useLibraryStore((s) => s.selectedArtistFilters)
+  const selectedSeriesFilters = useLibraryStore((s) => s.selectedSeriesFilters)
+  const selectedTagFilters = useLibraryStore((s) => s.selectedTagFilters)
+  const showUnmatchedOnly = useLibraryStore((s) => s.showUnmatchedOnly)
+  const viewMode = useLibraryStore((s) => s.viewMode)
+  const showFilters = useLibraryStore((s) => s.showFilters)
+  const detailItem = useLibraryStore((s) => s.detailItem)
+  const detailSeries = useLibraryStore((s) => s.detailSeries)
 
-  // Artist/series/tag lists for filters (still load all names for filter UI)
+  // Derive Sets for SearchableFilterDropdown (store holds string[])
+  const artistFilterSet = useMemo(() => new Set(selectedArtistFilters), [selectedArtistFilters])
+  const seriesFilterSet = useMemo(() => new Set(selectedSeriesFilters), [selectedSeriesFilters])
+  const tagFilterSet = useMemo(() => new Set(selectedTagFilters), [selectedTagFilters])
+
+  const debouncedSearch = useDebounce(searchQuery, 150)
+
+  // ── Transient state (not persisted) ──────────────────────────────────────
   const [artistNames, setArtistNames] = useState<string[]>([])
   const [seriesNames, setSeriesNames] = useState<string[]>([])
   const [tagNames, setTagNames] = useState<string[]>([])
-
-  // UI state
-  const [searchQuery, setSearchQuery] = useState('')
-  const debouncedSearch = useDebounce(searchQuery, 150)
-  const [sortField, setSortField] = useState<SortField>('added')
-  const [selectedArtistFilters, setSelectedArtistFilters] = useState<Set<string>>(new Set())
-  const [selectedSeriesFilters, setSelectedSeriesFilters] = useState<Set<string>>(new Set())
-  const [selectedTagFilters, setSelectedTagFilters] = useState<Set<string>>(new Set())
-  const [showUnmatchedOnly, setShowUnmatchedOnly] = useState(false)
-  const [showFilters, setShowFilters] = useState(false)
-
-  // Selection state (for batch operations)
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [, setSelectionTick] = useState(0)
   const [batchSyncing, setBatchSyncing] = useState(false)
   const [showConvertDialog, setShowConvertDialog] = useState(false)
   const [selectMode, setSelectMode] = useState(false)
   const [selectingAll, setSelectingAll] = useState(false)
-  /**
-   * Format per id for the current selection.
-   *
-   * The grid is virtualised, so once "Select all" reaches beyond the loaded
-   * pages, `items` no longer contains every selected row — anything derived from
-   * it would quietly act on the loaded subset instead of the selection. This map
-   * is populated from the same query that resolves the ids.
-   */
   const [selectionFormats, setSelectionFormats] = useState<Map<number, string>>(new Map())
+  const [scanning, setScanning] = useState(false)
+  const [scanPaused, setScanPaused] = useState(false)
+  const [scanProgress, setScanProgress] = useState<ScanProgress | null>(null)
+  const [lastScan, setLastScan] = useState<{ scannedAt: number; newItems: number; totalItems: number } | null>(null)
+  const [pathAccessible, setPathAccessible] = useState<boolean | null>(null)
+  const [showSeriesModal, setShowSeriesModal] = useState(false)
+  const [showCustomForm, setShowCustomForm] = useState(false)
 
-  /**
-   * The loaded galleries that are on screen in their own right.
-   *
-   * Everything that acted on `items` before grouping existed still wants
-   * galleries rather than rows. Members of a collapsed series are deliberately
-   * *not* here: only their ids are known on this side, not their rows, so
-   * including them would mean inventing partial records.
-   *
-   * That is safe because the two places it matters already handle ids without
-   * rows. `selectionFormats` carries the format for any selected id, and the
-   * series dialog takes `allSelectedIds` for ids whose rows were never loaded —
-   * both built for "Select all" reaching past the loaded pages, which is the
-   * same situation. Anything counting what is selected must use gallery ids,
-   * not this array.
-   */
+  // ── Derived ──────────────────────────────────────────────────────────────
   const items = useMemo<LibraryItemData[]>(
     () => rows.flatMap((row) => (row.kind === 'item' ? [row.item] : [])),
     [rows]
   )
 
-  /** Every gallery the loaded rows stand for, including inside series. */
   const visibleGalleryIds = useMemo(() => rows.flatMap(rowGalleryIds), [rows])
 
-  /**
-   * Whether the visible select-all is satisfied.
-   *
-   * One definition, read by both the checkbox and the toggle, so the box cannot
-   * show ticked while clicking it selects rather than clears.
-   */
   const allVisibleSelected =
     visibleGalleryIds.length > 0 && visibleGalleryIds.every((id) => selectedIds.has(id))
-  const [showSeriesModal, setShowSeriesModal] = useState(false)
-  const [showCustomForm, setShowCustomForm] = useState(false)
-  const [detailItem, setDetailItem] = useState<LibraryItemData | null>(null)
-  // A ref rather than a card model: the grid opens this with a full card, but
-  // the series link on a gallery's detail only knows an id and a name.
-  const [detailSeries, setDetailSeries] = useState<SeriesRef | null>(null)
-
-  // Scan state
-  const [scanning, setScanning] = useState(false)
-  const [scanPaused, setScanPaused] = useState(false)
-  const [scanProgress, setScanProgress] = useState<ScanProgress | null>(null)
-  const [lastScan, setLastScan] = useState<{ scannedAt: number; newItems: number; totalItems: number } | null>(null)
-
-  // Path accessibility
-  const [pathAccessible, setPathAccessible] = useState<boolean | null>(null)
-
-  // View mode (persisted to localStorage)
-  const [viewMode, setViewMode] = useState<ViewMode>(() => {
-    try {
-      const saved = localStorage.getItem(VIEW_MODE_KEY)
-      if (saved === 'grid' || saved === 'compact' || saved === 'list') return saved
-    } catch { /* ignore */ }
-    return 'grid'
-  })
 
   // ─── Fetch page from DB ────────────────────────────────────────────────────
 
   const fetchPage = useCallback(async (offset: number, replace: boolean) => {
+    const state = useLibraryStore.getState()
     if (replace) {
-      setLoading(true)
-      setError(null)
+      state.setLoading(true)
     } else {
-      setLoadingMore(true)
+      state.setLoadingMore(true)
     }
 
     try {
       const result = await window.api.library.getPaginatedGrouped({
         offset,
         limit: PAGE_SIZE,
-        sortField,
-        searchQuery: debouncedSearch || undefined,
-        artistFilters: selectedArtistFilters.size > 0 ? [...selectedArtistFilters] : undefined,
-        seriesFilters: selectedSeriesFilters.size > 0 ? [...selectedSeriesFilters] : undefined,
-        tagFilters: selectedTagFilters.size > 0 ? [...selectedTagFilters] : undefined,
-        showUnmatchedOnly: showUnmatchedOnly || undefined
+        sortField: state.sortField,
+        searchQuery: state.searchQuery || undefined,
+        artistFilters: state.selectedArtistFilters.length > 0 ? state.selectedArtistFilters : undefined,
+        seriesFilters: state.selectedSeriesFilters.length > 0 ? state.selectedSeriesFilters : undefined,
+        tagFilters: state.selectedTagFilters.length > 0 ? state.selectedTagFilters : undefined,
+        showUnmatchedOnly: state.showUnmatchedOnly || undefined
       })
 
       if (result.success && result.data) {
         const newRows = result.data.rows as unknown as LibraryRow[]
-        setTotalCount(result.data.total)
-        setGalleryCount(result.data.galleries)
-        currentOffset.current = offset + newRows.length
-
-        if (replace) {
-          setRows(newRows)
-        } else {
-          setRows((prev) => {
-            // Deduplicated on the row's own identity, not the gallery's: an
-            // item and a series can hold the same number, so a single id set
-            // would drop a series whose id matched an already-loaded gallery.
-            const seen = new Set(prev.map((r) => rowKey(r)))
-            return [...prev, ...newRows.filter((r) => !seen.has(rowKey(r)))]
-          })
-        }
+        state.setResults(newRows, result.data.total, result.data.galleries, replace)
+        state.setOffset(offset + newRows.length)
       } else {
-        if (replace) setError(result.error || 'Failed to load library')
+        if (replace) state.setError(result.error || 'Failed to load library')
+        else state.setLoadingMore(false)
       }
     } catch (err) {
-      if (replace) setError(String(err))
-    } finally {
-      setLoading(false)
-      setLoadingMore(false)
+      if (replace) state.setError(String(err))
+      else state.setLoadingMore(false)
     }
-  }, [sortField, debouncedSearch, selectedArtistFilters, selectedSeriesFilters, selectedTagFilters, showUnmatchedOnly])
+  }, [])
 
-  /**
-   * Re-read what is already on screen, without collapsing back to page one.
-   *
-   * Editing or syncing a gallery from its detail panel used to call
-   * `fetchPage(0, true)`. That throws away every page loaded by scrolling: on a
-   * library scrolled two pages deep, the grid silently shrank to the first 100
-   * rows — which expand to 141 galleries here, exactly the ceiling that made
-   * "select all visible" stop at 141 and made items look like they had
-   * vanished.
-   *
-   * So the loaded window is preserved rather than reset, and `loading` is left
-   * alone: raising it re-renders the page through its loading branch, which
-   * unmounts the detail panel that started the update.
-   */
   const refreshLoaded = useCallback(async () => {
-    const loaded = Math.max(currentOffset.current, PAGE_SIZE)
+    const state = useLibraryStore.getState()
+    const loaded = Math.max(state.currentOffset, PAGE_SIZE)
     try {
       const result = await window.api.library.getPaginatedGrouped({
         offset: 0,
         limit: loaded,
-        sortField,
-        searchQuery: debouncedSearch || undefined,
-        artistFilters: selectedArtistFilters.size > 0 ? [...selectedArtistFilters] : undefined,
-        seriesFilters: selectedSeriesFilters.size > 0 ? [...selectedSeriesFilters] : undefined,
-        tagFilters: selectedTagFilters.size > 0 ? [...selectedTagFilters] : undefined,
-        showUnmatchedOnly: showUnmatchedOnly || undefined
+        sortField: state.sortField,
+        searchQuery: state.searchQuery || undefined,
+        artistFilters: state.selectedArtistFilters.length > 0 ? state.selectedArtistFilters : undefined,
+        seriesFilters: state.selectedSeriesFilters.length > 0 ? state.selectedSeriesFilters : undefined,
+        tagFilters: state.selectedTagFilters.length > 0 ? state.selectedTagFilters : undefined,
+        showUnmatchedOnly: state.showUnmatchedOnly || undefined
       })
       if (result.success && result.data) {
         const newRows = result.data.rows as unknown as LibraryRow[]
-        setRows(newRows)
-        setTotalCount(result.data.total)
-        setGalleryCount(result.data.galleries)
-        currentOffset.current = newRows.length
+        state.setResults(newRows, result.data.total, result.data.galleries, true)
+        state.setOffset(newRows.length)
       }
     } catch {
-      // The grid keeps showing what it had, which is better than emptying it
-      // because a refresh failed.
+      // keep showing what we had
     }
-  }, [
-    sortField,
-    debouncedSearch,
-    selectedArtistFilters,
-    selectedSeriesFilters,
-    selectedTagFilters,
-    showUnmatchedOnly
-  ])
+  }, [])
 
   // ─── Load more (infinite scroll) ───────────────────────────────────────────
 
   const loadMore = useCallback(() => {
-    if (loadingMore || rows.length >= totalCount) return
-    fetchPage(currentOffset.current, false)
-  }, [loadingMore, rows.length, totalCount, fetchPage])
+    const state = useLibraryStore.getState()
+    if (state.loadingMore || state.rows.length >= state.totalCount) return
+    fetchPage(state.currentOffset, false)
+  }, [fetchPage])
+
+  // ─── Mount: show cached rows or fetch ──────────────────────────────────────
+
+  const mountedRef = useRef(false)
+  useEffect(() => {
+    window.api.library.isPathAccessible(libraryRoot).then(setPathAccessible)
+    // Always fetch on mount: if the store has cached rows they render immediately,
+    // and the grid updates when fresh data arrives (silent background refresh).
+    fetchPage(0, true)
+    mountedRef.current = true
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Reset and fetch when filters/sort/search change ───────────────────────
 
   useEffect(() => {
+    if (!mountedRef.current) return
     fetchPage(0, true)
-  }, [fetchPage]) // fetchPage already depends on sortField, debouncedSearch, filters
+  }, [sortField, debouncedSearch, selectedArtistFilters, selectedSeriesFilters, selectedTagFilters, showUnmatchedOnly]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Initial filter data load ──────────────────────────────────────────────
 
@@ -585,35 +494,22 @@ export default function LibraryPage(): React.JSX.Element {
         newItems: result.newItems,
         totalItems: result.total
       })
-      // The scanner skips removing "missing" items when discovery looked
-      // incomplete. Surface that, otherwise the guard is invisible and stale
-      // rows look like a bug.
       if (result.removalSkippedReason) {
-        setError(result.removalSkippedReason)
+        useLibraryStore.getState().setError(result.removalSkippedReason)
       }
-      // Refresh data after scan completes
       fetchPage(0, true)
     })
     const unsubError = window.api.onLibraryScanError((err) => {
       setScanning(false)
       setScanPaused(false)
       setScanProgress(null)
-      setError(err)
+      useLibraryStore.getState().setError(err)
     })
 
-    /*
-     * Live item streaming: prepend batched new items during active scan.
-     *
-     * These arrive as plain galleries even when grouping is on. A freshly
-     * scanned file has no series resolved yet, and guessing which group it
-     * belongs to here would mean duplicating the resolver in the renderer. The
-     * scan-complete handler refetches the page, and the row appears in its
-     * group then.
-     */
     const unsubNewItems = window.api.onLibraryNewItems((batch) => {
-      setRows((prev) => {
+      useLibraryStore.setState((prev) => {
         const existingIds = new Set(
-          prev.flatMap((row) => (row.kind === 'item' ? [row.item.id] : []))
+          prev.rows.flatMap((row) => (row.kind === 'item' ? [row.item.id] : []))
         )
         const newItems: LibraryItemData[] = []
         for (const item of batch) {
@@ -642,7 +538,9 @@ export default function LibraryPage(): React.JSX.Element {
           })
         }
         if (newItems.length > 0) {
-          return [...newItems.map((item) => ({ kind: 'item' as const, item })), ...prev]
+          return {
+            rows: [...newItems.map((item) => ({ kind: 'item' as const, item })), ...prev.rows]
+          }
         }
         return prev
       })
@@ -669,7 +567,7 @@ export default function LibraryPage(): React.JSX.Element {
 
   const handleRescan = async () => {
     if (!libraryRoot.trim()) {
-      setError('No library path configured. Set one in Settings first.')
+      useLibraryStore.getState().setError('No library path configured. Set one in Settings first.')
       return
     }
     setScanning(true)
@@ -678,11 +576,11 @@ export default function LibraryPage(): React.JSX.Element {
       const result = await window.api.library.scan(libraryRoot)
       if (!result?.success) {
         setScanning(false)
-        setError(result?.error || 'Failed to start scan')
+        useLibraryStore.getState().setError(result?.error || 'Failed to start scan')
       }
     } catch (err) {
       setScanning(false)
-      setError(String(err))
+      useLibraryStore.getState().setError(String(err))
     }
   }
 
@@ -707,17 +605,6 @@ export default function LibraryPage(): React.JSX.Element {
     toggleSelect(id)
   }, [selectMode, toggleSelect])
 
-  /**
-   * Selecting a series selects the galleries it stands for.
-   *
-   * Under a filter that is the matching members only, so a card reading "3 of
-   * 15" puts three ids into the selection. Batch actions never see a series —
-   * they only ever act on galleries, which is what keeps a delete honest about
-   * how many files it is about to remove.
-   *
-   * Toggling off clears just this series' members, leaving any selected
-   * separately alone.
-   */
   const handleSeriesToggle = useCallback(
     (series: SeriesCardModel) => {
       if (!selectMode) setSelectMode(true)
@@ -732,9 +619,6 @@ export default function LibraryPage(): React.JSX.Element {
         return next
       })
 
-      // Record each member's format. The renderer holds no row for a gallery
-      // inside a collapsed series, so without this the convert button would
-      // fall back to a default and count CBZs as convertible PDFs.
       setSelectionFormats((prev) => {
         const next = new Map(prev)
         for (const member of series.members) {
@@ -778,35 +662,23 @@ export default function LibraryPage(): React.JSX.Element {
     fetchPage(0, true)
   }
 
-  /**
-   * Convert the selected PDFs to CBZ.
-   *
-   * Only PDFs are sent; the main process filters again and reports `skipped`, so
-   * a mixed selection is fine. The await runs for as long as the whole batch
-   * does — progress arrives on its own channel, and the store is driven by those
-   * events rather than by this promise.
-   */
   const handleBatchConvertToCbz = async (keepOriginal: boolean): Promise<void> => {
-    // The same set the button counts, so what runs matches what it promised.
     const ids = pdfSelectionIds
     if (ids.length === 0) return
     useCbzConversionStore.getState().begin(ids.length)
     try {
       const r = await window.api.library.convertToCbz(ids, false, { keepOriginal })
-      if (!r?.success) setError(r?.error || 'Conversion failed')
+      if (!r?.success) useLibraryStore.getState().setError(r?.error || 'Conversion failed')
       else if (r.data?.forcedKeeps > 0) {
-        setError(
+        useLibraryStore.getState().setError(
           `${r.data.forcedKeeps} original PDF${r.data.forcedKeeps === 1 ? ' was' : 's were'} kept ` +
           `because that conversion needed the fallback converter — the PDF is the better copy. ` +
           `They are in _originals/_lossy/.`
         )
       }
     } catch (e) {
-      setError(String(e))
+      useLibraryStore.getState().setError(String(e))
     } finally {
-      // The store is also finished by the running:false event; this covers a
-      // handler that returned early (e.g. the library-path guard) and never
-      // emitted one.
       useCbzConversionStore.getState().finish()
       setSelectedIds(new Set()); setSelectionFormats(new Map())
       setSelectionTick((t) => t + 1)
@@ -814,26 +686,18 @@ export default function LibraryPage(): React.JSX.Element {
     }
   }
 
-  /**
-   * Select every item matching the current filters, not just the loaded pages.
-   *
-   * Resolved in the main process from the same filter builder the grid uses, so
-   * the selection is exactly the set on screen — that matters, because these ids
-   * go on to batch delete.
-   */
   const handleSelectAllInLibrary = async (): Promise<void> => {
     setSelectingAll(true)
     try {
+      const state = useLibraryStore.getState()
       const result = await window.api.library.getAllIds({
-        searchQuery: debouncedSearch || undefined,
-        artistFilters: selectedArtistFilters.size > 0 ? [...selectedArtistFilters] : undefined,
-        seriesFilters: selectedSeriesFilters.size > 0 ? [...selectedSeriesFilters] : undefined,
-        tagFilters: selectedTagFilters.size > 0 ? [...selectedTagFilters] : undefined,
-        showUnmatchedOnly: showUnmatchedOnly || undefined
+        searchQuery: state.searchQuery || undefined,
+        artistFilters: state.selectedArtistFilters.length > 0 ? state.selectedArtistFilters : undefined,
+        seriesFilters: state.selectedSeriesFilters.length > 0 ? state.selectedSeriesFilters : undefined,
+        tagFilters: state.selectedTagFilters.length > 0 ? state.selectedTagFilters : undefined,
+        showUnmatchedOnly: state.showUnmatchedOnly || undefined
       })
       if (result.success && Array.isArray(result.data)) {
-        // Named `matched`, not `rows`: `rows` is the grid's state now, and a
-        // shadow here would read as if this were selecting the loaded page.
         const matched = result.data as Array<{ id: number; format: string }>
         setSelectedIds(new Set(matched.map((row) => row.id)))
         setSelectionFormats(new Map(matched.map((row) => [row.id, row.format || 'pdf'])))
@@ -846,13 +710,6 @@ export default function LibraryPage(): React.JSX.Element {
     }
   }
 
-  /**
-   * Select or clear every gallery the loaded rows stand for.
-   *
-   * Counts galleries rather than rows, so a page holding one series of fifteen
-   * selects fifteen. Comparing against row count instead would call the
-   * selection complete after one click on a page that is mostly series.
-   */
   const toggleSelectAll = () => {
     if (allVisibleSelected) {
       setSelectedIds(new Set()); setSelectionFormats(new Map())
@@ -862,16 +719,6 @@ export default function LibraryPage(): React.JSX.Element {
     setSelectionTick((t) => t + 1)
   }
 
-  /**
-   * How many of the selected items can actually be converted.
-   *
-   * Shown in the button label so a selection of already-converted CBZs reads as
-   * "nothing to do" rather than starting a batch that silently skips everything.
-   */
-  /**
-   * Format for a selected id, preferring the loaded row and falling back to the
-   * map filled by "Select all" for ids whose rows were never fetched.
-   */
   const formatOf = useCallback(
     (id: number): string => {
       const loaded = items.find((i) => i.id === id)
@@ -889,9 +736,6 @@ export default function LibraryPage(): React.JSX.Element {
 
   // ─── Progress ──────────────────────────────────────────────────────────────
 
-  // Global jobs (sync, both conversions) come from their stores; the scan is
-  // owned by this page, so it is prepended here. All of them render through the
-  // same component in one stack under the header.
   const globalJobs = useGlobalJobs()
   const jobs: ProgressJob[] = []
   if (scanning && scanProgress) {
@@ -899,8 +743,6 @@ export default function LibraryPage(): React.JSX.Element {
       id: 'scan',
       label: scanProgress.status || 'Scanning library',
       current: scanProgress.current,
-      // 0 until the walk finishes counting — the bar shows motion rather than a
-      // fake 10% fill, which is what it used to do.
       total: scanProgress.total,
       tone: 'read',
       onCancel: handleCancelScan
@@ -911,27 +753,27 @@ export default function LibraryPage(): React.JSX.Element {
   // ─── Filter Toggles ────────────────────────────────────────────────────────
 
   const toggleArtistFilter = (artist: string) => {
-    setSelectedArtistFilters((prev) => {
-      const next = new Set(prev)
-      if (next.has(artist)) { next.delete(artist) } else { next.add(artist) }
-      return next
-    })
+    const prev = useLibraryStore.getState().selectedArtistFilters
+    const next = prev.includes(artist)
+      ? prev.filter((a) => a !== artist)
+      : [...prev, artist]
+    useLibraryStore.getState().setSelectedArtistFilters(next)
   }
 
   const toggleSeriesFilter = (series: string) => {
-    setSelectedSeriesFilters((prev) => {
-      const next = new Set(prev)
-      if (next.has(series)) { next.delete(series) } else { next.add(series) }
-      return next
-    })
+    const prev = useLibraryStore.getState().selectedSeriesFilters
+    const next = prev.includes(series)
+      ? prev.filter((s) => s !== series)
+      : [...prev, series]
+    useLibraryStore.getState().setSelectedSeriesFilters(next)
   }
 
   const toggleTagFilter = (tag: string) => {
-    setSelectedTagFilters((prev) => {
-      const next = new Set(prev)
-      if (next.has(tag)) { next.delete(tag) } else { next.add(tag) }
-      return next
-    })
+    const prev = useLibraryStore.getState().selectedTagFilters
+    const next = prev.includes(tag)
+      ? prev.filter((t) => t !== tag)
+      : [...prev, tag]
+    useLibraryStore.getState().setSelectedTagFilters(next)
   }
 
   // ─── Format Helpers ────────────────────────────────────────────────────────
@@ -959,28 +801,15 @@ export default function LibraryPage(): React.JSX.Element {
     )
   }, [viewMode])
 
-  // ─── View mode persistence ─────────────────────────────────────────────────
-
-  const setViewModePersisted = useCallback((mode: ViewMode) => {
-    setViewMode(mode)
-    try { localStorage.setItem(VIEW_MODE_KEY, mode) } catch { /* ignore */ }
-  }, [])
-
   // ─── Loading State ─────────────────────────────────────────────────────────
 
   const hasMore = rows.length < totalCount
 
-  // One header for all three states. It was repeated in each branch, and the
-  // error branch had already lost the subtitle the other two carried.
+  // One header for all three states.
   const header = (
     <div className="mb-4 shrink-0">
       <h1 className="text-2xl font-bold tracking-tight text-fg">Library</h1>
       <p className="mt-1 text-sm text-fg-muted">
-        {/*
-          Galleries, not rows. Collapsing fifteen volumes into one card must not
-          read as losing fourteen items, so the headline stays the true size of
-          the library and the row count is mentioned only when it differs.
-        */}
         {galleryCount > 0 ? (
           <>
             <span className="tnum">{galleryCount}</span> items in library
@@ -1030,21 +859,12 @@ export default function LibraryPage(): React.JSX.Element {
   return (
     <div className="flex flex-col h-full">
       {header}
-      {/*
-        One notification region. These were four separately styled banners with
-        their own paddings and margins; with two visible at once the grid began
-        below the fold. Now they share a container, a gap and a shape.
-
-        The storage warning is `warning`, not `error` — it previously wore the
-        same red as a genuine failure despite the app still working from cached
-        metadata.
-      */}
       <ProgressStack jobs={jobs} />
       <NoticeRegion>
         <ResumeConversionBanner />
       <ResumeSyncBanner />
         {error && (
-          <Notice tone="error" onDismiss={() => setError(null)}>
+          <Notice tone="error" onDismiss={() => useLibraryStore.getState().setError(null)}>
             {error}
           </Notice>
         )}
@@ -1056,15 +876,6 @@ export default function LibraryPage(): React.JSX.Element {
         )}
       </NoticeRegion>
 
-      {/*
-        Toolbar. Only view-level actions live here; batch actions moved to the
-        selection bar below the grid, so entering select mode no longer grows
-        this row from three buttons to eight and pushes the grid off screen.
-
-        The scan control is one button whose label, icon and handler change with
-        state, rather than four differently coloured buttons across three
-        branches.
-      */}
       <div className="flex flex-wrap items-center gap-2 mb-4">
         {!scanning && !scanPaused && (
           <Button
@@ -1110,7 +921,7 @@ export default function LibraryPage(): React.JSX.Element {
             type="text"
             placeholder="Search library..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => useLibraryStore.getState().setSearchQuery(e.target.value)}
             className="w-48 md:w-56 pl-8 pr-3 py-2 rounded-lg border border-line bg-surface text-sm text-fg focus:ring-2 focus:ring-accent focus:border-transparent"
           />
           <svg className="absolute left-2.5 top-2.5 h-4 w-4 text-fg-faint" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1121,7 +932,7 @@ export default function LibraryPage(): React.JSX.Element {
         {/* Sort dropdown */}
         <select
           value={sortField}
-          onChange={(e) => setSortField(e.target.value as SortField)}
+          onChange={(e) => useLibraryStore.getState().setSortField(e.target.value as SortField)}
           className="px-3 py-2 rounded-lg border border-line bg-surface text-sm text-fg focus:ring-2 focus:ring-accent"
         >
           <option value="added">Date Added</option>
@@ -1129,37 +940,25 @@ export default function LibraryPage(): React.JSX.Element {
           <option value="artist">Artist</option>
         </select>
 
-        {/*
-          Filters toggle. `inline-flex items-center` matters: the icon is an inline
-          <svg>, and without it the svg sat on the text baseline and inflated the
-          line box, making this button visibly taller than the others in the row.
-        */}
         <button
-          onClick={() => setShowFilters(!showFilters)}
-          className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${showFilters || selectedArtistFilters.size > 0 || selectedSeriesFilters.size > 0 || showUnmatchedOnly ? 'bg-accent-wash text-accent' : 'bg-raised text-fg-muted hover:bg-raised'}`}
+          onClick={() => useLibraryStore.getState().setShowFilters(!showFilters)}
+          className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${showFilters || selectedArtistFilters.length > 0 || selectedSeriesFilters.length > 0 || showUnmatchedOnly ? 'bg-accent-wash text-accent' : 'bg-raised text-fg-muted hover:bg-raised'}`}
         >
           <SlidersHorizontal size={16} aria-hidden="true" />
           Filters
-          {(selectedArtistFilters.size > 0 || selectedSeriesFilters.size > 0 || showUnmatchedOnly) && (
-            <span className="tnum text-xs">({selectedArtistFilters.size + selectedSeriesFilters.size + (showUnmatchedOnly ? 1 : 0)})</span>
+          {(selectedArtistFilters.length > 0 || selectedSeriesFilters.length > 0 || showUnmatchedOnly) && (
+            <span className="tnum text-xs">({selectedArtistFilters.length + selectedSeriesFilters.length + (showUnmatchedOnly ? 1 : 0)})</span>
           )}
         </button>
       </div>
 
-      {/*
-        View mode, its own row on the left.
-
-        It used to wrap onto a second line because the toolbar was full; removing
-        the Select button freed enough width that it pulled up into the toolbar,
-        where it read as one more control in a crowded row and squeezed Filters.
-        Its own row keeps it put regardless of how wide the toolbar gets.
-      */}
+      {/* View mode row */}
       <div className="mb-4 flex shrink-0 items-center">
         <div className="flex rounded-lg border border-line overflow-hidden">
           {(['grid', 'compact', 'list'] as ViewMode[]).map((mode) => (
             <button
               key={mode}
-              onClick={() => setViewModePersisted(mode)}
+              onClick={() => useLibraryStore.getState().setViewMode(mode)}
               className={`px-2.5 py-1.5 text-xs font-medium transition-colors ${
                 viewMode === mode
                   ? 'bg-accent-fill text-white'
@@ -1179,33 +978,12 @@ export default function LibraryPage(): React.JSX.Element {
         </div>
       </div>
 
-      {/*
-        Selection bar.
-
-        Above the grid, directly under the toolbar. Below the grid it was easy to
-        miss entirely — with a full page of cards it sat off screen, so the
-        actions for a selection you had just made were somewhere you had to go
-        looking for. It is still its own bar rather than part of the toolbar, so
-        entering select mode does not reflow the toolbar row.
-
-        Destructive actions sit last, after a divider, in the `danger` role —
-        outlined rather than filled, since a filled red would read as the
-        primary action of the view.
-      */}
+      {/* Selection bar */}
       {selectMode && (
         <div className="shrink-0 mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-accent/40 bg-accent-wash px-3 py-2">
-          {/*
-            Two scopes, grouped. The checkbox covers what is loaded; the grid is
-            virtualised, so on a large library that is only the pages fetched so
-            far. The second button resolves every id matching the current
-            filters, which is why its label quotes the same total the header
-            does.
-          */}
           <label className="flex cursor-pointer items-center gap-2 text-sm text-fg">
             <input
               type="checkbox"
-              // Compared against the galleries on screen, which a page holding
-              // series has more of than it has rows.
               checked={allVisibleSelected}
               onChange={toggleSelectAll}
               className="h-4 w-4 rounded border-line text-accent focus:ring-accent"
@@ -1246,8 +1024,6 @@ export default function LibraryPage(): React.JSX.Element {
                 /* the sync worker reports its own failures to the log */
               }
               setBatchSyncing(false)
-              // Synced titles and tags were previously invisible until the page
-              // was left and come back to.
               void refreshLoaded()
             }}
             disabled={batchSyncing}
@@ -1269,15 +1045,6 @@ export default function LibraryPage(): React.JSX.Element {
             {cbzRunning ? 'Converting…' : 'Convert to CBZ'}
           </Button>
 
-          {/*
-            The three exit-and-destroy actions, as one right-aligned group.
-
-            Grouped rather than each carrying its own `ml-auto`, which on a
-            wrapping row put arbitrary space in front of whichever button landed
-            last. All three are filled or outlined so none of them recedes: two
-            of these delete things and the third is how you leave selection mode,
-            so a ghost button that fades into the bar was the wrong treatment.
-          */}
           <div className="ml-auto flex items-center gap-2">
             <Button
               size="sm"
@@ -1293,13 +1060,6 @@ export default function LibraryPage(): React.JSX.Element {
 
             <span className="mx-1 h-5 w-px bg-line" />
 
-            {/*
-              Done is the primary here. Selection mode is entered by ticking a
-              card's checkbox, so there is no Select button in the toolbar — that
-              button could not work anyway: it set selectMode with nothing
-              selected, and the effect that exits selection mode when the set is
-              empty immediately turned it back off.
-            */}
             <Button
               size="sm"
               role="primary"
@@ -1316,7 +1076,6 @@ export default function LibraryPage(): React.JSX.Element {
         </div>
       )}
 
-      {/* Scan progress bar */}
       {/* Filter panel */}
       {showFilters && (
         <div className="mb-4 p-4 rounded-lg bg-raised/50 border border-line">
@@ -1325,7 +1084,7 @@ export default function LibraryPage(): React.JSX.Element {
               <SearchableFilterDropdown
                 label="Artists"
                 allItems={artistNames}
-                selected={selectedArtistFilters}
+                selected={artistFilterSet}
                 onToggle={toggleArtistFilter}
                 placeholder="Search artists..."
               />
@@ -1335,7 +1094,7 @@ export default function LibraryPage(): React.JSX.Element {
               <SearchableFilterDropdown
                 label="Series"
                 allItems={seriesNames}
-                selected={selectedSeriesFilters}
+                selected={seriesFilterSet}
                 onToggle={toggleSeriesFilter}
                 placeholder="Search series..."
               />
@@ -1345,7 +1104,7 @@ export default function LibraryPage(): React.JSX.Element {
               <SearchableFilterDropdown
                 label="Tags"
                 allItems={tagNames}
-                selected={selectedTagFilters}
+                selected={tagFilterSet}
                 onToggle={toggleTagFilter}
                 placeholder="Search tags..."
               />
@@ -1354,19 +1113,22 @@ export default function LibraryPage(): React.JSX.Element {
             <div>
               <h4 className="text-sm font-medium text-fg mb-2">Other</h4>
               <label className="flex items-center gap-2 text-sm text-fg-muted cursor-pointer hover:text-fg">
-                <input type="checkbox" checked={showUnmatchedOnly} onChange={() => setShowUnmatchedOnly(!showUnmatchedOnly)} className="w-3.5 h-3.5 rounded border-line text-accent focus:ring-accent" />
-                {/*
-                  Was "Unmatched only", which gave no clue that it finds the
-                  items with no nhentai id — the ones that cannot be synced and
-                  are the whole point of attaching one by hand.
-                */}
+                <input
+                  type="checkbox"
+                  checked={showUnmatchedOnly}
+                  onChange={() => useLibraryStore.getState().setShowUnmatchedOnly(!showUnmatchedOnly)}
+                  className="w-3.5 h-3.5 rounded border-line text-accent focus:ring-accent"
+                />
                 No nhentai ID
               </label>
             </div>
           </div>
 
-          {(selectedArtistFilters.size > 0 || selectedSeriesFilters.size > 0 || showUnmatchedOnly) && (
-            <button onClick={() => { setSelectedArtistFilters(new Set()); setSelectedSeriesFilters(new Set()); setShowUnmatchedOnly(false) }} className="mt-3 text-xs text-accent hover:underline">
+          {(selectedArtistFilters.length > 0 || selectedSeriesFilters.length > 0 || showUnmatchedOnly) && (
+            <button
+              onClick={() => useLibraryStore.getState().resetFilters()}
+              className="mt-3 text-xs text-accent hover:underline"
+            >
               Clear all filters
             </button>
           )}
@@ -1383,18 +1145,10 @@ export default function LibraryPage(): React.JSX.Element {
             <div className="w-3.5 shrink-0" />
             <div className="flex-1 min-w-0">Title</div>
             <div className="w-32 shrink-0">Artist</div>
-            {/*
-              Series gets the width freed from Size and Date. Volume is no longer
-              right-aligned: a short "V1" pushed to the right edge of its cell
-              left an obvious gap after a truncated series name, which read as
-              the series being cut off early for no reason. Left-aligned, the two
-              sit together as the pair they are.
-            */}
             <div className="w-36 shrink-0">Series</div>
             <div className="w-10 shrink-0">Vol</div>
             <div className="w-16 shrink-0">Lang</div>
             <div className="w-14 shrink-0">Fmt</div>
-            {/* Size never exceeds '999.9 KB'; the date is at most 'dd.mm.yyyy'. */}
             <div className="w-16 shrink-0 text-right">Size</div>
             <div className="w-20 shrink-0 text-right">Date</div>
           </div>
@@ -1435,7 +1189,7 @@ export default function LibraryPage(): React.JSX.Element {
                     }`}
                     onClick={() => {
                       if (selectMode) handleSeriesToggle(series)
-                      else setDetailSeries(series)
+                      else useLibraryStore.getState().setDetailSeries(series)
                     }}
                   >
                     <input
@@ -1448,11 +1202,6 @@ export default function LibraryPage(): React.JSX.Element {
                       onClick={(e) => e.stopPropagation()}
                       className="h-4 w-4 shrink-0 rounded border-line text-accent focus:ring-accent"
                     />
-                    {/*
-                      A series occupies the Title column and marks itself with the
-                      same stack icon the grid card uses, so the two views agree
-                      about what a series looks like.
-                    */}
                     <div className="flex min-w-0 flex-1 items-center gap-2">
                       <Layers size={14} className="shrink-0 text-accent" aria-hidden="true" />
                       <span className="truncate text-sm font-medium text-fg">{series.name}</span>
@@ -1499,11 +1248,10 @@ export default function LibraryPage(): React.JSX.Element {
                       toggleSelect(item.id)
                     } else {
                       const found = items.find((i) => i.id === item.id)
-                      if (found) setDetailItem(found)
+                      if (found) useLibraryStore.getState().setDetailItem(found)
                     }
                   }}
                 >
-                  {/* Checkbox */}
                   <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
                     <input
                       type="checkbox"
@@ -1512,7 +1260,6 @@ export default function LibraryPage(): React.JSX.Element {
                       className="w-3.5 h-3.5 rounded border-line text-accent focus:ring-accent"
                     />
                   </div>
-                  {/* Title */}
                   <div className="flex-1 min-w-0">
                     <InlineEditCell
                       value={item.customTitle || ''}
@@ -1522,7 +1269,6 @@ export default function LibraryPage(): React.JSX.Element {
                       className="text-sm font-medium text-fg truncate"
                     />
                   </div>
-                  {/* Artist */}
                   <div className="w-32 shrink-0">
                     <InlineEditCell
                       value={item.primaryArtist || ''}
@@ -1533,7 +1279,6 @@ export default function LibraryPage(): React.JSX.Element {
                       className="text-xs text-fg-muted truncate"
                     />
                   </div>
-                  {/* Series */}
                   <div className="w-36 shrink-0">
                     <InlineEditCell
                       value={item.seriesName || ''}
@@ -1544,7 +1289,6 @@ export default function LibraryPage(): React.JSX.Element {
                       className="text-xs text-info truncate"
                     />
                   </div>
-                  {/* Volume */}
                   <div className="w-10 shrink-0">
                     <InlineEditCell
                       value={item.seriesIndex != null ? String(item.seriesIndex) : ''}
@@ -1554,19 +1298,15 @@ export default function LibraryPage(): React.JSX.Element {
                       className="text-xs text-fg-muted"
                     />
                   </div>
-                  {/* Language */}
                   <div className="w-16 shrink-0">
                     <p className="text-xs text-fg-muted truncate">{item.language || item.customLanguage || '—'}</p>
                   </div>
-                  {/* Format */}
                   <div className="w-14 shrink-0">
                     <span className="text-xs px-1.5 py-0.5 rounded bg-accent-wash text-accent">{item.format?.toUpperCase() || 'PDF'}</span>
                   </div>
-                  {/* Size */}
                   <div className="w-16 shrink-0 text-right">
                     <p className="tnum text-xs text-fg-muted">{formatSize(item.fileSize)}</p>
                   </div>
-                  {/* Date */}
                   <div className="w-20 shrink-0 text-right">
                     <p className="tnum text-xs text-fg-faint">{addedDate}</p>
                   </div>
@@ -1609,11 +1349,8 @@ export default function LibraryPage(): React.JSX.Element {
                     onToggleSelect={handleSeriesToggle}
                     compact={viewMode === 'compact'}
                     onClick={(series) => {
-                      // In selection mode a click is a selection, matching how a
-                      // gallery card behaves — otherwise clicking to add a second
-                      // series to the selection would navigate away instead.
                       if (selectMode) handleSeriesToggle(series)
-                      else setDetailSeries(series)
+                      else useLibraryStore.getState().setDetailSeries(series)
                     }}
                   />
                 )
@@ -1632,7 +1369,7 @@ export default function LibraryPage(): React.JSX.Element {
                       toggleSelect(id)
                     } else {
                       const found = items.find((i) => i.id === id)
-                      if (found) setDetailItem(found)
+                      if (found) useLibraryStore.getState().setDetailItem(found)
                     }
                   }}
                 />
@@ -1643,7 +1380,7 @@ export default function LibraryPage(): React.JSX.Element {
         </div>
       )}
 
-      {/* Convert to CBZ — asks what to do with the source PDFs */}
+      {/* Convert to CBZ dialog */}
       {showConvertDialog && (
         <ConvertToCbzDialog
           count={pdfSelectionCount}
@@ -1680,32 +1417,23 @@ export default function LibraryPage(): React.JSX.Element {
         }}
       />
 
-      {/*
-        Series Detail. Opening a gallery from inside it closes this first, so
-        the two panels never stack — LibraryDetail is itself a full overlay.
-      */}
+      {/* Series Detail */}
       {detailSeries && (
         <SeriesDetail
-          // Keyed, so opening a different series remounts rather than showing
-          // the previous one's members while the new ones load.
           key={detailSeries.id}
           series={detailSeries}
-          // The same filters the grid queried with, so the panel dims exactly
-          // the members the card left out of its "3 of 15".
           filters={{
             searchQuery: debouncedSearch || undefined,
-            artistFilters: selectedArtistFilters.size > 0 ? [...selectedArtistFilters] : undefined,
-            seriesFilters: selectedSeriesFilters.size > 0 ? [...selectedSeriesFilters] : undefined,
-            tagFilters: selectedTagFilters.size > 0 ? [...selectedTagFilters] : undefined,
+            artistFilters: selectedArtistFilters.length > 0 ? selectedArtistFilters : undefined,
+            seriesFilters: selectedSeriesFilters.length > 0 ? selectedSeriesFilters : undefined,
+            tagFilters: selectedTagFilters.length > 0 ? selectedTagFilters : undefined,
             showUnmatchedOnly: showUnmatchedOnly || undefined
           }}
-          onClose={() => setDetailSeries(null)}
+          onClose={() => useLibraryStore.getState().setDetailSeries(null)}
           onOpenItem={(item) => {
-            setDetailSeries(null)
-            setDetailItem(item)
+            useLibraryStore.getState().setDetailSeries(null)
+            useLibraryStore.getState().setDetailItem(item)
           }}
-          // Renaming or ungrouping changes what the grid should show, so the
-          // page behind the panel reloads rather than going stale.
           onChanged={() => fetchPage(0, true)}
         />
       )}
@@ -1714,36 +1442,32 @@ export default function LibraryPage(): React.JSX.Element {
       <LibraryDetail
         item={detailItem}
         libraryRoot={libraryRoot}
-        onClose={() => setDetailItem(null)}
+        onClose={() => useLibraryStore.getState().setDetailItem(null)}
         onDeleted={() => {
-          setDetailItem(null)
+          useLibraryStore.getState().setDetailItem(null)
           fetchPage(0, true)
         }}
         onUpdated={() => {
-          // Not fetchPage(0, true): that discards every page loaded by
-          // scrolling and unmounts this panel through the loading branch.
           void refreshLoaded()
         }}
         onFilterArtist={(artist) => {
-          setSelectedArtistFilters(new Set([artist]))
-          setShowFilters(true)
+          useLibraryStore.getState().setSelectedArtistFilters([artist])
+          useLibraryStore.getState().setShowFilters(true)
           fetchPage(0, true)
         }}
         onFilterPublisher={(publisher) => {
-          setSelectedArtistFilters(new Set([publisher]))
-          setShowFilters(true)
+          useLibraryStore.getState().setSelectedArtistFilters([publisher])
+          useLibraryStore.getState().setShowFilters(true)
           fetchPage(0, true)
         }}
         onFilterTag={(tag) => {
-          setSelectedTagFilters(new Set([tag]))
-          setShowFilters(true)
+          useLibraryStore.getState().setSelectedTagFilters([tag])
+          useLibraryStore.getState().setShowFilters(true)
           fetchPage(0, true)
         }}
         onOpenSeries={(ref) => {
-          // Swap panels rather than stacking them: LibraryDetail is itself a
-          // full overlay, so leaving it open would sit behind the series.
-          setDetailItem(null)
-          setDetailSeries(ref)
+          useLibraryStore.getState().setDetailItem(null)
+          useLibraryStore.getState().setDetailSeries(ref)
         }}
         onOpenInSearch={(galleryId) => {
           useSearchStore.getState().setPendingGalleryId(galleryId)
