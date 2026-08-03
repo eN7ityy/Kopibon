@@ -41,7 +41,10 @@ const THUMB_WIDTH = 600
 const THUMB_HEIGHT = 800
 const THUMB_QUALITY = 82
 
-const APP_DIR = join(homedir(), '.config', 'doujin-downloader')
+// Honour the same env var the app sets, so the tool reads the same database
+// when run on a machine (or against a userData dir) that does not match the
+// homedir convention — e.g. Windows, where the app lives under %APPDATA%.
+const APP_DIR = process.env.DOUJIN_DATA_DIR || join(homedir(), '.config', 'doujin-downloader')
 
 // ─── Arguments ───────────────────────────────────────────────────────────────
 

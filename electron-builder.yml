@@ -3,6 +3,12 @@ productName: Doujin Downloader
 directories:
   buildResources: build
 files:
+  - '!docs/*'
+  - '!tools/*'
+  - '!plans/*'
+  - '!kavita_api.json'
+  - '!nhentai-api-v2-reference.md'
+  - '!openapi_documentation.json'
   - '!**/.vscode/*'
   - '!src/*'
   - '!electron.vite.config.{js,ts,mjs,cjs}'
@@ -12,6 +18,10 @@ files:
   - '!drizzle.config.ts'
 asarUnpack:
   - resources/**
+  # Native addons (.node files) and their shared libraries must live outside the
+  # ASAR or worker threads cannot resolve them. Without this, sharp silently
+  # fails in the download worker and no thumbnails are ever generated.
+  - node_modules/@img/**
 # Ship the licence texts next to the binary rather than only inside the asar.
 # Most bundled dependencies (MIT, BSD, ISC, Apache-2.0) require their notice to
 # travel with the software, and libvips is LGPL-3.0-or-later.
@@ -40,6 +50,7 @@ linux:
   target:
     - AppImage
     - rpm
+    - deb
   maintainer: eN7ity
   category: Utility
   # Runtime tools the app shells out to. They are NOT bundled: pikepdf writes
@@ -59,6 +70,10 @@ appImage:
   artifactName: ${name}-${version}.${ext}
 rpm:
   artifactName: ${name}-${version}.${ext}
+  depends:
+    - poppler-utils
+    - python3-pikepdf
+deb:
   depends:
     - poppler-utils
     - python3-pikepdf

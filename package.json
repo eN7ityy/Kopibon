@@ -19,6 +19,7 @@
     "build:unpack": "npm run build && electron-builder --dir",
     "build:win": "npm run build && electron-builder --win",
     "build:linux": "electron-vite build && electron-builder --linux",
+    "build:appimage": "electron-vite build && electron-builder --linux AppImage",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",

@@ -44,8 +44,12 @@ const target = argv.find((a) => !a.startsWith('--'))
 const dryRun = argv.includes('--dry-run')
 const limitArg = argv.find((a) => a.startsWith('--limit='))
 const limit = limitArg ? Number(limitArg.slice(8)) || 0 : 0
+// Honour the same env var the app sets, so the tool reads the same database
+// when run on a machine that does not match the homedir convention (e.g.
+// Windows, where the app lives under %APPDATA%).
+const appDataDir = process.env.DOUJIN_DATA_DIR || join(homedir(), '.config', 'doujin-downloader')
 const dbArg = argv.find((a) => a.startsWith('--db='))
-const dbPath = dbArg ? dbArg.slice(5) : join(homedir(), '.config', 'doujin-downloader', 'db.sqlite')
+const dbPath = dbArg ? dbArg.slice(5) : join(appDataDir, 'db.sqlite')
 
 /*
  * Use the same templates the app uses.
@@ -55,7 +59,7 @@ const dbPath = dbArg ? dbArg.slice(5) : join(homedir(), '.config', 'doujin-downl
  * the fallback, which is what a checkout with no installed app has.
  */
 const templateArg = argv.find((a) => a.startsWith('--templates='))
-const userTemplates = join(homedir(), '.config', 'doujin-downloader', 'metadata-templates')
+const userTemplates = join(appDataDir, 'metadata-templates')
 const templateDir = templateArg
   ? templateArg.slice(12)
   : existsSync(userTemplates)

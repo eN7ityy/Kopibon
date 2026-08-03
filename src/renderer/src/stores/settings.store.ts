@@ -65,7 +65,10 @@ interface SettingsState {
   saveToDb: () => Promise<void>
 }
 
-const DEFAULT_LIBRARY_PATH = '/mnt/bragi/Kavita/Doujins/'
+// Empty rather than a guessed path: there is no library path that makes sense
+// on every machine, so a fresh install starts blank and the Settings field
+// shows "Not set" until the user configures their own.
+const DEFAULT_LIBRARY_PATH = ''
 
 export const useSettingsStore = create<SettingsState>()((set, get) => ({
   libraryPath: DEFAULT_LIBRARY_PATH,

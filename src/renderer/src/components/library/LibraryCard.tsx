@@ -65,15 +65,23 @@ export default function LibraryCard({
   const title = item.customTitle || item.primaryArtist || `Item #${item.id}`
   const artist = item.primaryArtist || 'Unknown'
 
-  // Fetch thumbnail via IPC (always attempt, DB handler checks if exists)
+  // Fetch thumbnail via IPC. The handler returns null until the cover file is
+  // actually on disk (after a download finishes), so poll every 2 s. Cheap:
+  // each call reads one SQLite row and checks one file. The first poll fires
+  // immediately on mount.
   useEffect(() => {
     let cancelled = false
-    window.api.library.getThumbnail(item.id).then((result) => {
-      if (!cancelled && result.success && result.data) {
-        setThumbDataUrl(result.data)
-      }
-    }).catch(() => setImgError(true))
-    return () => { cancelled = true }
+    const fetch = () => {
+      if (cancelled) return
+      window.api.library.getThumbnail(item.id).then((result) => {
+        if (!cancelled && result.success && result.data) {
+          setThumbDataUrl(result.data)
+        }
+      }).catch(() => { /* keep polling */ })
+    }
+    fetch()
+    const interval = setInterval(fetch, 2000)
+    return () => { cancelled = true; clearInterval(interval) }
   }, [item.id])
 
   const coverSrc = thumbDataUrl && !imgError ? thumbDataUrl : null

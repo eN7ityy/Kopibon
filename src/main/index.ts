@@ -89,6 +89,17 @@ function createWindow(): void {
 app.whenReady().then(async () => {
   electronApp.setAppUserModelId('com.en7ity.doujin-downloader')
 
+  // ─── Data directory ──────────────────────────────────────────────────
+  //
+  // Resolve the data directory once, here in the main process, and publish it
+  // to worker threads through an env var they inherit. Workers cannot import
+  // Electron's `app`, so without this they would fall back to a homedir-based
+  // path that diverges from app.getPath('userData') on Windows (AppData vs
+  // .config) — giving every worker its own separate, empty database. Must run
+  // before initDatabase() and before any worker is spawned.
+
+  process.env.DOUJIN_DATA_DIR = app.getPath('userData')
+
   // ─── Logger ──────────────────────────────────────────────────────────
 
   const logDir = join(app.getPath('userData'), 'logs')

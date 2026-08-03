@@ -10,6 +10,19 @@ let _dbPath: string | null = null
 
 function resolveDbDir(): string {
   if (_dbDir) return _dbDir
+
+  // The main process sets DOUJIN_DATA_DIR to app.getPath('userData') at
+  // startup, and worker threads inherit it. This keeps every thread reading
+  // the same database. The homedir fallback below would diverge from
+  // Electron's userData on Windows (AppData vs .config) and silently give
+  // each worker its own empty database, which is why it is last resort only.
+  const fromEnv = process.env.DOUJIN_DATA_DIR
+  if (fromEnv) {
+    _dbDir = fromEnv
+    _dbPath = join(fromEnv, 'db.sqlite')
+    return _dbDir
+  }
+
   // Use app.getPath('userData') when available (main process), fall back to
   // homedir() for worker threads where Electron is not importable.
   try {
@@ -108,7 +121,11 @@ function seedDefaults(sqlite: Database.Database): void {
   if (row.cnt > 0) return
 
   const defaults: Record<string, string> = {
-    libraryPath: '/mnt/bragi/Kavita/Doujins/',
+    // Empty, not a guessed path: no sensible default exists that works on
+    // every machine. The user must set their own library path before
+    // downloading or scanning, and the Settings field shows "Not set" until
+    // they do.
+    libraryPath: '',
     downloadConcurrency: '3',
     outputFormat: 'pdf',
     compressPdf: 'true',

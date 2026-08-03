@@ -68,7 +68,11 @@ interface PdfMetadata {
 const NHENTAI_ID_REGEX = /nhentai:(\d+)/i
 const FILENAME_ID_REGEX = /\[nhentai-(\d+)\]/
 const PROGRESS_INTERVAL = 1
-const LOG_DIR = join(homedir(), '.config', 'doujin-downloader', 'logs')
+// The main process sets DOUJIN_DATA_DIR to app.getPath('userData') and workers
+// inherit it; without it the homedir fallback would diverge from Electron's
+// userData on Windows (AppData vs .config).
+const DATA_DIR = process.env.DOUJIN_DATA_DIR || join(homedir(), '.config', 'doujin-downloader')
+const LOG_DIR = join(DATA_DIR, 'logs')
 
 // ─── State ───────────────────────────────────────────────────────────────────
 
@@ -84,7 +88,7 @@ let resolvePause: (() => void) | null = null
  * database still held valid-looking paths to them. A fallback must not be
  * volatile — it now matches the log directory convention above.
  */
-let currentThumbnailDir = join(homedir(), '.config', 'doujin-downloader', 'thumbnails')
+let currentThumbnailDir = join(DATA_DIR, 'thumbnails')
 
 // ─── Logging ─────────────────────────────────────────────────────────────────
 

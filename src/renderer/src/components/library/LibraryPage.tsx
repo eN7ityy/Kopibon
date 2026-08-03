@@ -571,6 +571,21 @@ export default function LibraryPage(): React.JSX.Element {
     }
   }, [fetchPage])
 
+  // ─── Download Event Listener ──────────────────────────────────────────────
+  //
+  // When a download finishes, the placeholder row gains its cover path and a
+  // real file path. Refresh the loaded rows so LibraryCard's thumbnail effect
+  // (keyed on customCoverPath) re-fires and the cover appears without a remount.
+  // Cheap and fire-and-forget; only the currently loaded page is re-fetched.
+  useEffect(() => {
+    const unsubProgress = window.api.onDownloadProgress((progress) => {
+      if (progress.status === 'completed') {
+        void refreshLoaded()
+      }
+    })
+    return unsubProgress
+  }, [refreshLoaded])
+
   // ─── Rescan ────────────────────────────────────────────────────────────────
 
   const handleRescan = async () => {
