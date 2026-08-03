@@ -63,6 +63,8 @@ export interface GalleryDetail {
   tags: TagResponse[]
   num_pages: number
   num_favorites: number
+  /** Only present when ?include=favorite is passed (requires API key). Null otherwise. */
+  is_favorited?: boolean | null
   pages: PageInfo[]
 }
 

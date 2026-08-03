@@ -130,11 +130,6 @@ export function registerApiIpc(): void {
     return { success: true, data: results }
   })
 
-  handle('api:checkFavorite', async (_event, galleryId: number) => {
-    const isFav = await client.checkFavorite(galleryId)
-    return { success: true, data: isFav }
-  })
-
   handle('api:addFavorite', async (_event, galleryId: number) => {
     await client.addFavorite(galleryId)
     // num_favorites just changed — don't keep serving the stale detail

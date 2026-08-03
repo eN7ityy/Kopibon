@@ -74,6 +74,8 @@ export interface GalleryDetail {
   tags: TagResponse[]
   num_pages: number
   num_favorites: number
+  /** Only present when ?include=favorite is passed (requires API key). Null otherwise. */
+  is_favorited?: boolean | null
   pages: PageInfo[]
 }
 
@@ -228,7 +230,11 @@ export class ApiClient {
   }
 
   async getGallery(id: number): Promise<GalleryDetail> {
-    return this.request<GalleryDetail>('gallery', `/galleries/${id}`)
+    // is_favorited only comes back when ?include=favorite is passed, and that
+    // requires an API key. Anonymous users cannot check favorite status, so
+    // leave the query off for them.
+    const query = this.apiKey ? '?include=favorite' : ''
+    return this.request<GalleryDetail>('gallery', `/galleries/${id}${query}`)
   }
 
   async getCdnConfig(): Promise<CdnConfig> {
@@ -302,18 +308,6 @@ export class ApiClient {
         limit: Math.min(Math.max(options.limit ?? 10, 1), 50)
       }
     })
-  }
-
-  async checkFavorite(galleryId: number): Promise<boolean> {
-    try {
-      const result = await this.request<FavoriteResponse>(
-        'favorite',
-        `/galleries/${galleryId}/favorite`
-      )
-      return result.favorited
-    } catch {
-      return false
-    }
   }
 
   async addFavorite(galleryId: number): Promise<void> {

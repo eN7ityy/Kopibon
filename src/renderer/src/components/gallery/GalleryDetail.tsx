@@ -16,6 +16,13 @@ import { AlertCircle, BookOpen, Check, FolderOpen, Heart, ListX, Loader2, Trash2
 
 interface GalleryDetailProps {
   galleryId: number
+  /** When provided, skip the API favorite check and use this value directly.
+   *  The Favorites tab passes true — every gallery there is favorited by definition. */
+  initialFavorited?: boolean
+  /** Fired after a successful un-favorite, so the caller can drop the gallery
+   *  from its list without refetching. The Favorites tab uses this to remove
+   *  the card immediately. */
+  onUnfavorited?: (galleryId: number) => void
   onClose: () => void
   onDownload: (galleryId: number, format?: OutputFormat) => void
   onAddToQueue?: (galleryId: number) => void
@@ -41,6 +48,8 @@ function formatDate(timestamp: number): string {
 
 export default function GalleryDetailPanel({
   galleryId,
+  initialFavorited,
+  onUnfavorited,
   onClose,
   onDownload,
   onTagClick,
@@ -58,7 +67,7 @@ export default function GalleryDetailPanel({
   const [libraryPath, setLibraryPath] = useState<string | null>(null)
   const [relatedGalleries, setRelatedGalleries] = useState<RelatedGallery[]>([])
   const [relatedFacts, setRelatedFacts] = useState<Record<number, LibraryFacts>>({})
-  const [isFavorited, setIsFavorited] = useState(false)
+  const [isFavorited, setIsFavorited] = useState(initialFavorited ?? false)
   const [favLoading, setFavLoading] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState<'none' | 'remove' | 'deleteFile'>('none')
   const [deleting, setDeleting] = useState(false)
@@ -94,6 +103,13 @@ export default function GalleryDetailPanel({
       const result = await window.api.getGallery(galleryId)
       if (result.success && result.data) {
         setDetail(result.data)
+        // If initialFavorited is provided (Favorites tab) it wins and no
+        // override happens. Otherwise the API response controls the heart:
+        // is_favorited is null when no API key is configured (no
+        // ?include=favorite was sent), so the heart shows unfilled.
+        if (initialFavorited === undefined) {
+          setIsFavorited(result.data.is_favorited ?? false)
+        }
         await fetchStatus()
       } else {
         setError(result.error || 'Gallery not found')
@@ -103,7 +119,7 @@ export default function GalleryDetailPanel({
     } finally {
       setLoading(false)
     }
-  }, [galleryId, fetchStatus])
+  }, [galleryId, fetchStatus, initialFavorited])
 
   useEffect(() => {
     fetchDetail()
@@ -111,19 +127,6 @@ export default function GalleryDetailPanel({
     const interval = setInterval(fetchStatus, 2000)
     return () => clearInterval(interval)
   }, [fetchDetail, fetchStatus])
-
-  // Check favorite status when detail loads
-  useEffect(() => {
-    if (!detail || !auth.loggedIn) return
-    let cancelled = false
-    window.api.checkFavorite(galleryId).then((result) => {
-      if (cancelled) return
-      if (result.success) {
-        setIsFavorited(result.data)
-      }
-    }).catch(() => { /* silently ignore */ })
-    return () => { cancelled = true }
-  }, [detail, galleryId, auth.loggedIn])
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent): void => {
