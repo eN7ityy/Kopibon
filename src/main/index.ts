@@ -282,6 +282,13 @@ app.whenReady().then(async () => {
     })
   })
 
+  // Pre-release builds (e.g. 1.0.0-beta.42) opt into pre-release updates so
+  // beta testers automatically receive newer betas. Stable builds keep the
+  // default (only stable releases).
+  if (/beta/.test(app.getVersion())) {
+    autoUpdater.allowPrerelease = true
+  }
+
   // ─── Renderer log forwarding (§1.6) ─────────────────────────────────
 
   ipcMain.handle(
