@@ -10,6 +10,7 @@ import { registerLibraryIpc } from './ipc/library.ipc'
 import { registerSettingsIpc } from './ipc/settings.ipc'
 import { registerSearchSettingsIpc } from './ipc/search-settings.ipc'
 import { registerAuthIpc, restoreAuthFromDb } from './ipc/auth.ipc'
+import { registerKavitaIpc } from './ipc/kavita.ipc'
 import { inFlightHandlers } from './ipc/handle'
 import { getDownloadManager } from './services/download-manager'
 import { checkToolchain } from './services/toolchain'
@@ -168,6 +169,7 @@ app.whenReady().then(async () => {
   registerSettingsIpc()
   registerSearchSettingsIpc()
   registerAuthIpc()
+  registerKavitaIpc()
 
   // Restore any previously-validated API key from the DB
   restoreAuthFromDb()

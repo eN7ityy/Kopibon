@@ -8,6 +8,7 @@ import ConvertToCbzDialog from './ConvertToCbzDialog'
 import { AlertTriangle, BookOpen, FileArchive, FolderOpen, ListX, Loader2, Pencil, Trash2, X } from 'lucide-react'
 import { sortTags, tagClass, type TagLike } from '../shared/tags'
 import { useBlocked, blockedChipClass, blockedChipTitle } from '../shared/use-blocked'
+import { useSettingsStore } from '../../stores/settings.store'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -47,6 +48,40 @@ function formatDate(ts: number): string {
 
 const LANGUAGES = ['English', 'Japanese', 'Chinese', 'Other']
 
+/**
+ * Kavita series detail, loaded asynchronously from the Kavita server when the
+ * panel opens. Mirrors KavitaSeriesDetail in kavita-client.ts.
+ */
+interface KavitaDetail {
+  id: number
+  name: string
+  /** Kavita library id — part of the web URL (library/{id}/series/{seriesId}). */
+  libraryId: number
+  libraryName: string
+  pageCount: number
+  format: string
+  lastUpdated?: string
+  pagesRead?: number
+  totalReads?: number
+  /** Present when the item is a file inside the series — links to the reader. */
+  chapterId?: number
+  /** Kavita's chapter label (often just the number), for the chapter row. */
+  chapterTitle?: string
+  /** Chapters in the series; >1 means the item is part of a proper series. */
+  chapterCount?: number
+}
+
+function formatKavitaDate(iso: string): string {
+  const d = new Date(iso)
+  return Number.isNaN(d.getTime())
+    ? iso
+    : d.toLocaleDateString(undefined, {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      })
+}
+
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function LibraryDetail({
@@ -65,6 +100,8 @@ export default function LibraryDetail({
   const [saving, setSaving] = useState(false)
   const [deleteConfirmRaw, setDeleteConfirm] = useState<'none' | 'remove' | 'deleteFile'>('none')
   const [deleting, setDeleting] = useState(false)
+  /** For "Remove from Library": also drop the item from Kavita. */
+  const [alsoFromKavita, setAlsoFromKavita] = useState(false)
   const [detailSyncing, setDetailSyncing] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
   const [thumbDataUrl, setThumbDataUrl] = useState<string | null>(null)
@@ -72,6 +109,17 @@ export default function LibraryDetail({
   const [converting, setConverting] = useState(false)
   const [convertError, setConvertError] = useState<string | null>(null)
   const [showConvertDialog, setShowConvertDialog] = useState(false)
+
+  // Kavita connection, for the async detail block below. Only rendered once the
+  // server is fully configured.
+  const kavitaUrl = useSettingsStore((s) => s.kavitaUrl)
+  const kavitaApiKey = useSettingsStore((s) => s.kavitaApiKey)
+  const kavitaLibraryId = useSettingsStore((s) => s.kavitaLibraryId)
+  const kavitaConfigured = Boolean(
+    kavitaUrl.trim() && kavitaApiKey.trim() && kavitaLibraryId.trim()
+  )
+  const [kavitaDetail, setKavitaDetail] = useState<KavitaDetail | null>(null)
+  const [kavitaLoading, setKavitaLoading] = useState(false)
 
   // True while THIS item is being converted (or is queued for it). The main
   // process refuses edits, deletes, series changes and sync on such an item, so
@@ -321,9 +369,10 @@ export default function LibraryDetail({
     setDeleting(true)
     try {
       if (mode === 'deleteFile') {
+        // Deleting the file also removes it from Kavita automatically.
         await window.api.library.deleteFile(detail.id)
       } else {
-        await window.api.library.delete(detail.id)
+        await window.api.library.delete(detail.id, alsoFromKavita)
       }
       onDeleted()
       onClose()
@@ -414,10 +463,70 @@ export default function LibraryDetail({
     }
   }, [freshItem, item])
 
+  /*
+   * Kavita detail, loaded asynchronously when the panel opens.
+   *
+   * The item's title is searched on Kavita and the best-matching series is
+   * fetched. Skipped entirely when Kavita is not configured, so nothing renders
+   * for the common case.
+   */
+  useEffect(() => {
+    const id = (freshItem || item)?.id
+    // Galleries inside a series are indexed under the series name in Kavita,
+    // so search by that first; standalone items fall back to their own title.
+    const seriesName = (freshItem || item)?.seriesName || ''
+    const title = (freshItem || item)?.customTitle || ''
+    if (!id || !kavitaConfigured || !(seriesName || title)) {
+      setKavitaDetail(null)
+      setKavitaLoading(false)
+      return
+    }
+    const filePath = (freshItem || item)?.filePath || ''
+    let cancelled = false
+    setKavitaLoading(true)
+    window.api.kavita
+      .getSeriesDetail(seriesName, title, kavitaUrl.trim(), kavitaApiKey.trim(), filePath)
+      .then((r) => {
+        if (!cancelled) setKavitaDetail(r?.success ? (r.data as KavitaDetail | null) : null)
+      })
+      .catch(() => {
+        if (!cancelled) setKavitaDetail(null)
+      })
+      .finally(() => {
+        if (!cancelled) setKavitaLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [freshItem, item, kavitaConfigured, kavitaUrl, kavitaApiKey])
+
   if (!item) return null
 
   // Use freshly fetched data when available, fall back to prop
   const detail = freshItem || item
+
+  // Kavita web URLs: the item (chapter when it is inside a series, the series
+  // page otherwise) and the series itself.
+  const kavitaBase = kavitaUrl.trim().replace(/\/+$/, '')
+  const openKavitaItem = (): void => {
+    if (!kavitaDetail) return
+    const url =
+      kavitaDetail.chapterId != null
+        ? `${kavitaBase}/library/${kavitaDetail.libraryId}/series/${kavitaDetail.id}/chapter/${kavitaDetail.chapterId}`
+        : `${kavitaBase}/library/${kavitaDetail.libraryId}/series/${kavitaDetail.id}`
+    window.api.shell.openExternal(url)
+  }
+  const openKavitaSeries = (): void => {
+    if (!kavitaDetail) return
+    window.api.shell.openExternal(
+      `${kavitaBase}/library/${kavitaDetail.libraryId}/series/${kavitaDetail.id}`
+    )
+  }
+  /** A proper series (2+ galleries); standalone files show only the title. */
+  const isProperSeries =
+    kavitaDetail != null &&
+    kavitaDetail.chapterId != null &&
+    (kavitaDetail.chapterCount ?? 1) > 1
 
   const activeTags =
     typedTags && typedTags.galleryId === detail.galleryId ? typedTags.tags : []
@@ -812,6 +921,92 @@ export default function LibraryDetail({
                 </div>
               )}
             </div>
+
+            {/* Kavita — async detail from the Kavita server, when configured */}
+            {kavitaConfigured && (
+              <div className="border-t border-line pt-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-fg-muted">Kavita</span>
+                  {kavitaLoading && (
+                    <Loader2 size={12} className="animate-spin text-fg-faint" aria-hidden="true" />
+                  )}
+                </div>
+                {kavitaDetail ? (
+                  <>
+                    {/* Series + Chapter — side by side, like Format/Pages/Read.
+                        Only for a proper series (2+ galleries); standalone files
+                        show just the title. */}
+                    {isProperSeries && (
+                      <div className="flex gap-6">
+                        <div>
+                          <span className="text-xs font-medium text-fg-muted">Series</span>
+                          <button
+                            onClick={openKavitaSeries}
+                            className="block text-sm text-accent hover:underline cursor-pointer"
+                            title="Open this series in Kavita"
+                          >
+                            {kavitaDetail.name}
+                          </button>
+                        </div>
+                        <div>
+                          <span className="text-xs font-medium text-fg-muted">Chapter</span>
+                          <button
+                            onClick={openKavitaItem}
+                            className="block text-sm text-accent hover:underline cursor-pointer"
+                            title="Open this item in Kavita"
+                          >
+                            {kavitaDetail.chapterTitle || `#${kavitaDetail.chapterId}`}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    {/* Title — always; links to the individual item. */}
+                    <div>
+                      <span className="text-xs font-medium text-fg-muted">Title</span>
+                      <button
+                        onClick={openKavitaItem}
+                        className="block text-sm text-accent hover:underline cursor-pointer"
+                        title="Open this item in Kavita"
+                      >
+                        {detail.customTitle || kavitaDetail.name}
+                      </button>
+                    </div>
+                    <div className="flex gap-6">
+                      <div>
+                        <span className="text-xs font-medium text-fg-muted">Format</span>
+                        <p className="text-sm text-fg">{kavitaDetail.format}</p>
+                      </div>
+                      <div>
+                        <span className="text-xs font-medium text-fg-muted">Pages</span>
+                        <p className="tnum text-sm text-fg">{kavitaDetail.pageCount}</p>
+                      </div>
+                      {kavitaDetail.pagesRead != null && kavitaDetail.pageCount > 0 && (
+                        <div>
+                          <span className="text-xs font-medium text-fg-muted">Read</span>
+                          <p className="tnum text-sm text-fg">
+                            {kavitaDetail.pagesRead} / {kavitaDetail.pageCount}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                    {kavitaDetail.libraryName && (
+                      <div>
+                        <span className="text-xs font-medium text-fg-muted">Library</span>
+                        <p className="text-sm text-fg">{kavitaDetail.libraryName}</p>
+                      </div>
+                    )}
+                    {kavitaDetail.lastUpdated && (
+                      <div>
+                        <span className="text-xs font-medium text-fg-muted">Last scan</span>
+                        <p className="text-sm text-fg">{formatKavitaDate(kavitaDetail.lastUpdated)}</p>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  !kavitaLoading && <p className="text-xs text-fg-faint">Not found in Kavita.</p>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -880,9 +1075,20 @@ export default function LibraryDetail({
                 {deleteConfirm === 'remove' ? (
                   <div className="space-y-2">
                     <p className="text-xs text-warning">This will only remove the database entry. The file on disk will be kept.</p>
+                    {kavitaConfigured && (
+                      <label className="flex items-start gap-2 text-xs text-fg-muted">
+                        <input
+                          type="checkbox"
+                          checked={alsoFromKavita}
+                          onChange={(e) => setAlsoFromKavita(e.target.checked)}
+                          className="mt-0.5 w-4 h-4 rounded border-line text-accent focus:ring-accent bg-surface"
+                        />
+                        <span>Also remove from the Kavita library</span>
+                      </label>
+                    )}
                     <div className="flex gap-2">
                       <button onClick={() => handleDelete('remove')} disabled={deleting} className="flex-1 px-4 py-2 rounded-lg bg-warning-fill text-white text-sm font-medium hover:bg-warning-fill disabled:opacity-50">{deleting ? 'Removing...' : 'Confirm Remove'}</button>
-                      <button onClick={() => setDeleteConfirm('none')} className="px-4 py-2 rounded-lg bg-raised text-sm font-medium">Cancel</button>
+                      <button onClick={() => { setDeleteConfirm('none'); setAlsoFromKavita(false) }} className="px-4 py-2 rounded-lg bg-raised text-sm font-medium">Cancel</button>
                     </div>
                   </div>
                 ) : deleteConfirm === 'deleteFile' ? (

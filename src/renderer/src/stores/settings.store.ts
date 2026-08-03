@@ -34,6 +34,13 @@ interface SettingsState {
   // Notification
   showNotifications: boolean
 
+  // Kavita integration (optional — every API call is gated on isConfigured)
+  kavitaUrl: string
+  kavitaApiKey: string
+  kavitaLibraryId: string
+  kavitaLibraryRoot: string
+  kavitaEnabled: boolean
+
   // Track if settings have been loaded from DB
   loaded: boolean
 
@@ -48,6 +55,11 @@ interface SettingsState {
   setBlackBackground: (black: boolean) => void
   setCbzKeepOriginal: (keep: boolean) => void
   setShowNotifications: (show: boolean) => void
+  setKavitaUrl: (value: string) => void
+  setKavitaApiKey: (value: string) => void
+  setKavitaLibraryId: (value: string) => void
+  setKavitaLibraryRoot: (value: string) => void
+  setKavitaEnabled: (enabled: boolean) => void
 
   loadFromDb: () => Promise<void>
   saveToDb: () => Promise<void>
@@ -69,6 +81,13 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   blackBackground: true,
   cbzKeepOriginal: true,
   showNotifications: true,
+
+  // Kavita is off until configured; the root pre-fills from libraryPath on load.
+  kavitaUrl: 'http://localhost:5000',
+  kavitaApiKey: '',
+  kavitaLibraryId: '',
+  kavitaLibraryRoot: '',
+  kavitaEnabled: false,
   loaded: false,
 
   setLibraryPath: (path) => set({ libraryPath: path }),
@@ -82,6 +101,11 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   setBlackBackground: (black) => set({ blackBackground: black }),
   setCbzKeepOriginal: (keep) => set({ cbzKeepOriginal: keep }),
   setShowNotifications: (show) => set({ showNotifications: show }),
+  setKavitaUrl: (value) => set({ kavitaUrl: value }),
+  setKavitaApiKey: (value) => set({ kavitaApiKey: value }),
+  setKavitaLibraryId: (value) => set({ kavitaLibraryId: value }),
+  setKavitaLibraryRoot: (value) => set({ kavitaLibraryRoot: value }),
+  setKavitaEnabled: (enabled) => set({ kavitaEnabled: enabled }),
 
   loadFromDb: async () => {
     try {
@@ -127,6 +151,17 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
         blackBackground: asBool(settings.blackBackground, true),
         cbzKeepOriginal: asBool(settings.cbzKeepOriginal, true),
         showNotifications: asBool(settings.showNotifications, true),
+        // The root defaults to the app's library path so the user rarely needs
+        // to set it by hand — it only needs to differ when Kavita scans a
+        // different root than the app writes into.
+        kavitaUrl: settings.kavitaUrl || 'http://localhost:5000',
+        kavitaApiKey: settings.kavitaApiKey || '',
+        kavitaLibraryId: settings.kavitaLibraryId || '',
+        kavitaLibraryRoot:
+          settings.kavitaLibraryRoot ||
+          settings.libraryPath ||
+          DEFAULT_LIBRARY_PATH,
+        kavitaEnabled: asBool(settings.kavitaEnabled, false),
         loaded: true
       })
     } catch {
@@ -148,7 +183,12 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
         pageSize: state.pageSize,
         blackBackground: String(state.blackBackground),
         cbzKeepOriginal: String(state.cbzKeepOriginal),
-        showNotifications: String(state.showNotifications)
+        showNotifications: String(state.showNotifications),
+        kavitaUrl: state.kavitaUrl,
+        kavitaApiKey: state.kavitaApiKey,
+        kavitaLibraryId: state.kavitaLibraryId,
+        kavitaLibraryRoot: state.kavitaLibraryRoot,
+        kavitaEnabled: String(state.kavitaEnabled)
       })
     } catch {
       console.error('Failed to save settings to database')

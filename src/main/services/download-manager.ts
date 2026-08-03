@@ -9,6 +9,7 @@ import { galleryRepo } from '../db/repositories/gallery.repo'
 import { settingsRepo } from '../db/repositories/settings.repo'
 import { libraryRepo } from '../db/repositories/library.repo'
 import { getApiClient } from './api-client'
+// import { getKavitaClient } from './kavita-client'
 import { resolveLanguageName } from './xml-utils'
 import { countPages } from './page-count'
 import type { GalleryMetadata } from './metadata/file-metadata'
@@ -721,6 +722,15 @@ export class DownloadManager {
       if (settingsRepo.get('showNotifications') !== 'false') {
         new Notification({ title: 'Download Complete', body: `${title} has been added to your library` }).show()
       }
+
+      // F5: Kavita folder scans are DISABLED — `scan-folder` on an artist/series
+      // folder does not discover brand-new files in this setup (confirmed via a
+      // clean-state test); only a full ~900-file library scan works, which is too
+      // heavy per download. Kavita's own watch folder handles discovery instead.
+      // const kavita = getKavitaClient()
+      // if (kavita.isConfigured()) {
+      //   void kavita.scanFolder(dirname(outputPath)).catch(() => {})
+      // }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err)
       this.failDownload(queueId, galleryId, 'Error', errorMsg)

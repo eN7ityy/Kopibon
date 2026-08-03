@@ -173,8 +173,12 @@ const api = {
       entries: Array<{ id: number; seriesIndex?: number | null }>,
       seriesName: string
     ) => ipcRenderer.invoke('library:assignSeries', entries, seriesName),
-    delete: (id: number) => ipcRenderer.invoke('library:delete', id),
+    delete: (id: number, alsoFromKavita?: boolean) =>
+      ipcRenderer.invoke('library:delete', id, alsoFromKavita ?? false),
     deleteFile: (id: number) => ipcRenderer.invoke('library:deleteFile', id),
+    deleteMultiple: (ids: number[], alsoFromKavita?: boolean) =>
+      ipcRenderer.invoke('library:deleteMultiple', ids, alsoFromKavita ?? false),
+    deleteFileMultiple: (ids: number[]) => ipcRenderer.invoke('library:deleteFileMultiple', ids),
     getThumbnail: (id: number) => ipcRenderer.invoke('library:getThumbnail', id),
     /** Page count read from the archive; null when it cannot be determined. */
     getPageCount: (id: number) => ipcRenderer.invoke('library:getPageCount', id),
@@ -457,6 +461,24 @@ const api = {
     set: (key: string, value: string) => ipcRenderer.invoke('settings:set', key, value),
     setAll: (settings: Record<string, string>) => ipcRenderer.invoke('settings:setAll', settings),
     delete: (key: string) => ipcRenderer.invoke('settings:delete', key)
+  },
+
+  // Kavita (settings-pane helpers + status-bar count; scans/deletes run
+  // server-side). URL/API key are passed from the form so unsaved values work.
+  kavita: {
+    testConnection: (url?: string, apiKey?: string) =>
+      ipcRenderer.invoke('kavita:testConnection', url, apiKey),
+    getLibraries: (url?: string, apiKey?: string) =>
+      ipcRenderer.invoke('kavita:getLibraries', url, apiKey),
+    getItemCount: (url?: string, apiKey?: string) =>
+      ipcRenderer.invoke('kavita:getItemCount', url, apiKey),
+    getSeriesDetail: (
+      seriesName: string,
+      title: string,
+      url?: string,
+      apiKey?: string,
+      filePath?: string
+    ) => ipcRenderer.invoke('kavita:getSeriesDetail', seriesName, title, url, apiKey, filePath)
   },
 
   /** Search defaults and the blocked-value list. */

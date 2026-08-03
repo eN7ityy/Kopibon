@@ -1,11 +1,21 @@
 import { useState, useEffect } from 'react'
 import { ExternalLink } from 'lucide-react'
+import { useSettingsStore } from '../../stores/settings.store'
 
 export default function StatusBar(): React.JSX.Element {
+  const kavitaUrl = useSettingsStore((s) => s.kavitaUrl)
+  const kavitaApiKey = useSettingsStore((s) => s.kavitaApiKey)
+  const kavitaLibraryId = useSettingsStore((s) => s.kavitaLibraryId)
   const [activeCount, setActiveCount] = useState(0)
   const [queuedCount, setQueuedCount] = useState(0)
   const [libraryCount, setLibraryCount] = useState(0)
+  const [kavitaCount, setKavitaCount] = useState<number | null>(null)
   const [version, setVersion] = useState<string | null>(null)
+
+  // Only shown once a Kavita server is fully configured (URL + key + library).
+  const kavitaConfigured = Boolean(
+    kavitaUrl.trim() && kavitaApiKey.trim() && kavitaLibraryId.trim()
+  )
 
   // Read the real app version instead of a hardcoded string that silently
   // goes stale on every release.
@@ -41,6 +51,22 @@ export default function StatusBar(): React.JSX.Element {
       } catch {
         // Silently ignore polling errors
       }
+
+      // Kavita series count, only while configured. Read fresh from the store
+      // so the interval isn't restarted on every keystroke in Settings.
+      const st = useSettingsStore.getState()
+      const url = st.kavitaUrl.trim()
+      const key = st.kavitaApiKey.trim()
+      if (url && key && st.kavitaLibraryId.trim()) {
+        try {
+          const r = await window.api.kavita.getItemCount(url, key)
+          if (r.success && typeof r.data === 'number') setKavitaCount(r.data)
+        } catch {
+          /* Kavita unreachable — leave the previous figure */
+        }
+      } else {
+        setKavitaCount(null)
+      }
     }
 
     poll()
@@ -68,6 +94,7 @@ export default function StatusBar(): React.JSX.Element {
         <Stat value={activeCount} label="active" accent={activeCount > 0} />
         <Stat value={queuedCount} label="queued" />
         <Stat value={libraryCount} label="in library" />
+        {kavitaConfigured && <Stat value={kavitaCount ?? 0} label="in Kavita" />}
       </div>
 
       <span className="ml-auto flex items-center gap-3">

@@ -4,6 +4,7 @@ import {
   BookOpen,
   Check,
   Layers,
+  Loader2,
   Pencil,
   RefreshCw,
   Star,
@@ -15,6 +16,7 @@ import { mergeDisplayLanguages } from '../shared/language'
 import { formatBytes } from '../shared/format'
 import { tagClass } from '../shared/tags'
 import { describeGaps } from './series-gaps'
+import { useSettingsStore } from '../../stores/settings.store'
 
 /**
  * Everything inside a series.
@@ -48,6 +50,34 @@ interface SeriesFacts {
   gaps: number[]
   typedTags: Array<{ id: number; type: string; name: string }>
   members: SeriesMemberRow[]
+}
+
+/**
+ * Kavita series detail, loaded asynchronously when the panel opens. Mirrors
+ * KavitaSeriesDetail in kavita-client.ts.
+ */
+interface KavitaDetail {
+  id: number
+  name: string
+  /** Kavita library id — part of the web URL (library/{id}/series/{seriesId}). */
+  libraryId: number
+  libraryName: string
+  pageCount: number
+  format: string
+  lastUpdated?: string
+  pagesRead?: number
+  totalReads?: number
+}
+
+function formatKavitaDate(iso: string): string {
+  const d = new Date(iso)
+  return Number.isNaN(d.getTime())
+    ? iso
+    : d.toLocaleDateString(undefined, {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      })
 }
 
 /** The filters in force, so the panel can flag the same members the card did. */
@@ -134,6 +164,17 @@ export default function SeriesDetail({
   const [syncing, setSyncing] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
 
+  // Kavita connection, for the async detail block in the info column. Only
+  // rendered once the server is fully configured.
+  const kavitaUrl = useSettingsStore((s) => s.kavitaUrl)
+  const kavitaApiKey = useSettingsStore((s) => s.kavitaApiKey)
+  const kavitaLibraryId = useSettingsStore((s) => s.kavitaLibraryId)
+  const kavitaConfigured = Boolean(
+    kavitaUrl.trim() && kavitaApiKey.trim() && kavitaLibraryId.trim()
+  )
+  const [kavitaDetail, setKavitaDetail] = useState<KavitaDetail | null>(null)
+  const [kavitaLoading, setKavitaLoading] = useState(false)
+
   /*
    * A batch sync runs for as long as it takes — a fifteen-volume series is well
    * over a minute at the API's pace — and the panel can be closed while it
@@ -173,6 +214,37 @@ export default function SeriesDetail({
     // the request, and the parent remounts when it changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [series.id, reloadTick])
+
+  /*
+   * Kavita detail for the series, loaded asynchronously once the facts arrive.
+   * Searched by the series name; skipped when Kavita is not configured.
+   */
+  useEffect(() => {
+    if (!facts || !kavitaConfigured) {
+      setKavitaDetail(null)
+      setKavitaLoading(false)
+      return
+    }
+    let cancelled = false
+    setKavitaLoading(true)
+    window.api.kavita
+      .getSeriesDetail(facts.name, facts.name, kavitaUrl.trim(), kavitaApiKey.trim())
+      .then((r) => {
+        if (!cancelled) setKavitaDetail(r?.success ? (r.data as KavitaDetail | null) : null)
+      })
+      .catch(() => {
+        if (!cancelled) setKavitaDetail(null)
+      })
+      .finally(() => {
+        if (!cancelled) setKavitaLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+    // `facts` is a fresh object on each reload; the name is what identifies the
+    // request.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [facts, kavitaConfigured, kavitaUrl, kavitaApiKey])
 
   /** Re-read the panel and tell the grid behind it to reload. */
   const refresh = (message: string | null): void => {
@@ -432,6 +504,68 @@ export default function SeriesDetail({
                 )}
                 {languages.length > 0 && <Fact label="Language" value={languages.join(', ')} />}
               </dl>
+
+              {/* Kavita — async detail from the Kavita server, when configured */}
+              {kavitaConfigured && (
+                <div className="mt-3 space-y-2 border-t border-line pt-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-fg-muted">Kavita</span>
+                    {kavitaLoading && (
+                      <Loader2 size={12} className="animate-spin text-fg-faint" aria-hidden="true" />
+                    )}
+                  </div>
+                  {kavitaDetail ? (
+                    <>
+                      <div>
+                        <span className="text-xs font-medium text-fg-muted">Series</span>
+                        <button
+                          onClick={() =>
+                            window.api.shell.openExternal(
+                              `${kavitaUrl.trim().replace(/\/+$/, '')}/library/${kavitaDetail.libraryId}/series/${kavitaDetail.id}`
+                            )
+                          }
+                          className="block text-sm text-accent hover:underline cursor-pointer"
+                          title="Open this series in Kavita"
+                        >
+                          {kavitaDetail.name}
+                        </button>
+                      </div>
+                      <div className="flex gap-4">
+                        <div>
+                          <span className="text-xs font-medium text-fg-muted">Format</span>
+                          <p className="text-sm text-fg">{kavitaDetail.format}</p>
+                        </div>
+                        <div>
+                          <span className="text-xs font-medium text-fg-muted">Pages</span>
+                          <p className="tnum text-sm text-fg">{kavitaDetail.pageCount}</p>
+                        </div>
+                        {kavitaDetail.pagesRead != null && kavitaDetail.pageCount > 0 && (
+                          <div>
+                            <span className="text-xs font-medium text-fg-muted">Read</span>
+                            <p className="tnum text-sm text-fg">
+                              {kavitaDetail.pagesRead} / {kavitaDetail.pageCount}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                      {kavitaDetail.libraryName && (
+                        <div>
+                          <span className="text-xs font-medium text-fg-muted">Library</span>
+                          <p className="text-sm text-fg">{kavitaDetail.libraryName}</p>
+                        </div>
+                      )}
+                      {kavitaDetail.lastUpdated && (
+                        <div>
+                          <span className="text-xs font-medium text-fg-muted">Last scan</span>
+                          <p className="text-sm text-fg">{formatKavitaDate(kavitaDetail.lastUpdated)}</p>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    !kavitaLoading && <p className="text-xs text-fg-faint">Not found in Kavita.</p>
+                  )}
+                </div>
+              )}
 
               {/*
                 Gaps count the whole series regardless of any filter: a missing

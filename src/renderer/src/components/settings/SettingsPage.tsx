@@ -10,6 +10,7 @@ import ToolchainStatus from './ToolchainStatus'
 import UpdateStatus from './UpdateStatus'
 import LogsPage from './LogsPage'
 import SearchSettings from './SearchSettings'
+import KavitaSettings from './KavitaSettings'
 import {
   Check,
   Trash2,
@@ -17,6 +18,7 @@ import {
   FolderTree,
   FolderOpen,
   Globe,
+  BookOpen,
   SlidersHorizontal,
   TriangleAlert,
   type LucideIcon
@@ -31,7 +33,7 @@ import Button from '../shared/Button'
  * Logs, Advanced and Danger Zone act immediately or act on their own controls,
  * so showing Save there would offer a button that does nothing.
  */
-type PaneKey = 'library' | 'nhentai' | 'advanced' | 'danger'
+type PaneKey = 'library' | 'nhentai' | 'kavita' | 'advanced' | 'danger'
 
 const SETTINGS_PANES: Array<{
   key: PaneKey
@@ -43,6 +45,9 @@ const SETTINGS_PANES: Array<{
   // Account and search defaults are both nhentai-side settings, and each was a
   // pane holding very little on its own.
   { key: 'nhentai', label: 'nhentai', Icon: Globe },
+  // Kavita is optional: no config, no calls, and the app works exactly the same
+  // without it. The toggle and fields are saved by the Save button.
+  { key: 'kavita', label: 'Kavita', Icon: BookOpen, savable: true },
   // Tools, logs and updates are all things you go looking for rather than
   // configure, so they share a pane.
   { key: 'advanced', label: 'Advanced', Icon: SlidersHorizontal },
@@ -429,6 +434,9 @@ export default function SettingsPage(): React.JSX.Element {
             )}
 
             {pane === 'nhentai' && <SearchSettings />}
+
+            {/* Kavita */}
+            {pane === 'kavita' && <KavitaSettings />}
 
             {/* Interface */}
             {/* Advanced */}

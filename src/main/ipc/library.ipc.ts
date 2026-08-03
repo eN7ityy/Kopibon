@@ -26,6 +26,7 @@ import { createHash } from 'crypto'
 import { dirname, join, basename, relative } from 'path'
 import { handle } from './handle'
 import { getLogger } from '../services/logger'
+import { getKavitaClient } from '../services/kavita-client'
 import { attachWorkerLogForwarding } from '../services/worker-logger'
 import { sortNatural } from '../services/natural-sort'
 import {
@@ -658,6 +659,36 @@ export function registerLibraryIpc(): void {
     regroupSeries(members.filter(Boolean).map((m) => m!.id))
     log.info('renamed a series', { from: group.name, to: trimmed, members: renamed })
 
+    // Kavita: the series folder changed name, so Kavita's entry for the old
+    // name is stale. Delete it and scan the new folder. Fire-and-forget — the
+    // rename response is returned to the user immediately.
+    //
+    // DISABLED: `scan-folder` on a series folder does not discover new files in
+    // this setup (only a full ~900-file library scan works, which is too heavy).
+    // Deleting the old entry here would just make the series vanish from Kavita
+    // until its watch folder re-scans, so the whole block is commented out.
+    // const kavita = getKavitaClient()
+    // if (kavita.isConfigured() && renamed > 0) {
+    //   void (async () => {
+    //     try {
+    //       const results = await kavita.searchSeries(group.name)
+    //       const match = results.find(
+    //         (r: { name: string }) => r.name.toLowerCase() === group.name.toLowerCase()
+    //       )
+    //       if (match) {
+    //         await kavita.deleteSeries(match.id)
+    //         log.info('deleted old series from Kavita', { seriesId: match.id, name: group.name })
+    //       }
+    //       const firstMember = members.find(Boolean)
+    //       if (firstMember) {
+    //         await kavita.scanFolder(dirname(firstMember.filePath))
+    //       }
+    //     } catch {
+    //       /* silently ignore — the client already logs */
+    //     }
+    //   })()
+    // }
+
     return {
       success: true,
       data: { renamed, errors: errors.length > 0 ? errors : undefined }
@@ -1084,6 +1115,15 @@ export function registerLibraryIpc(): void {
       // same work for each entry of a batch.
       regroupSeries(assigned)
 
+      // Kavita: files moved into a series folder. If Kavita knows this series,
+      // re-scan it so the new volume appears with correct grouping.
+      const kavita = getKavitaClient()
+      if (kavita.isConfigured() && seriesName) {
+        void kavita
+          .scanSeriesForLibraryItem(undefined, seriesName)
+          .catch(() => {})
+      }
+
       return {
         success: true,
         data: {
@@ -1441,7 +1481,7 @@ export function registerLibraryIpc(): void {
 
   // ─── File Actions ──────────────────────────────────────────────────
 
-  handle('library:delete', async (_event, id: number) => {
+  handle('library:delete', async (_event, id: number, alsoFromKavita = false) => {
     if (isConversionLocked(id)) return conversionLockError()
     const item = libraryRepo.findById(id)
     libraryRepo.delete(id)
@@ -1452,6 +1492,16 @@ export function registerLibraryIpc(): void {
         id,
         galleryId: item?.galleryId ?? null
       })
+    }
+    // Optional: also drop the matching series from Kavita. The file stays on
+    // disk, so a later Kavita scan would re-add it — this is an explicit choice.
+    if (alsoFromKavita && item) {
+      const kavita = getKavitaClient()
+      if (kavita.isConfigured()) {
+        void kavita
+          .deleteItemsFromKavita([{ title: item.customTitle, seriesName: item.seriesName }])
+          .catch(() => {})
+      }
     }
     return { success: true }
   })
@@ -1467,6 +1517,68 @@ export function registerLibraryIpc(): void {
       }
     }
     libraryRepo.delete(id)
+    // The file is gone, so drop it from Kavita too — fire-and-forget.
+    if (item) {
+      const kavita = getKavitaClient()
+      if (kavita.isConfigured()) {
+        void kavita
+          .deleteItemsFromKavita([{ title: item.customTitle, seriesName: item.seriesName }])
+          .catch(() => {})
+      }
+    }
+    return { success: true }
+  })
+
+  handle('library:deleteMultiple', async (_event, ids: number[], alsoFromKavita = false) => {
+    const removed: Array<{ title: string | null; seriesName: string | null }> = []
+    const windows = BrowserWindow.getAllWindows()
+    for (const id of ids) {
+      if (isConversionLocked(id)) continue
+      const item = libraryRepo.findById(id)
+      libraryRepo.delete(id)
+      if (item) {
+        removed.push({ title: item.customTitle, seriesName: item.seriesName })
+        for (const win of windows) {
+          win.webContents.send('library:itemDeleted', { id, galleryId: item.galleryId ?? null })
+        }
+      }
+    }
+    if (alsoFromKavita && removed.length > 0) {
+      const kavita = getKavitaClient()
+      if (kavita.isConfigured()) {
+        void kavita.deleteItemsFromKavita(removed).catch(() => {})
+      }
+    }
+    return { success: true }
+  })
+
+  handle('library:deleteFileMultiple', async (_event, ids: number[]) => {
+    const removed: Array<{ title: string | null; seriesName: string | null }> = []
+    const windows = BrowserWindow.getAllWindows()
+    for (const id of ids) {
+      if (isConversionLocked(id)) continue
+      const item = libraryRepo.findById(id)
+      if (item && existsSync(item.filePath)) {
+        try {
+          unlinkSync(item.filePath)
+        } catch {
+          /* file may be locked */
+        }
+      }
+      libraryRepo.delete(id)
+      if (item) {
+        removed.push({ title: item.customTitle, seriesName: item.seriesName })
+        for (const win of windows) {
+          win.webContents.send('library:itemDeleted', { id, galleryId: item.galleryId ?? null })
+        }
+      }
+    }
+    if (removed.length > 0) {
+      const kavita = getKavitaClient()
+      if (kavita.isConfigured()) {
+        void kavita.deleteItemsFromKavita(removed).catch(() => {})
+      }
+    }
     return { success: true }
   })
 
@@ -1733,6 +1845,22 @@ export function registerLibraryIpc(): void {
        */
       if ((newSeriesName ?? null) !== (oldSeries ?? null)) {
         regroupSeries([id])
+      }
+
+      // Kavita: the file's metadata changed. If Kavita knows the series this
+      // item belongs to, re-scan it so the updated ComicInfo.xml is read
+      // immediately. Fire-and-forget — the user already got their confirmation.
+      // The series is resolved with the same name matching the rest of the app
+      // uses (series name first, the item title as a fallback), so an item
+      // whose stored series name differs from Kavita's still gets scanned.
+      const kavita = getKavitaClient()
+      if (kavita.isConfigured()) {
+        const updatedItem = libraryRepo.findById(id)
+        if (updatedItem) {
+          void kavita
+            .scanSeriesForLibraryItem(updatedItem.customTitle, updatedItem.seriesName)
+            .catch(() => {})
+        }
       }
 
       return {

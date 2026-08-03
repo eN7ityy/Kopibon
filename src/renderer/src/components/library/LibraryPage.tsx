@@ -289,6 +289,12 @@ export default function LibraryPage(): React.JSX.Element {
   const conversionStore = useConversionStore()
   const cbzRunning = useCbzConversionStore((s) => s.running)
   const libraryRoot = useSettingsStore((s) => s.libraryPath)
+  const kavitaUrl = useSettingsStore((s) => s.kavitaUrl)
+  const kavitaApiKey = useSettingsStore((s) => s.kavitaApiKey)
+  const kavitaLibraryId = useSettingsStore((s) => s.kavitaLibraryId)
+  const kavitaConfigured = Boolean(
+    kavitaUrl.trim() && kavitaApiKey.trim() && kavitaLibraryId.trim()
+  )
 
   // ── Store state (persisted across tab switches) ──────────────────────────
   const rows = useLibraryStore((s) => s.rows)
@@ -322,6 +328,8 @@ export default function LibraryPage(): React.JSX.Element {
   const [, setSelectionTick] = useState(0)
   const [batchSyncing, setBatchSyncing] = useState(false)
   const [showConvertDialog, setShowConvertDialog] = useState(false)
+  const [batchRemoveConfirm, setBatchRemoveConfirm] = useState(false)
+  const [batchAlsoFromKavita, setBatchAlsoFromKavita] = useState(false)
   const [selectMode, setSelectMode] = useState(false)
   const [selectingAll, setSelectingAll] = useState(false)
   const [selectionFormats, setSelectionFormats] = useState<Map<number, string>>(new Map())
@@ -642,21 +650,27 @@ export default function LibraryPage(): React.JSX.Element {
 
   // ─── Batch Actions ─────────────────────────────────────────────────────────
 
-  const handleBatchRemove = async () => {
+  const runBatchRemove = async (alsoFromKavita: boolean): Promise<void> => {
     const ids = [...selectedIds]
-    for (const id of ids) {
-      try { await window.api.library.delete(id) } catch { /* */ }
-    }
+    try { await window.api.library.deleteMultiple(ids, alsoFromKavita) } catch { /* */ }
     setSelectedIds(new Set()); setSelectionFormats(new Map())
     setSelectionTick((t) => t + 1)
     fetchPage(0, true)
   }
 
+  const handleBatchRemove = async () => {
+    // When Kavita is connected, ask whether the items should leave Kavita too.
+    if (kavitaConfigured) {
+      setBatchAlsoFromKavita(false)
+      setBatchRemoveConfirm(true)
+      return
+    }
+    await runBatchRemove(false)
+  }
+
   const handleBatchDelete = async () => {
     const ids = [...selectedIds]
-    for (const id of ids) {
-      try { await window.api.library.deleteFile(id) } catch { /* */ }
-    }
+    try { await window.api.library.deleteFileMultiple(ids) } catch { /* */ }
     setSelectedIds(new Set()); setSelectionFormats(new Map())
     setSelectionTick((t) => t + 1)
     fetchPage(0, true)
@@ -1416,6 +1430,51 @@ export default function LibraryPage(): React.JSX.Element {
           fetchPage(0, true)
         }}
       />
+
+      {/* Batch remove — confirms before it runs, and asks about Kavita. */}
+      {batchRemoveConfirm && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setBatchRemoveConfirm(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-xl bg-surface p-5 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-section font-semibold text-fg mb-2">Remove from library?</h3>
+            <p className="text-sm text-fg-muted mb-3">
+              Remove {selectedIds.size} item{selectedIds.size === 1 ? '' : 's'} from the library.
+              Files on disk are kept.
+            </p>
+            <label className="flex items-start gap-2 text-sm text-fg mb-3">
+              <input
+                type="checkbox"
+                checked={batchAlsoFromKavita}
+                onChange={(e) => setBatchAlsoFromKavita(e.target.checked)}
+                className="mt-0.5 w-4 h-4 rounded border-line text-accent focus:ring-accent bg-surface"
+              />
+              <span>Also remove from the Kavita library</span>
+            </label>
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  setBatchRemoveConfirm(false)
+                  void runBatchRemove(batchAlsoFromKavita)
+                }}
+                className="flex-1 px-4 py-2 rounded-lg bg-warning-fill text-white text-sm font-medium hover:bg-warning-fill"
+              >
+                Remove
+              </button>
+              <button
+                onClick={() => setBatchRemoveConfirm(false)}
+                className="px-4 py-2 rounded-lg bg-raised text-sm font-medium text-fg"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Series Detail */}
       {detailSeries && (
