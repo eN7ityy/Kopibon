@@ -277,6 +277,9 @@ export default function GalleryDetailPanel({
                         if (isFavorited) {
                           await window.api.removeFavorite(galleryId)
                           setIsFavorited(false)
+                          // The caller (Favorites tab) removes the gallery from
+                          // its list the moment the request confirms.
+                          onUnfavorited?.(galleryId)
                         } else {
                           await window.api.addFavorite(galleryId)
                           setIsFavorited(true)

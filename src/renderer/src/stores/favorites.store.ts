@@ -29,6 +29,14 @@ interface FavoritesStore {
   setResults: (results: GalleryListItem[], numPages: number, perPage: number) => void
   setLibraryFacts: (facts: Record<number, LibraryFacts>) => void
   mergeLibraryFacts: (facts: Record<number, LibraryFacts>) => void
+  /**
+   * Drop one gallery from the loaded list without refetching.
+   *
+   * Used when a gallery is unfavorited while its detail panel is open: the
+   * card should vanish immediately once the API call confirms. The page and
+   * scroll position are untouched — only the result array and its facts change.
+   */
+  removeResult: (galleryId: number) => void
   setSelectedGalleryId: (id: number | null) => void
   setLoading: (loading: boolean) => void
   setError: (error: string | null) => void
@@ -62,6 +70,20 @@ export const useFavoritesStore = create<FavoritesStore>()((set) => ({
       }
       if (!changed) return state
       return { libraryFacts: { ...state.libraryFacts, ...facts } }
+    }),
+  removeResult: (galleryId) =>
+    set((state) => {
+      const results = state.results.filter((r) => r.id !== galleryId)
+      if (results.length === state.results.length && state.selectedGalleryId !== galleryId) {
+        return state
+      }
+      const libraryFacts = { ...state.libraryFacts }
+      delete libraryFacts[galleryId]
+      return {
+        results,
+        libraryFacts,
+        selectedGalleryId: state.selectedGalleryId === galleryId ? null : state.selectedGalleryId
+      }
     }),
   setSelectedGalleryId: (id) => set({ selectedGalleryId: id }),
   setLoading: (loading) => set({ loading }),

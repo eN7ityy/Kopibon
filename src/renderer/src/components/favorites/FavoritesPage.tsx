@@ -108,6 +108,17 @@ export default function FavoritesPage(): React.JSX.Element {
     store.setSelectedGalleryId(null)
   }
 
+  /**
+   * Called by GalleryDetail once an un-favorite request confirms.
+   *
+   * Drop the gallery from the loaded list in place — no refetch, so the page
+   * number and scroll position are preserved. `removeResult` also closes the
+   * detail panel if it was showing the removed gallery.
+   */
+  const handleUnfavorited = (galleryId: number): void => {
+    useFavoritesStore.getState().removeResult(galleryId)
+  }
+
   const handleDownload = useCallback(
     async (galleryId: number, format?: string): Promise<void> => {
       try {
@@ -235,6 +246,8 @@ export default function FavoritesPage(): React.JSX.Element {
       {store.selectedGalleryId !== null && (
         <GalleryDetail
           galleryId={store.selectedGalleryId}
+          initialFavorited={true}
+          onUnfavorited={handleUnfavorited}
           onClose={() => store.setSelectedGalleryId(null)}
           onDownload={handleDownload}
           onTagClick={handleTagClick}
