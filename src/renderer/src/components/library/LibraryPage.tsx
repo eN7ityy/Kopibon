@@ -861,7 +861,10 @@ export default function LibraryPage(): React.JSX.Element {
     </div>
   )
 
-  if (loading && items.length === 0) {
+  // Only show the skeleton on the initial empty-library load. Guard on
+  // debouncedSearch: while the user is typing, a mid-search loading state would
+  // replace the whole view (including the search input) and drop focus.
+  if (loading && items.length === 0 && !debouncedSearch) {
     return (
       <div className="flex flex-col h-full">
         {header}
@@ -874,7 +877,7 @@ export default function LibraryPage(): React.JSX.Element {
 
   // ─── Error State ───────────────────────────────────────────────────────────
 
-  if (error && items.length === 0) {
+  if (error && items.length === 0 && !debouncedSearch) {
     return (
       <div className="flex flex-col h-full">
         {header}
