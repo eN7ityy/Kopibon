@@ -1,0 +1,35 @@
+name: Enforce Branch Pipeline
+
+# Rejects pull requests that try to merge against the direction of the
+# pipeline (dev -> test -> main). This complements the branch-protection rules
+# in GitHub Settings: those stop direct pushes, this stops wrong-direction PRs.
+#
+#   test  ←  only dev   may merge into it
+#   main  ←  only test  may merge into it
+#
+# Any other combination is refused with a clear error, so the PR cannot be
+# merged even with an override.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, baseBranchChanged]
+
+jobs:
+  check-source-branch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify PR Direction
+        run: |
+          TARGET="${{ github.base_ref }}"
+          SOURCE="${{ github.head_ref }}"
+
+          if [ "$TARGET" = "test" ] && [ "$SOURCE" != "dev" ]; then
+            echo "ERROR: The 'test' branch only accepts merges from 'dev'."
+            exit 1
+          fi
+
+          if [ "$TARGET" = "main" ] && [ "$SOURCE" != "test" ]; then
+            echo "ERROR: The 'main' branch only accepts merges from 'test'."
+            exit 1
+          fi
+
+          echo "Branch progression is valid ($SOURCE -> $TARGET)."
