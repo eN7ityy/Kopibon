@@ -387,6 +387,21 @@ app.whenReady().then(async () => {
       /* the allowlist already keeps the key out; this is belt and braces */
     }
 
+    /*
+     * The Kavita key too.
+     *
+     * Registering the value scrubs it wherever it turns up — inside a field
+     * whose name nothing recognises, or embedded in a URL or an error string —
+     * which field-name matching alone cannot do. Nothing logs it today; this is
+     * so that nothing can start to by accident.
+     */
+    try {
+      const kavitaKey = settingsRepo.get('kavitaApiKey')
+      if (kavitaKey) secrets.push(kavitaKey)
+    } catch {
+      /* DB may not be ready */
+    }
+
     const input = {
       appVersion: app.getVersion(),
       versions: {
