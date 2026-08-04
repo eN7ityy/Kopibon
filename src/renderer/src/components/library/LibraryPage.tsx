@@ -292,8 +292,11 @@ export default function LibraryPage(): React.JSX.Element {
   const kavitaUrl = useSettingsStore((s) => s.kavitaUrl)
   const kavitaApiKey = useSettingsStore((s) => s.kavitaApiKey)
   const kavitaLibraryId = useSettingsStore((s) => s.kavitaLibraryId)
+  const kavitaEnabled = useSettingsStore((s) => s.kavitaEnabled)
+  // The toggle used to be checked nowhere, so switching it off did not hide
+  // the "also remove from Kavita" option below.
   const kavitaConfigured = Boolean(
-    kavitaUrl.trim() && kavitaApiKey.trim() && kavitaLibraryId.trim()
+    kavitaEnabled && kavitaUrl.trim() && kavitaApiKey.trim() && kavitaLibraryId.trim()
   )
 
   // ── Store state (persisted across tab switches) ──────────────────────────
