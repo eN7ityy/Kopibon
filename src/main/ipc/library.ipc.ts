@@ -115,15 +115,34 @@ function spawnMetadataWorker(command: {
     const workerPath = pathJoin(__dirname, 'services/metadata.worker.js')
     const worker = new Worker(workerPath)
     attachWorkerLogForwarding(worker, log)
+
+    /*
+     * Settle once, then end the thread.
+     *
+     * The worker never exits by itself — it is parked on a parentPort listener
+     * — so without the terminate every metadata write left a live thread
+     * behind. Terminating fires `exit` straight after, which is why the guard
+     * is needed rather than just calling resolve.
+     */
+    let settled = false
+    const finish = (done: () => void): void => {
+      if (settled) return
+      settled = true
+      done()
+      worker.terminate().catch(() => {
+        /* already gone */
+      })
+    }
+
     worker.on('message', (msg: { type: string; message?: string }) => {
-      if (msg.type === 'complete') resolve()
+      if (msg.type === 'complete') finish(resolve)
       else if (msg.type === 'error')
-        reject(new Error(msg.message || 'Metadata worker error'))
+        finish(() => reject(new Error(msg.message || 'Metadata worker error')))
     })
-    worker.on('error', reject)
+    worker.on('error', (err) => finish(() => reject(err)))
     worker.on('exit', (code) => {
       if (code !== 0)
-        reject(new Error(`Metadata worker exited with code ${code}`))
+        finish(() => reject(new Error(`Metadata worker exited with code ${code}`)))
     })
     worker.postMessage(command)
   })
@@ -131,6 +150,24 @@ function spawnMetadataWorker(command: {
 
 let isScanning = false
 let scanWorker: Worker | null = null
+
+/**
+ * Retire the scan worker.
+ *
+ * None of this app's workers exit on their own: every one sits on a
+ * `parentPort` message listener, which keeps its event loop alive forever. So
+ * dropping the reference on completion did not end the thread, it only made it
+ * unreachable — an orphaned worker holding its own V8 isolate, one per scan,
+ * with no handle left to kill it.
+ */
+function retireScanWorker(): void {
+  const worker = scanWorker
+  scanWorker = null
+  isScanning = false
+  worker?.terminate().catch(() => {
+    /* already gone */
+  })
+}
 
 /**
  * Items currently being converted to CBZ, and items queued for it.
@@ -924,8 +961,7 @@ export function registerLibraryIpc(): void {
             win.webContents.send('library:newItem', msg.item)
             break
           case 'complete':
-            scanWorker = null
-            isScanning = false
+            retireScanWorker()
             /*
              * Resolve grouping for everything the scan added.
              *
@@ -941,8 +977,7 @@ export function registerLibraryIpc(): void {
             win.webContents.send('library:scanPaused')
             break
           case 'cancelled':
-            scanWorker = null
-            isScanning = false
+            retireScanWorker()
             win.webContents.send('library:scanCancelled')
             break
           case 'error':
@@ -953,8 +988,7 @@ export function registerLibraryIpc(): void {
     )
 
     scanWorker.on('error', (err) => {
-      scanWorker = null
-      isScanning = false
+      retireScanWorker()
       win.webContents.send('library:scanError', err.message)
     })
 
