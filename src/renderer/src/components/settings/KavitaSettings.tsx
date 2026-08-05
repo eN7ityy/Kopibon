@@ -185,8 +185,10 @@ export default function KavitaSettings(): React.JSX.Element {
           <label className="text-sm text-fg">Enable Kavita integration</label>
         </div>
         <p className="text-xs text-fg-faint -mt-2">
-          Tells Kavita to scan the library right after files change, so new or
-          renamed series appear immediately instead of on the next periodic scan.
+          Keeps series Kavita already knows about in sync — re-scanning one after you edit its
+          metadata or assign it, and removing its matching series from Kavita when you delete
+          files here. It can&apos;t make Kavita discover brand-new files; that still needs
+          Kavita&apos;s own folder watch or periodic scan.
         </p>
 
         {/* Connection — replaced by the persistent card once connected */}

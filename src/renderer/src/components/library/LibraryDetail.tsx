@@ -1097,6 +1097,9 @@ export default function LibraryDetail({
                 ) : deleteConfirm === 'deleteFile' ? (
                   <div className="space-y-2">
                     <p className="text-xs text-danger">This will delete the database entry AND the file from disk. This cannot be undone.</p>
+                    {kavitaConfigured && (
+                      <p className="text-xs text-warning">If a matching series is found in Kavita, it will be removed there too.</p>
+                    )}
                     <div className="flex gap-2">
                       <button onClick={() => handleDelete('deleteFile')} disabled={deleting} className="flex-1 px-4 py-2 rounded-lg bg-danger-fill text-white text-sm font-medium hover:bg-danger-fill disabled:opacity-50">{deleting ? 'Deleting...' : 'Confirm Delete'}</button>
                       <button onClick={() => setDeleteConfirm('none')} className="px-4 py-2 rounded-lg bg-raised text-sm font-medium">Cancel</button>
