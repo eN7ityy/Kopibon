@@ -2,7 +2,9 @@ import { useEffect, useCallback, useRef, useState } from 'react'
 import type { DownloadStatus, GalleryListItem } from '../../types/api.types'
 import { SORT_OPTIONS } from '../../types/api.types'
 import { useSearchStore } from '../../stores/search.store'
+import { useSearchHistoryStore } from '../../stores/search-history.store'
 import GalleryGrid from './GalleryGrid'
+import SearchBox from './SearchBox'
 import { resolveLibraryFacts } from '../shared/library-facts'
 import GalleryDetail from '../gallery/GalleryDetail'
 import LoadingSkeleton from '../shared/LoadingSkeleton'
@@ -62,6 +64,12 @@ export default function SearchPage(): React.JSX.Element {
   const defaultQueryRef = useRef<string>('')
   const [selectedGalleryId, setSelectedGalleryId] = useState<number | null>(null)
   const resultsContainerRef = useRef<HTMLDivElement>(null)
+  /**
+   * Read once with the other defaults rather than through a second IPC round
+   * trip. A ref, not state: recording a search never needs to re-render
+   * anything, it only needs the current value at the moment of submission.
+   */
+  const rememberRecentRef = useRef(false)
 
   // When navigated to from Library nhentai ID click, auto-open GalleryDetail
   useEffect(() => {
@@ -155,8 +163,13 @@ export default function SearchPage(): React.JSX.Element {
           if (!cancelled) setDefaultsReady(true)
           return
         }
-        const settings = r.data as { sort?: string | null; defaultQuery?: string | null }
+        const settings = r.data as {
+          sort?: string | null
+          defaultQuery?: string | null
+          rememberRecentSearches?: boolean
+        }
         defaultQueryRef.current = (settings.defaultQuery ?? '').trim()
+        rememberRecentRef.current = settings.rememberRecentSearches ?? false
         if (settings.sort) useSearchStore.getState().setSort(settings.sort)
         setDefaultsReady(true)
       })
@@ -320,6 +333,17 @@ export default function SearchPage(): React.JSX.Element {
   )
 
   /**
+   * Record a submitted query to recent-searches history, if the user has
+   * opted in. An empty query is never recorded — there is nothing there to
+   * show back to them later.
+   */
+  const recordIfEnabled = useCallback((query: string): void => {
+    if (rememberRecentRef.current && query.trim()) {
+      useSearchHistoryStore.getState().recordSearch(query)
+    }
+  }, [])
+
+  /**
    * Submit the search box.
    *
    * An empty box means "show me the default listing again". `performSearch`
@@ -335,7 +359,14 @@ export default function SearchPage(): React.JSX.Element {
       loadPage(1)
       return
     }
+    recordIfEnabled(store.query)
     performSearch(1)
+  }
+
+  /** A recent/favourite row from the search box's dropdown: run it as-is. */
+  const handleRunStoredQuery = (query: string): void => {
+    recordIfEnabled(query)
+    performSearch(1, query)
   }
 
   const handleGalleryClick = (id: number): void => {
@@ -371,6 +402,7 @@ export default function SearchPage(): React.JSX.Element {
     store.setQuery(query)
     // Scroll to top of results
     resultsContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
+    recordIfEnabled(query)
     // Pass query explicitly to avoid stale closure
     performSearch(1, query)
   }
@@ -444,12 +476,12 @@ export default function SearchPage(): React.JSX.Element {
 
       {/* Search bar */}
       <form onSubmit={handleSearch} className="flex gap-2 mb-4">
-        <input
-          type="text"
+        <SearchBox
           value={store.query}
-          onChange={(e) => store.setQuery(e.target.value)}
+          onChange={store.setQuery}
+          onRunSearch={handleRunStoredQuery}
           placeholder="Search by title, artist, or tags..."
-          className="flex-1 px-4 py-2.5 rounded-lg border border-line bg-surface text-fg placeholder-fg-faint focus:outline-none focus:ring-2 focus:ring-accent"
+          className="flex-1"
         />
         <select
           value={store.sort}

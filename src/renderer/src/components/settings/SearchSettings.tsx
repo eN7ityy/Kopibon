@@ -3,6 +3,7 @@ import { Plus, Trash2, EyeOff, Eye, Loader2, X } from 'lucide-react'
 import Button from '../shared/Button'
 import Notice from '../shared/Notice'
 import { tagClass } from '../shared/tags'
+import { useSearchHistoryStore } from '../../stores/search-history.store'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -24,6 +25,7 @@ interface SearchSettingsData {
   minFavorites: number | null
   uploadedWithinDays: number | null
   respectBlacklist: boolean
+  rememberRecentSearches: boolean
 }
 
 interface TagSuggestion {
@@ -249,6 +251,13 @@ export default function SearchSettings(): React.JSX.Element {
         </div>
       </section>
 
+      {/* ─── Recent searches ────────────────────────────────────────────── */}
+
+      <RecentSearchesSettings
+        enabled={settings.rememberRecentSearches}
+        onSetEnabled={(enabled) => patch({ rememberRecentSearches: enabled })}
+      />
+
       {/* ─── Blocked values ─────────────────────────────────────────────── */}
 
       <section>
@@ -284,6 +293,79 @@ export default function SearchSettings(): React.JSX.Element {
         )}
       </section>
     </div>
+  )
+}
+
+// ─── Recent searches ─────────────────────────────────────────────────────────
+
+/**
+ * Opt-in toggle for the Search tab's recent-searches dropdown, plus a way to
+ * wipe what has already been stored.
+ *
+ * Reads the recent list straight from the store rather than through a prop,
+ * since nothing else on this page needs to know its contents — only its
+ * count, and only here.
+ */
+function RecentSearchesSettings({
+  enabled,
+  onSetEnabled
+}: {
+  enabled: boolean
+  onSetEnabled: (enabled: boolean) => void
+}): React.JSX.Element {
+  const recentCount = useSearchHistoryStore((s) => s.recent.length)
+  const favoriteCount = useSearchHistoryStore((s) => s.favorites.length)
+  const clearRecent = useSearchHistoryStore((s) => s.clearRecent)
+
+  const handleToggle = (checked: boolean): void => {
+    onSetEnabled(checked)
+    // Turning it off is a privacy choice, not just "stop adding new ones" — a
+    // toggle that leaves the old entries sitting there doesn't do what it says.
+    if (!checked) clearRecent()
+  }
+
+  return (
+    <section>
+      <h2 className="text-section font-semibold text-fg mb-1">Recent searches</h2>
+      <p className="text-sm text-fg-muted mb-3">
+        Shows your last searches in the search box&apos;s dropdown, so you can run one again
+        without retyping it. Off by default — nothing is recorded until you turn this on.
+      </p>
+
+      <label className="flex cursor-pointer items-start gap-2">
+        <input
+          type="checkbox"
+          checked={enabled}
+          onChange={(e) => handleToggle(e.target.checked)}
+          className="mt-0.5 h-4 w-4 rounded border-line text-accent focus:ring-accent"
+        />
+        <span className="text-sm text-fg">
+          Remember recent searches
+          <span className="block text-xs text-fg-faint">
+            Live tag suggestions while typing are unaffected either way — those look up nhentai&apos;s
+            tag list as you type and store nothing.
+          </span>
+        </span>
+      </label>
+
+      <div className="mt-3 flex items-center gap-3">
+        <span className="text-xs text-fg-faint tnum">
+          {recentCount} recent search{recentCount === 1 ? '' : 'es'} stored
+          {favoriteCount > 0 && ` · ${favoriteCount} favourited`}
+        </span>
+        {recentCount > 0 && (
+          <button
+            onClick={clearRecent}
+            className="text-xs text-danger hover:text-danger underline transition-colors"
+          >
+            Clear recent searches
+          </button>
+        )}
+      </div>
+      <p className="mt-1 text-xs text-fg-faint">
+        Favourited searches are a separate, deliberate save and are not affected by this.
+      </p>
+    </section>
   )
 }
 
