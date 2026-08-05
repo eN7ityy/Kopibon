@@ -2,12 +2,21 @@
  * Caret-aware token utilities for the search box's autocomplete dropdown.
  *
  * The search box holds one query string that can carry several filter terms —
- * `artist:"foo" tag:"big breasts"` — separated by whitespace, except where the
- * whitespace sits inside a quoted phrase. Everything here operates on "the
- * token the caret is inside", which is the unit both the live-suggestion query
- * and a suggestion click operate on: what gets sent to nhentai's tag search is
- * that token's text, and what a click replaces is that token's range, leaving
+ * `artist:"foo" tag:"big breasts"` — and free text the user is still typing,
+ * not yet turned into a filter. Everything here operates on "the token the
+ * caret is inside", which is the unit both the live-suggestion query and a
+ * suggestion click operate on: what gets sent to nhentai's tag search is that
+ * token's text, and what a click replaces is that token's range, leaving
  * every other term in the box untouched.
+ *
+ * The boundary between tokens is a *completed filter term*, not plain
+ * whitespace. Splitting on every space would cut "blue archive" into "blue"
+ * and "archive" and search on whichever one the caret happened to be nearer —
+ * exactly wrong for a two-word tag name, which is the normal case, not an edge
+ * case, on a site where tags read like "blue archive" or "big breasts". A run
+ * of free text can contain as many spaces as it likes and stays one token
+ * until it butts up against something already recognisable as a finished
+ * `type:value` term or a quoted phrase.
  */
 
 /** A token's position and text within the full query string. */
@@ -20,47 +29,59 @@ export interface QueryToken {
 }
 
 /**
- * The token containing (or immediately before) `caret`.
+ * Matches one complete filter term: a recognised `type:` prefix followed by a
+ * quoted or bare value, or a standalone quoted phrase. Negation (`-`) is part
+ * of the match so a negated term is still recognised as one unit.
  *
- * Scans outward from the caret rather than tokenizing the whole string and
- * searching, since the caret sits at the end during normal typing and this
- * keeps that case O(distance to the previous boundary) instead of O(length).
+ * The bare-value branch excludes `"` (`[^\s"]+`, not `\S+`): a value that
+ * starts with a quote but never closes it must fail to match at all rather
+ * than have the bare branch swallow the dangling quote character, which
+ * would silently treat `tag:"big blue` (still being typed) as the complete,
+ * closed term `tag:"big`.
+ */
+const TERM_RE =
+  /-?(?:tag|artist|parody|character|group|language|category|pages|favorites|uploaded|title|jtitle):(?:"[^"]*"|[^\s"]+)|-?"[^"]*"/g
+
+/**
+ * The token containing `caret`.
  *
- * A quote toggles "inside a phrase" for whitespace purposes, so
- * `tag:"big breasts"` is one token despite its internal space. An unbalanced
- * quote (the phrase is still open) is treated as extending to the nearest
- * actual boundary rather than to the end of the string — the box already
- * contains a quote character to close it, once the user gets there.
+ * If the caret sits inside (or right at the edge of) a completed term, that
+ * whole term is the token — editing or replacing it acts on the term as a
+ * unit. Otherwise the caret is in a free-text run: its token is that run's
+ * full extent, from the end of the nearest earlier term (or the start of the
+ * string) to the start of the nearest later term (or the end of the string),
+ * trimmed of the single separating space at each edge but keeping any spaces
+ * in the middle — that trim is what stops a replacement from eating the space
+ * that connects it to a neighbouring term.
  */
 export function currentToken(text: string, caret: number): QueryToken {
   const pos = Math.max(0, Math.min(caret, text.length))
 
-  // Whether the caret itself sits inside an open quote, so the two scans
-  // below start from the right parity instead of assuming "outside". Scanning
-  // backward from the caret hits a run's *closing* boundary before its
-  // opening `"`, so a toggle that starts at `false` regardless of context
-  // gets an unbalanced quote's interior wrong — the actual state has to come
-  // from the real count of quotes between the string start and the caret.
-  let startsQuoted = false
-  for (let i = 0; i < pos; i++) if (text[i] === '"') startsQuoted = !startsQuoted
+  const terms = [...text.matchAll(TERM_RE)].map((m) => ({
+    start: m.index,
+    end: m.index + m[0].length
+  }))
 
-  let start = pos
-  let quoted = startsQuoted
-  while (start > 0) {
-    const ch = text[start - 1]
-    if (ch === '"') quoted = !quoted
-    else if (!quoted && /\s/.test(ch)) break
-    start--
+  for (const t of terms) {
+    if (pos >= t.start && pos <= t.end) {
+      return { start: t.start, end: t.end, text: text.slice(t.start, t.end) }
+    }
   }
 
-  let end = pos
-  quoted = startsQuoted
-  while (end < text.length) {
-    const ch = text[end]
-    if (ch === '"') quoted = !quoted
-    else if (!quoted && /\s/.test(ch)) break
-    end++
+  let regionStart = 0
+  let regionEnd = text.length
+  for (const t of terms) {
+    if (t.end <= pos) regionStart = Math.max(regionStart, t.end)
+    if (t.start >= pos) {
+      regionEnd = Math.min(regionEnd, t.start)
+      break
+    }
   }
+
+  let start = regionStart
+  while (start < regionEnd && /\s/.test(text[start])) start++
+  let end = regionEnd
+  while (end > start && /\s/.test(text[end - 1])) end--
 
   return { start, end, text: text.slice(start, end) }
 }

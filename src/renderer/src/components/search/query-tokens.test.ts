@@ -49,6 +49,65 @@ describe('currentToken', () => {
     // inside the token, not an empty one before it.
     expect(currentToken('blue', -5)).toEqual({ start: 0, end: 4, text: 'blue' })
   })
+
+  describe('a multi-word bare phrase (the regression this fixes)', () => {
+    // "blue archive" is a real, two-word tag name. Splitting on every space
+    // meant the suggestion query was whichever single word the caret
+    // happened to be nearer, and a two-word tag could never be found by
+    // typing it normally.
+    const text = 'blue archive'
+
+    it('stays one token with the caret at the end', () => {
+      expect(currentToken(text, text.length)).toEqual({ start: 0, end: 12, text })
+    })
+
+    it('stays one token with the caret in the middle of the first word', () => {
+      expect(currentToken(text, 2)).toEqual({ start: 0, end: 12, text })
+    })
+
+    it('stays one token with the caret in the middle of the second word', () => {
+      expect(currentToken(text, 8)).toEqual({ start: 0, end: 12, text })
+    })
+
+    it('stays one token with the caret right on the space between them', () => {
+      expect(currentToken(text, 4)).toEqual({ start: 0, end: 12, text })
+    })
+  })
+
+  describe('free text between or after completed terms', () => {
+    it('is bounded by a preceding completed term, not merged into it', () => {
+      const text = 'artist:"foo" blue archive'
+      const t = currentToken(text, text.length)
+      expect(t).toEqual({ start: 13, end: 25, text: 'blue archive' })
+    })
+
+    it('is bounded by a following completed term too', () => {
+      const text = 'blue archive artist:"foo"'
+      const t = currentToken(text, 5) // caret inside "archive"
+      expect(t).toEqual({ start: 0, end: 12, text: 'blue archive' })
+    })
+
+    it('sits between two completed terms without absorbing either', () => {
+      const text = 'artist:"foo" blue archive tag:"bar"'
+      const t = currentToken(text, 20)
+      expect(t.text).toBe('blue archive')
+    })
+
+    it('recognises a numeric filter as a boundary term too', () => {
+      // pages:>10 is a complete term even though it has no autocomplete of
+      // its own — it still has to stop "blue archive" from merging with it.
+      const text = 'pages:>10 blue archive'
+      const t = currentToken(text, text.length)
+      expect(t.text).toBe('blue archive')
+    })
+
+    it('still isolates a single bare word when that is all there is', () => {
+      // The common single-term case must not regress into always returning
+      // the whole free-text run when there is only one word in it anyway.
+      const text = 'artist:"foo" blue'
+      expect(currentToken(text, text.length).text).toBe('blue')
+    })
+  })
 })
 
 describe('replaceToken', () => {
@@ -80,6 +139,13 @@ describe('replaceToken', () => {
     expect(result.text).toBe('parody:"blue archive" tag:"x"')
   })
 
+  it('replaces a whole multi-word free-text run in one go, not just the word the caret is on', () => {
+    const text = 'blue archive'
+    const token = currentToken(text, 2) // caret inside "blue", not "archive"
+    const result = replaceToken(text, token, 'parody:"blue archive"')
+    expect(result.text).toBe('parody:"blue archive" ')
+  })
+
   it('inserts into an empty token without leaving a double space', () => {
     const text = 'artist:"foo" '
     const token = currentToken(text, text.length)
@@ -91,6 +157,14 @@ describe('replaceToken', () => {
 describe('parseTypedToken', () => {
   it('treats a bare word as an all-types query', () => {
     expect(parseTypedToken('blue')).toEqual({ negated: false, type: null, query: 'blue' })
+  })
+
+  it('keeps a multi-word bare phrase intact, as one query', () => {
+    expect(parseTypedToken('blue archive')).toEqual({
+      negated: false,
+      type: null,
+      query: 'blue archive'
+    })
   })
 
   it('recognises an explicit type prefix', () => {

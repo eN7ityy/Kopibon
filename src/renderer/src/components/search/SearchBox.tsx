@@ -315,7 +315,6 @@ export default function SearchBox({
               queryText={parsed.query}
               onSelectSuggestion={selectSuggestion}
               onSelectStaticRow={selectStaticRow}
-              onHover={setHighlightIndex}
             />
           )}
         </div>
@@ -444,7 +443,7 @@ function OperatorReference({ bordered = false }: { bordered?: boolean }): React.
         {OPERATOR_REFERENCE.map((r) => (
           <div key={r.op} className="contents">
             <code className="text-xs font-mono text-accent">{r.op}</code>
-            <span className="text-xs text-fg-faint">{r.desc}</span>
+            <span className="text-xs text-fg-faint text-right">{r.desc}</span>
           </div>
         ))}
       </div>
@@ -462,8 +461,7 @@ function SuggestPanel({
   showStaticTitleRows,
   queryText,
   onSelectSuggestion,
-  onSelectStaticRow,
-  onHover
+  onSelectStaticRow
 }: {
   suggestions: TagSuggestion[]
   loading: boolean
@@ -473,7 +471,6 @@ function SuggestPanel({
   queryText: string
   onSelectSuggestion: (s: TagSuggestion) => void
   onSelectStaticRow: (field: 'title' | 'jtitle') => void
-  onHover: (index: number) => void
 }): React.JSX.Element {
   const trimmed = queryText.trim()
 
@@ -483,7 +480,6 @@ function SuggestPanel({
         <li key={s.id} role="option" aria-selected={i === highlightIndex}>
           <button
             onClick={() => onSelectSuggestion(s)}
-            onMouseEnter={() => onHover(i)}
             className={`flex w-full items-baseline gap-2 px-3 py-1.5 text-left transition-colors ${
               i === highlightIndex ? 'bg-accent-wash text-accent' : 'hover:bg-raised'
             }`}
@@ -520,7 +516,6 @@ function SuggestPanel({
           <li role="option" aria-selected={highlightIndex === suggestions.length}>
             <button
               onClick={() => onSelectStaticRow('title')}
-              onMouseEnter={() => onHover(suggestions.length)}
               className={`flex w-full items-baseline gap-2 px-3 py-1.5 text-left border-t border-line transition-colors ${
                 highlightIndex === suggestions.length ? 'bg-accent-wash text-accent' : 'hover:bg-raised'
               }`}
@@ -532,7 +527,6 @@ function SuggestPanel({
           <li role="option" aria-selected={highlightIndex === suggestions.length + 1}>
             <button
               onClick={() => onSelectStaticRow('jtitle')}
-              onMouseEnter={() => onHover(suggestions.length + 1)}
               className={`flex w-full items-baseline gap-2 px-3 py-1.5 text-left transition-colors ${
                 highlightIndex === suggestions.length + 1 ? 'bg-accent-wash text-accent' : 'hover:bg-raised'
               }`}
