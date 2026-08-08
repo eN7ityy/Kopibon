@@ -28,9 +28,22 @@ df -h /var/lib/docker
 - *Classic* → `repo` scope
 - *Fine-grained* → this repository only, **Administration: Read and write**
 
-This is the only secret involved. It is used solely to exchange for a
-short-lived registration token at container start (see `entrypoint.sh` for
-why a registration token is not supplied directly).
+This is the only secret involved, and it is used for exactly one API call:
+exchanging it for a registration token at container start. Registration
+tokens expire after an hour, which is why one is minted per start rather
+than supplied directly — see `entrypoint.sh`.
+
+Note that the PAT is *not* what builds anything. Workflows authenticate
+with `GITHUB_TOKEN`, which GitHub mints per job and injects automatically,
+so checkout and release publishing never touch this token and it is never
+exposed to workflow code. It needs no `workflow` scope and no package
+permissions.
+
+**Set a calendar reminder for the expiry date.** Because registration
+happens on every start, an expired PAT does not stop a running container —
+it stops the *next* redeploy, months later, with the runner simply never
+coming back. Fine-grained tokens expire within a year at most. The log
+line for this is `HTTP 401`; the fix is a new token in the stack variable.
 
 ## 1. Build the image on the Docker host
 
