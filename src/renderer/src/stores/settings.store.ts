@@ -49,6 +49,13 @@ interface SettingsState {
   kavitaLibraryRoot: string
   kavitaEnabled: boolean
 
+  /**
+   * Whether the first-boot onboarding wizard has been completed. When false
+   * (a fresh database, or one that was deleted), App.tsx shows the wizard
+   * instead of the normal UI until the user finishes it.
+   */
+  onboardingCompleted: boolean
+
   // Track if settings have been loaded from DB
   loaded: boolean
 
@@ -69,6 +76,7 @@ interface SettingsState {
   setKavitaLibraryId: (value: string) => void
   setKavitaLibraryRoot: (value: string) => void
   setKavitaEnabled: (enabled: boolean) => void
+  setOnboardingCompleted: (completed: boolean) => void
 
   loadFromDb: () => Promise<void>
   saveToDb: () => Promise<void>
@@ -101,6 +109,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   kavitaLibraryId: '',
   kavitaLibraryRoot: '',
   kavitaEnabled: false,
+  onboardingCompleted: false,
   loaded: false,
 
   setLibraryPath: (path) => set({ libraryPath: path }),
@@ -120,6 +129,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   setKavitaLibraryId: (value) => set({ kavitaLibraryId: value }),
   setKavitaLibraryRoot: (value) => set({ kavitaLibraryRoot: value }),
   setKavitaEnabled: (enabled) => set({ kavitaEnabled: enabled }),
+  setOnboardingCompleted: (completed) => set({ onboardingCompleted: completed }),
 
   loadFromDb: async () => {
     try {
@@ -177,6 +187,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
           settings.libraryPath ||
           DEFAULT_LIBRARY_PATH,
         kavitaEnabled: asBool(settings.kavitaEnabled, false),
+        onboardingCompleted: settings.onboardingCompleted === 'true',
         loaded: true
       })
     } catch {
@@ -204,7 +215,8 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
         kavitaApiKey: state.kavitaApiKey,
         kavitaLibraryId: state.kavitaLibraryId,
         kavitaLibraryRoot: state.kavitaLibraryRoot,
-        kavitaEnabled: String(state.kavitaEnabled)
+        kavitaEnabled: String(state.kavitaEnabled),
+        onboardingCompleted: String(state.onboardingCompleted)
       })
     } catch {
       console.error('Failed to save settings to database')
