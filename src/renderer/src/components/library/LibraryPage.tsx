@@ -292,8 +292,11 @@ export default function LibraryPage(): React.JSX.Element {
   const kavitaUrl = useSettingsStore((s) => s.kavitaUrl)
   const kavitaApiKey = useSettingsStore((s) => s.kavitaApiKey)
   const kavitaLibraryId = useSettingsStore((s) => s.kavitaLibraryId)
+  const kavitaEnabled = useSettingsStore((s) => s.kavitaEnabled)
+  // The toggle used to be checked nowhere, so switching it off did not hide
+  // the "also remove from Kavita" option below.
   const kavitaConfigured = Boolean(
-    kavitaUrl.trim() && kavitaApiKey.trim() && kavitaLibraryId.trim()
+    kavitaEnabled && kavitaUrl.trim() && kavitaApiKey.trim() && kavitaLibraryId.trim()
   )
 
   // ── Store state (persisted across tab switches) ──────────────────────────
@@ -330,6 +333,7 @@ export default function LibraryPage(): React.JSX.Element {
   const [showConvertDialog, setShowConvertDialog] = useState(false)
   const [batchRemoveConfirm, setBatchRemoveConfirm] = useState(false)
   const [batchAlsoFromKavita, setBatchAlsoFromKavita] = useState(false)
+  const [batchDeleteConfirm, setBatchDeleteConfirm] = useState(false)
   const [selectMode, setSelectMode] = useState(false)
   const [selectingAll, setSelectingAll] = useState(false)
   const [selectionFormats, setSelectionFormats] = useState<Map<number, string>>(new Map())
@@ -683,12 +687,19 @@ export default function LibraryPage(): React.JSX.Element {
     await runBatchRemove(false)
   }
 
-  const handleBatchDelete = async () => {
+  const runBatchDelete = async (): Promise<void> => {
     const ids = [...selectedIds]
     try { await window.api.library.deleteFileMultiple(ids) } catch { /* */ }
     setSelectedIds(new Set()); setSelectionFormats(new Map())
     setSelectionTick((t) => t + 1)
     fetchPage(0, true)
+  }
+
+  // Deleting files from disk is permanent, unlike "Remove from Library" —
+  // this used to run with no confirmation at all in the bulk case, unlike the
+  // single-item flow, which asks first.
+  const handleBatchDelete = (): void => {
+    setBatchDeleteConfirm(true)
   }
 
   const handleBatchConvertToCbz = async (keepOriginal: boolean): Promise<void> => {
@@ -861,7 +872,10 @@ export default function LibraryPage(): React.JSX.Element {
     </div>
   )
 
-  if (loading && items.length === 0) {
+  // Only show the skeleton on the initial empty-library load. Guard on
+  // debouncedSearch: while the user is typing, a mid-search loading state would
+  // replace the whole view (including the search input) and drop focus.
+  if (loading && items.length === 0 && !debouncedSearch) {
     return (
       <div className="flex flex-col h-full">
         {header}
@@ -874,7 +888,7 @@ export default function LibraryPage(): React.JSX.Element {
 
   // ─── Error State ───────────────────────────────────────────────────────────
 
-  if (error && items.length === 0) {
+  if (error && items.length === 0 && !debouncedSearch) {
     return (
       <div className="flex flex-col h-full">
         {header}
@@ -1482,6 +1496,47 @@ export default function LibraryPage(): React.JSX.Element {
               </button>
               <button
                 onClick={() => setBatchRemoveConfirm(false)}
+                className="px-4 py-2 rounded-lg bg-raised text-sm font-medium text-fg"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Batch delete — files from disk, so it confirms first. */}
+      {batchDeleteConfirm && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setBatchDeleteConfirm(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-xl bg-surface p-5 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-section font-semibold text-fg mb-2">Delete files?</h3>
+            <p className="text-sm text-danger mb-3">
+              This will delete {selectedIds.size} item{selectedIds.size === 1 ? '' : 's'} AND
+              their files from disk. This cannot be undone.
+            </p>
+            {kavitaConfigured && (
+              <p className="text-sm text-warning mb-3">
+                If a matching series is found in Kavita, it will be removed there too.
+              </p>
+            )}
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  setBatchDeleteConfirm(false)
+                  void runBatchDelete()
+                }}
+                className="flex-1 px-4 py-2 rounded-lg bg-danger-fill text-white text-sm font-medium hover:bg-danger-fill"
+              >
+                Delete
+              </button>
+              <button
+                onClick={() => setBatchDeleteConfirm(false)}
                 className="px-4 py-2 rounded-lg bg-raised text-sm font-medium text-fg"
               >
                 Cancel

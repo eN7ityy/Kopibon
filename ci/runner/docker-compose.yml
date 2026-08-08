@@ -1,0 +1,59 @@
+# Portainer stack for the self-hosted GitHub Actions runner.
+#
+# Deploy: Portainer -> Stacks -> Add stack -> paste this, then set GITHUB_PAT
+# as a stack environment variable so the secret is not stored in the stack
+# definition itself.
+#
+# The image comes from ci/runner/Dockerfile. Build it once on the Docker host
+# itself and no registry is involved at all:
+#   docker build -t doujin-ci-runner:1 ci/runner
+#
+# If you later want to build elsewhere and pull, push to a registry and set
+# RUNNER_IMAGE as a stack variable to override the default below.
+
+services:
+  doujin-runner:
+    # Unqualified on purpose: Docker resolves this from the local image store.
+    # Leave Portainer's "Pull latest image" toggle OFF, or it will try Docker
+    # Hub and fail on an image that only exists locally.
+    image: ${RUNNER_IMAGE:-doujin-ci-runner:1}
+    container_name: doujin-runner
+    restart: unless-stopped
+
+    environment:
+      GITHUB_REPO: eN7ityy/Doujinshi-Downloader
+      RUNNER_NAME: doujin-builder-01
+
+      # Must match `runs-on: [self-hosted, linux, doujin-builder]` in the
+      # workflows. 'self-hosted' is applied automatically — listing it here
+      # would be rejected as a reserved label.
+      RUNNER_LABELS: linux,doujin-builder
+
+      # appimagetool mounts its own AppImage via FUSE, which a container does
+      # not have. This makes it extract and run instead, avoiding the usual
+      # `--cap-add SYS_ADMIN --device /dev/fuse` escalation just to package a
+      # release.
+      APPIMAGE_EXTRACT_AND_RUN: '1'
+
+      # ─── The only value to fill in ──────────────────────────────────────
+      # A PAT that may manage self-hosted runners for this repository:
+      #   classic      -> `repo` scope
+      #   fine-grained -> this repo only, Administration: Read and write
+      GITHUB_PAT: ${GITHUB_PAT}
+
+    volumes:
+      - runner-work:/home/runner/_work
+      # Electron alone is ~100 MB and electron-builder fetches its own
+      # packaging toolchain. Without these the runner re-downloads a few
+      # hundred megabytes on every single release build.
+      - runner-npm-cache:/home/runner/.npm
+      - runner-build-cache:/home/runner/.cache
+
+    # Long enough for an in-flight build to finish packaging rather than being
+    # killed halfway through writing an artifact.
+    stop_grace_period: 5m
+
+volumes:
+  runner-work:
+  runner-npm-cache:
+  runner-build-cache:

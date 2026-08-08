@@ -2,6 +2,11 @@ appId: com.en7ity.doujin-downloader
 productName: Doujin Downloader
 directories:
   buildResources: build
+# Chromium's own UI strings (spellcheck menus, native dialogs) — not this
+# app's UI, which is our own renderer bundle and always English regardless.
+# Electron ships ~55 locale .pak files by default; keeping one drops ~43 MB.
+electronLanguages:
+  - en-US
 files:
   - '!docs/*'
   - '!tools/*'
@@ -10,12 +15,56 @@ files:
   - '!nhentai-api-v2-reference.md'
   - '!openapi_documentation.json'
   - '!**/.vscode/*'
+  # Session-local tooling metadata, never part of the app. electron-builder
+  # does not read .gitignore, so this has been silently packaged into every
+  # build regardless of git status — harmless in practice (a few KB), but it
+  # has no business shipping to a user.
+  - '!.claude/**'
   - '!src/*'
   - '!electron.vite.config.{js,ts,mjs,cjs}'
   - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
   - '!drizzle.config.ts'
+  # ── Dependencies bundled by electron-vite but still shipped in full by
+  # default — everything below here is dead weight already inlined into
+  # out/, or a native binary for a platform/libc we never target. Confirmed
+  # by grepping the actual compiled require() calls in out/ (§ size audit).
+  #
+  # @napi-rs/canvas is pdfjs-dist's optional NODE-side canvas backend. Nothing
+  # in main requires it — PdfViewer.tsx renders to a browser <canvas> in the
+  # renderer, which is a different code path entirely. ~62 MB (gnu + musl).
+  - '!node_modules/@napi-rs/**'
+  # sharp's WASM fallback, only loaded when no native binding matches the
+  # platform. We always ship the matching native binding, so this never runs.
+  - '!node_modules/@img/sharp-wasm32/**'
+  # musl (Alpine) builds of libvips/sharp. AppImage/rpm/deb all target glibc
+  # distros; nothing we ship is musl-linked.
+  - '!node_modules/@img/*musl*/**'
+  # better-sqlite3's C++ addon source and node-gyp build tree. Only used if
+  # better-sqlite3 has to compile from source; npmRebuild: false below means
+  # electron-builder never triggers that, and the platform prebuild in
+  # prebuilds/ is what actually loads at runtime.
+  - '!node_modules/better-sqlite3/deps/**'
+  - '!node_modules/better-sqlite3/src/**'
+  - '!node_modules/better-sqlite3/build/**'
+  # better-sqlite3 ships a prebuilt native binary for every platform it
+  # supports in one package (darwin/linux/win32 × x64/arm64, plus musl
+  # variants), since it can't know at publish time which one will be used.
+  #
+  # This is deliberately NOT scoped to `linux:` — a platform-specific `files:`
+  # block replaces this whole top-level array for that platform rather than
+  # extending it (verified: adding one here made every other exclusion stop
+  # applying, including .git and this project's own dist/ output, ballooning
+  # the package by 4x). If a Windows or macOS build is ever produced from
+  # this config, remove these six lines first or add back their own prebuild.
+  - '!node_modules/better-sqlite3/prebuilds/darwin-arm64.node'
+  - '!node_modules/better-sqlite3/prebuilds/darwin-x64.node'
+  - '!node_modules/better-sqlite3/prebuilds/linux-arm64.node'
+  - '!node_modules/better-sqlite3/prebuilds/linuxmusl-arm64.node'
+  - '!node_modules/better-sqlite3/prebuilds/linuxmusl-x64.node'
+  - '!node_modules/better-sqlite3/prebuilds/win32-arm64.node'
+  - '!node_modules/better-sqlite3/prebuilds/win32-x64.node'
 asarUnpack:
   - resources/**
   # Native addons (.node files) and their shared libraries must live outside the
