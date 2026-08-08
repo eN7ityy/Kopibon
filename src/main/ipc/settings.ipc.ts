@@ -1,17 +1,24 @@
 import { settingsRepo } from '../db/repositories/settings.repo'
 import { getDownloadManager } from '../services/download-manager'
+import { refreshReleaseChannel } from './updater.ipc'
 import { encryptKey, decryptKey } from './auth.ipc'
 import { handle } from './handle'
 
 /** Settings that need to be pushed into a running service when they change. */
-const LIVE_SETTINGS = new Set(['downloadConcurrency'])
+const LIVE_SETTINGS: Record<string, () => void> = {
+  downloadConcurrency: () => getDownloadManager().applyConcurrencyFromSettings(),
+  releaseChannel: () => refreshReleaseChannel()
+}
 
 function applyLiveSettings(keys: string[]): void {
-  if (!keys.some((key) => LIVE_SETTINGS.has(key))) return
-  try {
-    getDownloadManager().applyConcurrencyFromSettings()
-  } catch {
-    /* applying a live setting must never fail the save */
+  for (const key of keys) {
+    const apply = LIVE_SETTINGS[key]
+    if (!apply) continue
+    try {
+      apply()
+    } catch {
+      /* applying a live setting must never fail the save */
+    }
   }
 }
 

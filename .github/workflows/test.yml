@@ -1,9 +1,11 @@
 name: Test Release
 
 # Pre-release build for the `test` branch. Merge dev -> test and this
-# publishes a GitHub pre-release that beta testers auto-update onto (the app
-# sets autoUpdater.allowPrerelease for any version containing "beta" — see
-# src/main/index.ts).
+# publishes a GitHub pre-release that beta testers auto-update onto. Whether a
+# given install receives it is a user-facing Settings > Advanced choice
+# (src/main/ipc/updater.ipc.ts sets autoUpdater.allowPrerelease from the
+# `releaseChannel` setting, defaulting from the version string only the first
+# time it is read, before the setting exists).
 on:
   push:
     branches: [test]
