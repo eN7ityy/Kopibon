@@ -101,22 +101,31 @@ linux:
     - rpm
     - deb
   maintainer: eN7ity
-  category: Utility
-  # Runtime tools the app shells out to. They are NOT bundled: pikepdf writes
-  # PDF XMP metadata, and poppler's pdfinfo/pdfimages/pdftoppm drive PDF
-  # thumbnails and the whole PDF -> CBZ conversion. Declaring them here is the
-  # main reason to ship an rpm at all — dnf installs them for the user, whereas
-  # an AppImage user has to know to do it by hand.
-  #
-  # AppImage cannot express dependencies, so it relies on the in-app dependency
-  # check instead. Note the reverse trade-off: AppImage is the only Linux format
-  # electron-updater can auto-update, so the rpm is a convenience channel that
-  # updates through dnf.
-  desktop:
-    entry:
-      Categories: Utility;Graphics;Viewer;
+  # Feeds the .desktop Categories key and nothing else — neither the fpm nor
+  # the AppImage target reads it, and both packages report Section/Group
+  # "default". The full list belongs here rather than under `desktop.entry`
+  # because electron-builder writes Categories from this field *after* merging
+  # desktop.entry, so a Categories key set there is silently discarded (it was,
+  # for every release built before this line existed).
+  category: Utility;Graphics;Viewer;
+  # Names the installed .desktop file after `desktopName` in package.json
+  # rather than the executable, so the filename, StartupWMClass and Electron's
+  # own app_id all agree. Without it StartupWMClass falls back to productName
+  # ("Doujin Downloader"), which never matches the WM_CLASS Electron actually
+  # sets — the window then floats free of its launcher icon in GNOME/KDE.
+  syncDesktopName: true
 appImage:
   artifactName: ${name}-${version}.${ext}
+# Runtime tools the app shells out to. They are NOT bundled: pikepdf writes
+# PDF XMP metadata, and poppler's pdfinfo/pdfimages/pdftoppm drive PDF
+# thumbnails and the whole PDF -> CBZ conversion. Declaring them here is the
+# main reason to ship an rpm at all — dnf installs them for the user, whereas
+# an AppImage user has to know to do it by hand.
+#
+# AppImage cannot express dependencies, so it relies on the in-app dependency
+# check instead. Note the reverse trade-off: AppImage is the only Linux format
+# electron-updater can auto-update, so the rpm is a convenience channel that
+# updates through dnf.
 rpm:
   artifactName: ${name}-${version}.${ext}
   depends:
