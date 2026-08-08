@@ -8,7 +8,8 @@
 # which is exactly when you least want to go hunting for a fresh token.
 set -euo pipefail
 
-cd /opt/actions-runner
+# Where the official base image installs the runner (its WORKDIR).
+cd /home/runner
 
 : "${GITHUB_REPO:?set GITHUB_REPO, e.g. eN7ityy/Doujinshi-Downloader}"
 : "${GITHUB_PAT:?set GITHUB_PAT (needs permission to manage self-hosted runners)}"
