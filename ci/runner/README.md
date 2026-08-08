@@ -74,9 +74,18 @@ GitHub → **Settings → Actions → Runners**. Within a few seconds
 `linux`, `doujin-builder`.
 
 If it does not, the container logs say why — Portainer's log view is
-enough. The usual cause is a PAT missing the administration permission,
-which surfaces as a `jq` error on a response that was a `403` rather than
-a token.
+enough, and the entrypoint names the specific cause rather than leaving
+you with an HTTP code:
+
+| Log line                    | Fix                                                      |
+| --------------------------- | -------------------------------------------------------- |
+| `HTTP 401` / Bad credentials | Token invalid, expired, or pasted with stray whitespace  |
+| `HTTP 403`                  | Token valid but lacks runner administration rights        |
+| `HTTP 404`                   | `GITHUB_REPO` wrong, or a fine-grained PAT scoped to other repositories — GitHub reports those as 404, not 403 |
+
+Note that credentials are checked before repository existence, so a bad
+token reports 401 even when the repository name is also wrong. Fix the
+token first, then re-read the error.
 
 ## 4. Prove it actually builds
 
