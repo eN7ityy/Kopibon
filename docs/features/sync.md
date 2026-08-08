@@ -5,9 +5,7 @@ library item; title, tags, artists, language, publisher, favourites count,
 cover; then **re-writes that metadata into the file** so the change survives a
 move or a rescan. It is how you keep an older download current, or backfill
 correct metadata into a library that was scanned in before nhentai data was
-attached. The per-item work runs in [`sync.worker.ts`](../../src/main/services/sync.worker.ts);
-the queue, pacing and resume logic live in the sync handlers of
-[`library.ipc.ts`](../../src/main/ipc/library.ipc.ts).
+attached.
 
 ## What sync does
 

@@ -1,12 +1,7 @@
 # Metadata formats
 
 The exact fields the app writes, where they come from, and how the two formats
-differ. This is the reference for [`../features/metadata-pipeline.md`](../features/metadata-pipeline.md);
-the values are produced by [`mappers.ts`](../../src/main/services/metadata/mappers.ts),
-rendered from the two templates in
-[`resources/metadata-templates/`](../../resources/metadata-templates/README.md),
-and read back by [`comicinfo.ts`](../../src/main/services/comicinfo.ts) and the
-library scanner.
+differ. This is the reference for [`../features/metadata-pipeline.md`](../features/metadata-pipeline.md).
 
 ## ComicInfo v2.1 (CBZ)
 

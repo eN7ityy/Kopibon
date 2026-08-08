@@ -63,8 +63,6 @@ on being signed in:
 | Tag search (`POST /tags/search`) | 30/min | 30/min |
 | Config (`GET /cdn`, `GET /config`) | 30/min | 30/min |
 
-The limits are encoded in [`rate-limiter.ts`](../../src/main/services/rate-limiter.ts)
-and the same table drives the batch sync's pacing, so the two never drift apart.
 A `429` response is honoured by waiting out `Retry-After` before retrying.
 
 ## What works without one

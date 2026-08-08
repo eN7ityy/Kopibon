@@ -16,13 +16,11 @@ Every metadata write flows through one shape:
 input shape  ──adapter──▶  FileMetadata  ──mapper──▶  template context  ──template──▶  bytes
 ```
 
-- **Adapters** ([`file-metadata.ts`](../../src/main/services/metadata/file-metadata.ts))
-  pull facts out of whatever the caller has: an nhentai API gallery, a library
-  row, or a hand-edited field, and make no decisions.
+- **Adapters** pull facts out of whatever the caller has: an nhentai API
+  gallery, a library row, or a hand-edited field, and make no decisions.
 - **`FileMetadata`** is the one shape everything is written from.
-- **Mappers** ([`mappers.ts`](../../src/main/services/metadata/mappers.ts)) make
-  every decision: which series a file belongs to, who to credit, which language
-  wins. There is exactly one mapper per format.
+- **Mappers** make every decision: which series a file belongs to, who to
+  credit, which language wins. There is exactly one mapper per format.
 - **Templates** decide where those values go. They are text files, so changing
   *where* a value is written needs no code change.
 
@@ -31,7 +29,7 @@ input shape  ──adapter──▶  FileMetadata  ──mapper──▶  templa
 A PDF gets two things written in parallel, both derived from the same
 `FileMetadata` so they cannot disagree:
 
-- An **XMP packet**, injected via Python + pikepdf ([`xmp-inject.ts`](../../src/main/services/xmp-inject.ts)).
+- An **XMP packet**, injected via Python + pikepdf.
   It uses calibre's namespaces (`calibre:series`, `calibreSI:series_index`) so
   the result is readable by calibre and Kavita, and stores the nhentai gallery
   ID in `pdfx:isbn`.
@@ -39,9 +37,8 @@ A PDF gets two things written in parallel, both derived from the same
   Kavita reads both, and the keywords carry tokens the app's own scanner reads
   back (see [`metadata-formats.md`](../reference/metadata-formats.md)).
 
-The dispatch between PDF and CBZ happens in
-[`apply-metadata.ts`](../../src/main/services/apply-metadata.ts), the single
-entry point for editing metadata on an existing file.
+The dispatch between PDF and CBZ happens in a single entry point for editing
+metadata on an existing file.
 
 ## CBZ path
 

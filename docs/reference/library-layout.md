@@ -3,10 +3,7 @@
 This page documents how the app arranges files on disk and the naming rules it
 applies. It is the contract the downloader writes to, the series assignment
 moves within, and the scanner reads back from. So a file that does not follow
-it may not round-trip correctly. The filename logic lives in
-[`gallery-filename.ts`](../../src/main/services/gallery-filename.ts); the
-scanner that reads it is
-[`library-scanner.worker.ts`](../../src/main/services/library-scanner.worker.ts).
+it may not round-trip correctly.
 
 ## Folder structure
 

@@ -4,7 +4,7 @@ Kavita is an optional self-hosted comic/manga server. This app does not need it
 The app works without it. When you run both, the app can keep Kavita
 in step with the library. It shows Kavita's view of each item, triggers a scan
 after metadata changes so a renamed or re-tagged series appears immediately,
-and mirrors deletions. The client is [`kavita-client.ts`](../../src/main/services/kavita-client.ts). The raw server API is documented in [`kavita_api.json`](../other/kavita_api.json).
+and mirrors deletions.
 
 ## Requirements
 

@@ -5,8 +5,7 @@ Two toolchains are **not** bundled with the app: Python with **pikepdf**, and
 quietly stops doing half of what you expect, which is why a **Required Tools**
 panel exists in Settings and why the app probes for them at startup. This page
 covers what each tool does, how to install it, and what degrades when it is
-missing. The probe itself is [`toolchain.ts`](../../src/main/services/toolchain.ts)
-and its UI is [`ToolchainStatus.tsx`](../../src/renderer/src/components/settings/ToolchainStatus.tsx).
+missing.
 
 ## Python 3 + pikepdf
 

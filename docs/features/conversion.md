@@ -4,8 +4,7 @@ Conversion takes PDFs in your library and rebuilds them as CBZ archives. It extr
 images copied out of the PDF and packed with a fresh `ComicInfo.xml`. It is
 designed to be lossless when possible, safe (the source is never touched until
 the result is verified), and resumable if you quit halfway through a long
-batch. The extraction logic is [`pdf-extract.ts`](../../src/main/services/pdf-extract.ts)
-and the archive builder is [`cbz-generator.ts`](../../src/main/services/cbz-generator.ts).
+batch.
 
 ## Lossless extraction
 

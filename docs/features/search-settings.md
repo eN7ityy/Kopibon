@@ -4,9 +4,7 @@ Search settings shape how the Search tab behaves before you type anything, and
 let you keep unwanted content out of results; either by hiding it entirely or
 by showing it but marking it. Everything here is optional and applies
 immediately when changed (Settings → nhentai → Search settings), so there is no
-Save button to forget. The query-building and matching rules live in
-[`search-query.ts`](../../src/main/services/search-query.ts). The stored entries
-in [`blocked.repo.ts`](../../src/main/db/repositories/blocked.repo.ts).
+Save button to forget.
 
 ## Defaults
 
@@ -72,6 +70,9 @@ gallery never flashes on screen. `dim` entries mark cards there too.
 When adding a blocked value, the input suggests **real nhentai tags** for the
 chosen type. This matters: a value typed by hand that does not correspond to an
 actual tag becomes a negation that silently matches nothing.
+
+![Search filters](../images/search_filters.png)
+![Search suggestions](../images/search_suggestions.png)
 
 ## See also
 

@@ -1,33 +1,100 @@
-# Kopibon
+<p align="center">
+  <img src="build/kopibon_icon.png" alt="Kopibon" width="120" />
+</p>
 
-A desktop app for downloading galleries from nhentai and organising them as a
-local library. It writes metadata into every file, so Kavita can treat the
-result as a collection instead of a folder of loose files. The app uses Electron,
-React and TypeScript and runs on Linux and Windows.
+<h1 align="center">Kopibon</h1>
 
-## What it does
+<p align="center">
+  A desktop app for downloading, managing and reading doujinshi from nhentai.
+  <br/>
+  Built with Electron, React and TypeScript. Runs on Linux and Windows.
+</p>
 
-- Browse and search nhentai, with favourites, gallery details and related work.
-- Download as **PDF or CBZ**, with compression controls and a concurrency slider.
-- Embedded metadata: XMP for PDF, ComicInfo for CBZ.
-- Scan, organise and read a local library, including series grouping, editing, PDF → CBZ
-  conversion, and built-in viewers.
+<p align="center">
+  <a href="docs/getting-started/installation.md">Installation</a> ·
+  <a href="docs/getting-started/nhentai-api-key.md">nhentai API key</a> ·
+  <a href="docs/features/library.md">Library</a> ·
+  <a href="docs/features/kavita-integration.md">Kavita</a>
+</p>
 
-## Requirements
+---
 
-Python + pikepdf and poppler are needed for PDF features. See
-[External tools](docs/reference/external-tools.md).
+## Features
 
-## Quickstart
+### nhentai Search & Browse
 
-```bash
-npm install
-npm run dev
-```
+- Full nhentai search with tag syntax (`artist:`, `tag:`, `-word` to exclude)
+- Sort by date or popularity (all-time, today, week, month)
+- Gallery detail with tags, artists, groups and related galleries
+- In-app gallery viewer with keyboard navigation and CDN fallback
 
-Set your library path in Settings, check the Required Tools panel, add your
-nhentai API key if you want favourites, and pick an output format. See
-[Installation](docs/getting-started/installation.md).
+### Favorites
+
+- Browse and search your nhentai favorites
+- Favorite / unfavorite straight from the detail panel
+- Un-favoriting removes the card from the list in place, keeping your place
+
+### Library
+
+- Scan existing PDF/CBZ collections and read the metadata back out
+- Three view modes: grid, compact, and list with inline editing
+- Search across title, artist, series, tags, filename and nhentai ID
+- Filter by artist, series and tag with searchable multi-select dropdowns
+- Series grouping with volume numbering and missing-volume detection
+- Batch operations: delete, remove, convert, sync, select-all
+- Custom entries for doujinshi that nhentai does not host
+
+### Downloads
+
+- Download as **PDF** or **CBZ**, with compression controls
+- Configurable concurrency (1–8 simultaneous downloads)
+- CDN server rotation when a server fails
+- Re-downloading preserves your series and volume metadata
+
+### Metadata
+
+- `ComicInfo.xml` for CBZ, XMP + docinfo for PDF
+- Kavita-compatible: Series, Number, Genre, Tags, SeriesGroup, StoryArc
+- Calibre-compatible XMP namespaces
+- Editable templates — change what gets written without touching code
+
+### Kavita Integration (optional)
+
+- Status indicators in the library and series detail
+- Automatic series scans after metadata changes
+- Delete mirroring
+- Graceful degradation — everything works without it
+
+### Readers
+
+- Built-in PDF viewer with batched, memory-friendly rendering
+- Built-in CBZ viewer with lazy page decoding and keyboard navigation
+- Online gallery viewer for nhentai galleries
+
+---
+
+## Screenshots
+
+<p align="center">
+  <img src="docs/images/library.png" alt="Library" width="48%" />
+  <img src="docs/images/item_detail.png" alt="Item detail" width="48%" />
+</p>
+
+<p align="center">
+  <img src="docs/images/search_dark.png" alt="Search (dark)" width="48%" />
+  <img src="docs/images/search_light.png" alt="Search (light)" width="48%" />
+</p>
+
+<!-- TODO: replace the two search screenshots above with a single animated
+     search.gif once it is produced. -->
+
+---
+
+## Getting Started
+
+See [Installation](docs/getting-started/installation.md) for the requirements,
+how to install and run the app, and how to build the packaged application from
+source.
 
 ## Documentation
 
@@ -46,16 +113,6 @@ nhentai API key if you want favourites, and pick an output format. See
 **Reference:** [Library layout](docs/reference/library-layout.md) ·
 [Metadata formats](docs/reference/metadata-formats.md) ·
 [External tools](docs/reference/external-tools.md)
-
-## Building
-
-```bash
-npm run build:linux   # AppImage and RPM
-npm run build:win     # NSIS installer
-npm run build:unpack  # unpacked directory
-```
-
-See [Installation → Building](docs/getting-started/installation.md#building).
 
 ## License
 

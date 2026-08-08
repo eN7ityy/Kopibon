@@ -2,9 +2,7 @@
 
 The Search and Favorites tabs are a full nhentai client in their own right:
 you can search, browse, open gallery details, favourite or unfavourite, and
-jump to related work; all without leaving the app. It talks to nhentai's v2
-API through [`api-client.ts`](../../src/main/services/api-client.ts), which is
-described in full in [`nhentai-api-v2-reference.md`](../other/nhentai-api-v2-reference.md).
+jump to related work; all without leaving the app.
 
 ## Searching and browsing
 

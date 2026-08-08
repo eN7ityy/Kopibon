@@ -7,10 +7,6 @@ browse three view modes, filter and search, group volumes into series, edit any
 field, sync against nhentai, convert formats, and add doujinshi that nhentai
 does not host.
 
-The UI is built from [`LibraryPage.tsx`](../../src/renderer/src/components/library/LibraryPage.tsx),
-with detail and series panels in the same folder. The scanner that feeds it is
-[`library-scanner.worker.ts`](../../src/main/services/library-scanner.worker.ts).
-
 ## Scanning
 
 A **Rescan** walks the whole library folder. The scan runs in a worker thread,
@@ -43,6 +39,8 @@ Three view modes, persisted across sessions:
 - **Compact**: smaller cards with more per row.
 - **List**: rows that support **inline editing** (see below).
 
+![Library list view](../images/library_list_view.png)
+
 ## Searching and filtering
 
 - **Search**: full-text across title, artist, series, tags, filename, nhentai
@@ -51,6 +49,8 @@ Three view modes, persisted across sessions:
   multi-select dropdowns; pick several at once.
 - **Unmatched only**: toggle to show only items with no nhentai ID.
 - **Sort**: by **added date**, **title**, or **artist**.
+
+![Library filters](../images/library_filter.png)
 
 ## Inline editing (list mode)
 
@@ -117,6 +117,8 @@ provide a title, artist(s), optional series, tags, language and date, and point
 it at a **PDF file or a folder of images**. The app builds the file in the
 chosen format (with optional compression), generates a cover thumbnail, and
 files it in the library with no nhentai ID.
+
+![Custom entry form](../images/library_custom.png)
 
 ## Page counts
 

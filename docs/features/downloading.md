@@ -7,9 +7,6 @@ library. It is built to be patient and resumable. A queue can be paused,
 cancelled, restarted after a crash, and it never loses the metadata you have
 already set on a series.
 
-The download pipeline lives in
-[`download-manager.ts`](../../src/main/services/download-manager.ts).
-
 ## Output formats
 
 Pick a **default format** in Settings → Downloads, and override it per gallery
@@ -66,6 +63,8 @@ A single download goes through these stages:
 A placeholder library entry shows **Downloading** in the UI while the gallery
 is in flight. A failed download removes the placeholder, so nothing is left
 half-presented.
+
+![Downloading](../images/download.png)
 
 ## Re-downloads
 

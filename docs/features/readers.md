@@ -8,8 +8,8 @@ key.
 
 ## Gallery viewer
 
-The online viewer ([`GalleryViewer.tsx`](../../src/renderer/src/components/gallery/GalleryViewer.tsx))
-opens when you click a gallery's cover in Search or Favorites. It has two modes:
+The online viewer opens when you click a gallery's cover in Search or
+Favorites. It has two modes:
 
 - **Thumbnail grid**: all pages as a grid; click one to start reading.
 - **Full-screen reading**: one page at a time. Navigate with the **left/right
@@ -22,8 +22,8 @@ flipping feels instant.
 
 ## PDF viewer
 
-The PDF viewer ([`PdfViewer.tsx`](../../src/renderer/src/components/library/PdfViewer.tsx))
-renders the file with **pdfjs-dist** into a vertically scrollable strip of
+The PDF viewer renders the file with **pdfjs-dist** into a vertically
+scrollable strip of
 full-width page canvases. It renders pages in batches (yielding to the event
 loop so the UI stays responsive), tracks the visible page with an intersection
 observer, and **releases memory on close**. The PDF document is destroyed and
@@ -32,8 +32,8 @@ leak.
 
 ## CBZ viewer
 
-The CBZ viewer ([`CbzViewer.tsx`](../../src/renderer/src/components/library/CbzViewer.tsx))
-reads individual page images from the archive over IPC (the main process
+The CBZ viewer reads individual page images from the archive over IPC (the
+main process
 streams single entries with `yauzl`, so it never inflates the whole file at
 once). It uses **lazy rendering**: only the visible page plus a small window
 around it is decoded, keeping memory use flat on long books. Keyboard
