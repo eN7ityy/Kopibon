@@ -6,15 +6,18 @@ export default function StatusBar(): React.JSX.Element {
   const kavitaUrl = useSettingsStore((s) => s.kavitaUrl)
   const kavitaApiKey = useSettingsStore((s) => s.kavitaApiKey)
   const kavitaLibraryId = useSettingsStore((s) => s.kavitaLibraryId)
+  const kavitaEnabled = useSettingsStore((s) => s.kavitaEnabled)
   const [activeCount, setActiveCount] = useState(0)
   const [queuedCount, setQueuedCount] = useState(0)
   const [libraryCount, setLibraryCount] = useState(0)
   const [kavitaCount, setKavitaCount] = useState<number | null>(null)
   const [version, setVersion] = useState<string | null>(null)
 
-  // Only shown once a Kavita server is fully configured (URL + key + library).
+  // Only shown once the integration is switched on and fully configured (URL
+  // + key + library) — the toggle used to be checked nowhere, so turning it
+  // off did not hide this or stop the backend from still polling Kavita.
   const kavitaConfigured = Boolean(
-    kavitaUrl.trim() && kavitaApiKey.trim() && kavitaLibraryId.trim()
+    kavitaEnabled && kavitaUrl.trim() && kavitaApiKey.trim() && kavitaLibraryId.trim()
   )
 
   // Read the real app version instead of a hardcoded string that silently
@@ -57,7 +60,7 @@ export default function StatusBar(): React.JSX.Element {
       const st = useSettingsStore.getState()
       const url = st.kavitaUrl.trim()
       const key = st.kavitaApiKey.trim()
-      if (url && key && st.kavitaLibraryId.trim()) {
+      if (st.kavitaEnabled && url && key && st.kavitaLibraryId.trim()) {
         try {
           const r = await window.api.kavita.getItemCount(url, key)
           if (r.success && typeof r.data === 'number') setKavitaCount(r.data)

@@ -8,6 +8,7 @@ import SeriesGrouping from './SeriesGrouping'
 import ProgressBar from '../shared/ProgressBar'
 import ToolchainStatus from './ToolchainStatus'
 import UpdateStatus from './UpdateStatus'
+import ReleaseChannel from './ReleaseChannel'
 import LogsPage from './LogsPage'
 import SearchSettings from './SearchSettings'
 import KavitaSettings from './KavitaSettings'
@@ -444,6 +445,7 @@ export default function SettingsPage(): React.JSX.Element {
               <section>
                 <h2 className="text-section font-semibold text-fg mb-3">Advanced</h2>
                 <div className="space-y-3">
+                  <ReleaseChannel />
                   <UpdateStatus />
                   <MetadataConverter />
                 </div>

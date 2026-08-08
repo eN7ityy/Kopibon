@@ -1,4 +1,4 @@
-import { join } from 'path'
+import { join, basename } from 'path'
 import { mkdirSync, existsSync, statSync, rmSync } from 'fs'
 import { Worker } from 'worker_threads'
 import { app, Notification } from 'electron'
@@ -8,6 +8,7 @@ import { downloadRepo } from '../db/repositories/download.repo'
 import { galleryRepo } from '../db/repositories/gallery.repo'
 import { settingsRepo } from '../db/repositories/settings.repo'
 import { libraryRepo } from '../db/repositories/library.repo'
+import { relativizeLibraryPath } from './library-paths'
 import { getApiClient } from './api-client'
 // import { getKavitaClient } from './kavita-client'
 import { resolveLanguageName } from './xml-utils'
@@ -96,13 +97,13 @@ interface ActiveDownload {
  * on Windows, previously sending everything to C:\tmp).
  */
 function imageDownloadRoot(): string {
-  const base = app?.getPath ? app.getPath('userData') : join(process.cwd(), '.doujin-downloader')
+  const base = app?.getPath ? app.getPath('userData') : join(process.cwd(), '.kopibon')
   return join(base, 'download-tmp')
 }
 
 /** Persistent thumbnail cache — must outlive reboots, so not in os.tmpdir(). */
 function thumbnailRoot(): string {
-  const base = app?.getPath ? app.getPath('userData') : join(process.cwd(), '.doujin-downloader')
+  const base = app?.getPath ? app.getPath('userData') : join(process.cwd(), '.kopibon')
   return join(base, 'thumbnails')
 }
 
@@ -577,21 +578,42 @@ export class DownloadManager {
         const worker = new Worker(workerPath)
         attachWorkerLogForwarding(worker, getLogger('downloads'))
 
+        /*
+         * Settle once, then end the thread.
+         *
+         * The generation workers never exit by themselves — each is parked on a
+         * parentPort listener — so before this, every completed download left a
+         * live worker behind, one V8 isolate each. Twenty downloads measured at
+         * twenty live threads and 171 MB of RSS that never came back.
+         *
+         * Only the terminal messages settle: terminating on `progress` would
+         * kill the worker mid-build, which is a bug this code has had before.
+         */
+        let settled = false
+        const finish = (done: () => void): void => {
+          if (settled) return
+          settled = true
+          done()
+          worker.terminate().catch(() => {
+            /* already gone */
+          })
+        }
+
         worker.on('message', (msg: { type: string; current?: number; total?: number; outputPath?: string; thumbnailPath?: string; message?: string }) => {
           if (msg.type === 'progress') {
             this.emitProgress(
               queueId, galleryId, title, msg.total!, msg.current!, 0, 0, 'converting'
             )
           } else if (msg.type === 'complete') {
-            resolve({ thumbnailPath: msg.thumbnailPath })
+            finish(() => resolve({ thumbnailPath: msg.thumbnailPath }))
           } else if (msg.type === 'error') {
-            reject(new Error(msg.message || 'PDF generation failed'))
+            finish(() => reject(new Error(msg.message || 'PDF generation failed')))
           }
         })
 
-        worker.on('error', (err) => reject(err))
+        worker.on('error', (err) => finish(() => reject(err)))
         worker.on('exit', (code) => {
-          if (code !== 0) reject(new Error(`PDF worker exited with code ${code}`))
+          if (code !== 0) finish(() => reject(new Error(`PDF worker exited with code ${code}`)))
         })
 
         const workerMsg: Record<string, unknown> = {
@@ -683,7 +705,7 @@ export class DownloadManager {
           customTags: tagNames,
           customLanguage: languageIso,
           customDate: dateStr,
-          filePath: outputPath,
+          filePath: relativizeLibraryPath(outputPath, libraryRoot),
           fileSize,
           publisher: gallery.tags.find((t) => t.type === 'group')?.name || null,
           fileMtime: Date.now(),
@@ -706,8 +728,8 @@ export class DownloadManager {
         // Apply thumbnail path from worker result
         if (workerResult.thumbnailPath) {
           libraryRepo.update(libItem.id, {
-            customCoverPath: workerResult.thumbnailPath,
-            thumbnailPath: workerResult.thumbnailPath
+            customCoverPath: basename(workerResult.thumbnailPath),
+            thumbnailPath: basename(workerResult.thumbnailPath)
           })
         }
       }

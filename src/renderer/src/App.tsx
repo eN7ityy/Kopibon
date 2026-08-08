@@ -2,6 +2,7 @@ import { HashRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useEffect } from 'react'
 import AppRoutes from './routes'
+import OnboardingWizard from './components/onboarding/OnboardingWizard'
 import { useUiStore } from './stores/ui.store'
 import { useSettingsStore } from './stores/settings.store'
 import { setupSyncProgressListeners } from './stores/sync-progress.store'
@@ -20,6 +21,7 @@ function App(): React.JSX.Element {
   const theme = useUiStore((s) => s.theme)
   const loadSettings = useSettingsStore((s) => s.loadFromDb)
   const settingsLoaded = useSettingsStore((s) => s.loaded)
+  const onboardingCompleted = useSettingsStore((s) => s.onboardingCompleted)
 
   // Pull persisted settings out of the DB before anything reads them.
   // Without this the store served hardcoded defaults for the whole session.
@@ -83,9 +85,13 @@ function App(): React.JSX.Element {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <HashRouter>
-        <AppRoutes />
-      </HashRouter>
+      {!onboardingCompleted ? (
+        <OnboardingWizard />
+      ) : (
+        <HashRouter>
+          <AppRoutes />
+        </HashRouter>
+      )}
     </QueryClientProvider>
   )
 }

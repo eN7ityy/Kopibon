@@ -1,4 +1,4 @@
-# nhentai API v2 — Complete Reference
+# nhentai API v2 - Complete Reference
 
 A single consolidated reference built from the OpenAPI 3.1 specification (`openapi_documentation.json`) and the rendered Swagger UI export (`API_-_Swagger_UI.html`). Both sources describe the same specification revision, `2.0.0+71a8966`, so this document is complete against both.
 
@@ -13,7 +13,7 @@ A single consolidated reference built from the OpenAPI 3.1 specification (`opena
 | **Schemas** | 117 |
 | **Tag groups** | 15 |
 
-> **On examples.** The source specification contains no `example` or `examples` members. Every request and response example in this document is *synthesized from the schema definitions* — field names, types, formats, enums, and declared defaults. Values are illustrative placeholders, not captured live traffic. Structure and field names are authoritative; literal values are not.
+> **On examples.** The source specification contains no `example` or `examples` members. Every request and response example in this document is *synthesized from the schema definitions* - field names, types, formats, enums, and declared defaults. Values are illustrative placeholders, not captured live traffic. Structure and field names are authoritative; literal values are not.
 
 ---
 
@@ -129,9 +129,9 @@ Iterate by requesting `page=1..num_pages`. Treat `total: null` as "unknown" rath
 
 Errors are returned as JSON. Three error shapes exist:
 
-- [`ErrorResponse`](#schema-errorresponse) — general errors (`4xx`/`5xx`).
-- [`HTTPValidationError`](#schema-httpvalidationerror) — `422`, wrapping a list of [`ValidationError`](#schema-validationerror) entries that pinpoint the offending field via `loc`.
-- [`CaptchaErrorResponse`](#schema-captchaerrorresponse) — a challenge is required before the request can proceed.
+- [`ErrorResponse`](#schema-errorresponse) - general errors (`4xx`/`5xx`).
+- [`HTTPValidationError`](#schema-httpvalidationerror) - `422`, wrapping a list of [`ValidationError`](#schema-validationerror) entries that pinpoint the offending field via `loc`.
+- [`CaptchaErrorResponse`](#schema-captchaerrorresponse) - a challenge is required before the request can proceed.
 
 Status codes appearing across the specification, with the number of operations that document each:
 
@@ -152,13 +152,13 @@ Status codes appearing across the specification, with the number of operations t
 
 ### Rate limiting
 
-Limits are documented per operation in the form `count/window per scope`, where scope is `IP`, `user`, or `API key owner`. Several endpoints declare **different limits per authentication level or per parameter value** — for example the download endpoint is stricter for `format=torrent` than for `zip`/`cbz`, and search allows 10/min anonymously versus 20/min authenticated.
+Limits are documented per operation in the form `count/window per scope`, where scope is `IP`, `user`, or `API key owner`. Several endpoints declare **different limits per authentication level or per parameter value** - for example the download endpoint is stricter for `format=torrent` than for `zip`/`cbz`, and search allows 10/min anonymously versus 20/min authenticated.
 
 When more than one scope is listed, **all** of them apply simultaneously; the first to trip returns `429`. Treat `429` as a backoff signal and retry with increasing delay rather than immediately. See [Appendix C](#c-rate-limit-summary) for the full table.
 
 ### Proof of Work and CAPTCHA
 
-Some unauthenticated endpoints — chiefly account creation, login, and password reset — are gated behind an anti-abuse challenge, declared as `Protection:` in the operation description.
+Some unauthenticated endpoints - chiefly account creation, login, and password reset - are gated behind an anti-abuse challenge, declared as `Protection:` in the operation description.
 
 1. **Proof of Work.** Call `GET /api/v2/pow?action=<action>` to obtain a [`PoWChallengeResponse`](#schema-powchallengeresponse) challenge, solve it, and submit the solution with the protected request.
 2. **CAPTCHA.** Call `GET /api/v2/captcha` for provider details ([`CaptchaInfoResponse`](#schema-captchainforesponse)) and include the resulting token. A request that needs a challenge it did not supply is answered with [`CaptchaErrorResponse`](#schema-captchaerrorresponse).
@@ -361,7 +361,7 @@ curl -X GET 'https://nhentai.net/api/v2' \
   -H 'User-Agent: ExampleApp/1.0 (https://example.com)'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -390,7 +390,7 @@ Get a new proof of work challenge. Optionally specify action for per-action diff
 
 | Name | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `action` | `string` *(nullable)* | no | — | Action |
+| `action` | `string` *(nullable)* | no | - | Action |
 
 **Responses**
 
@@ -406,7 +406,7 @@ curl -X GET 'https://nhentai.net/api/v2/pow' \
   -H 'User-Agent: ExampleApp/1.0 (https://example.com)'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -444,7 +444,7 @@ curl -X GET 'https://nhentai.net/api/v2/config' \
   -H 'User-Agent: ExampleApp/1.0 (https://example.com)'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -495,7 +495,7 @@ curl -X GET 'https://nhentai.net/api/v2/captcha' \
   -H 'User-Agent: ExampleApp/1.0 (https://example.com)'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -545,7 +545,7 @@ curl -X GET 'https://nhentai.net/api/v2/cdn' \
   -H 'User-Agent: ExampleApp/1.0 (https://example.com)'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -604,7 +604,7 @@ curl -X GET 'https://nhentai.net/api/v2/galleries?page=1&per_page=25' \
   -H 'Authorization: Key nh_live_7b1d9c3e5f8a4260b9d1c4e7f0a3b6d9'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -652,7 +652,7 @@ Get galleries with a specific tag.
 
 | Name | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `tag_id` | `integer` | **yes** | — | Tag ID to filter by |
+| `tag_id` | `integer` | **yes** | - | Tag ID to filter by |
 | `sort` | `string` enum | no | one of `"date"`, `"popular"`, `"popular-today"`, `"popular-week"`, `"popular-month"`; default: `"date"` | Sort |
 | `page` | `integer` | no | min: `1`; default: `1` | Page number |
 | `per_page` | `integer` | no | min: `1`; max: `100`; default: `25` | Items per page |
@@ -674,7 +674,7 @@ curl -X GET 'https://nhentai.net/api/v2/galleries/tagged?tag_id=1234&sort=date&p
   -H 'Authorization: Key nh_live_7b1d9c3e5f8a4260b9d1c4e7f0a3b6d9'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -733,7 +733,7 @@ curl -X GET 'https://nhentai.net/api/v2/galleries/popular' \
   -H 'Authorization: Key nh_live_7b1d9c3e5f8a4260b9d1c4e7f0a3b6d9'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 [
@@ -787,7 +787,7 @@ curl -X GET 'https://nhentai.net/api/v2/galleries/random' \
   -H 'Authorization: Key nh_live_7b1d9c3e5f8a4260b9d1c4e7f0a3b6d9'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {}
@@ -814,7 +814,7 @@ Get a single gallery with full details and optional includes.
 
 | Name | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `gallery_id` | `integer` | **yes** | — | Gallery Id |
+| `gallery_id` | `integer` | **yes** | - | Gallery Id |
 
 **Query parameters**
 
@@ -839,7 +839,7 @@ curl -X GET 'https://nhentai.net/api/v2/galleries/2841902?include=string' \
   -H 'Authorization: Key nh_live_7b1d9c3e5f8a4260b9d1c4e7f0a3b6d9'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -1013,7 +1013,7 @@ Get galleries similar to the specified gallery.
 
 | Name | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `gallery_id` | `integer` | **yes** | — | Gallery Id |
+| `gallery_id` | `integer` | **yes** | - | Gallery Id |
 
 **Responses**
 
@@ -1032,7 +1032,7 @@ curl -X GET 'https://nhentai.net/api/v2/galleries/2841902/related' \
   -H 'Authorization: Key nh_live_7b1d9c3e5f8a4260b9d1c4e7f0a3b6d9'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -1077,7 +1077,7 @@ Check if a gallery is in the user's favorites.
 
 | Name | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `gallery_id` | `integer` | **yes** | — | Gallery Id |
+| `gallery_id` | `integer` | **yes** | - | Gallery Id |
 
 **Responses**
 
@@ -1096,7 +1096,7 @@ curl -X GET 'https://nhentai.net/api/v2/galleries/2841902/favorite' \
   -H 'Authorization: Key nh_live_7b1d9c3e5f8a4260b9d1c4e7f0a3b6d9'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -1127,7 +1127,7 @@ Add a gallery to the current user's favorites.
 
 | Name | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `gallery_id` | `integer` | **yes** | — | Gallery Id |
+| `gallery_id` | `integer` | **yes** | - | Gallery Id |
 
 **Responses**
 
@@ -1148,7 +1148,7 @@ curl -X POST 'https://nhentai.net/api/v2/galleries/2841902/favorite' \
   -H 'Authorization: Key nh_live_7b1d9c3e5f8a4260b9d1c4e7f0a3b6d9'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -1179,7 +1179,7 @@ Remove a gallery from the current user's favorites.
 
 | Name | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `gallery_id` | `integer` | **yes** | — | Gallery Id |
+| `gallery_id` | `integer` | **yes** | - | Gallery Id |
 
 **Responses**
 
@@ -1200,7 +1200,7 @@ curl -X DELETE 'https://nhentai.net/api/v2/galleries/2841902/favorite' \
   -H 'Authorization: Key nh_live_7b1d9c3e5f8a4260b9d1c4e7f0a3b6d9'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -1229,9 +1229,9 @@ Retired. Tag changes go through the suggestion flow now.
 
 | Name | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `gallery_id` | `integer` | **yes** | — | Gallery Id |
+| `gallery_id` | `integer` | **yes** | - | Gallery Id |
 
-**Request body** — `application/json` (required)
+**Request body** - `application/json` (required)
 
 Schema: [`SubmitEditRequest`](#schema-submiteditrequest)
 
@@ -1280,7 +1280,7 @@ curl -X POST 'https://nhentai.net/api/v2/galleries/2841902/edit' \
   -d '{"created_tags": [{"type": "tag", "name": "example"}], "added_tags": [1], "removed_tags": [1]}'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -1313,7 +1313,7 @@ file. Fetch `url` before `expires_at` (unix timestamp).
 
 | Name | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `gallery_id` | `integer` | **yes** | — | Gallery Id |
+| `gallery_id` | `integer` | **yes** | - | Gallery Id |
 
 **Query parameters**
 
@@ -1338,7 +1338,7 @@ curl -X POST 'https://nhentai.net/api/v2/galleries/2841902/download?format=zip' 
   -H 'Authorization: Key nh_live_7b1d9c3e5f8a4260b9d1c4e7f0a3b6d9'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -1402,7 +1402,7 @@ curl -X GET 'https://nhentai.net/api/v2/search?query=artist%3Aexample%20language
   -H 'Authorization: Key nh_live_7b1d9c3e5f8a4260b9d1c4e7f0a3b6d9'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -1456,7 +1456,7 @@ Look up multiple tags by ID. Max 100 per request.
 
 | Name | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `ids` | `string` | **yes** | — | Comma-separated tag IDs |
+| `ids` | `string` | **yes** | - | Comma-separated tag IDs |
 
 **Responses**
 
@@ -1473,7 +1473,7 @@ curl -X GET 'https://nhentai.net/api/v2/tags/ids?ids=string' \
   -H 'User-Agent: ExampleApp/1.0 (https://example.com)'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 [
@@ -1508,14 +1508,14 @@ Search tags by name prefix. Omit `type` to search across all tag types.
 | **Security schemes** | None declared |
 | **Rate limits** | 30/1min per IP |
 
-**Request body** — `application/json` (required)
+**Request body** - `application/json` (required)
 
 Schema: [`AutocompleteRequest`](#schema-autocompleterequest)
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `type` | `string` *(nullable)* | no | — | Type |
-| `query` | `string` *(nullable)* | no | — | Query |
+| `type` | `string` *(nullable)* | no | - | Type |
+| `query` | `string` *(nullable)* | no | - | Query |
 | `limit` | `integer` | no | min: `1.0`; max: `50.0`; default: `10` | Limit |
 
 ```json
@@ -1544,7 +1544,7 @@ curl -X POST 'https://nhentai.net/api/v2/tags/search' \
   -d '{"type": "tag", "query": "artist:example language:english", "limit": 10}'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 [
@@ -1585,7 +1585,7 @@ Supports both page-based and cursor-based pagination.
 
 | Name | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `tag_type` | `string` | **yes** | — | Tag Type |
+| `tag_type` | `string` | **yes** | - | Tag Type |
 
 **Query parameters**
 
@@ -1611,7 +1611,7 @@ curl -X GET 'https://nhentai.net/api/v2/tags/tag?sort=popular&page=1&per_page=25
   -H 'User-Agent: ExampleApp/1.0 (https://example.com)'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -1660,8 +1660,8 @@ Get a specific tag by type and slug.
 
 | Name | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `tag_type` | `string` | **yes** | — | Tag Type |
-| `slug` | `string` | **yes** | — | Slug |
+| `tag_type` | `string` | **yes** | - | Tag Type |
+| `slug` | `string` | **yes** | - | Slug |
 
 **Responses**
 
@@ -1679,7 +1679,7 @@ curl -X GET 'https://nhentai.net/api/v2/tags/tag/example-slug' \
   -H 'User-Agent: ExampleApp/1.0 (https://example.com)'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -1722,7 +1722,7 @@ Paginated list of visible comments on a gallery, newest first.
 
 | Name | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `gallery_id` | `integer` | **yes** | — | Gallery Id |
+| `gallery_id` | `integer` | **yes** | - | Gallery Id |
 
 **Query parameters**
 
@@ -1748,7 +1748,7 @@ curl -X GET 'https://nhentai.net/api/v2/galleries/2841902/comments?page=1&per_pa
   -H 'Authorization: Key nh_live_7b1d9c3e5f8a4260b9d1c4e7f0a3b6d9'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -1797,18 +1797,18 @@ Create a new comment on a gallery.
 
 | Name | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `gallery_id` | `integer` | **yes** | — | Gallery Id |
+| `gallery_id` | `integer` | **yes** | - | Gallery Id |
 
-**Request body** — `application/json` (required)
+**Request body** - `application/json` (required)
 
 Schema: [`Body_create_comment_api_v2_galleries__gallery_id__comments_post`](#schema-body-create-comment-api-v2-galleries-gallery-id-comments-post)
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
 | `body` | `string` | **yes** | min length: `10`; max length: `1000` | Comment text |
-| `captcha_response` | `string` *(nullable)* | no | — | CAPTCHA response token |
-| `pow_challenge` | `string` | **yes** | — | PoW challenge from GET /api/v2/pow. Empty string is fine when the action's difficulty is 0. |
-| `pow_nonce` | `string` | **yes** | — | Nonce that solves the PoW challenge. Empty string is fine when the action's difficulty is 0. |
+| `captcha_response` | `string` *(nullable)* | no | - | CAPTCHA response token |
+| `pow_challenge` | `string` | **yes** | - | PoW challenge from GET /api/v2/pow. Empty string is fine when the action's difficulty is 0. |
+| `pow_nonce` | `string` | **yes** | - | Nonce that solves the PoW challenge. Empty string is fine when the action's difficulty is 0. |
 
 ```json
 {
@@ -1842,7 +1842,7 @@ curl -X POST 'https://nhentai.net/api/v2/galleries/2841902/comments' \
   -d '{"body": "Thanks for the upload!", "captcha_response": "03AGdBq26k...captcha-token", "pow_challenge": "0f3a9c7e21b845d6", "pow_nonce": "000000000001a2f7"}'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -1882,7 +1882,7 @@ Get the visible comment count for a gallery.
 
 | Name | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `gallery_id` | `integer` | **yes** | — | Gallery Id |
+| `gallery_id` | `integer` | **yes** | - | Gallery Id |
 
 **Responses**
 
@@ -1900,7 +1900,7 @@ curl -X GET 'https://nhentai.net/api/v2/galleries/2841902/comments/count' \
   -H 'User-Agent: ExampleApp/1.0 (https://example.com)'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 1
@@ -1930,7 +1930,7 @@ Only the comment owner or staff can delete comments.
 
 | Name | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `comment_id` | `integer` | **yes** | — | Comment Id |
+| `comment_id` | `integer` | **yes** | - | Comment Id |
 
 **Responses**
 
@@ -1952,7 +1952,7 @@ curl -X DELETE 'https://nhentai.net/api/v2/comments/4410927' \
   -H 'Authorization: User eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -1982,9 +1982,9 @@ Flag a comment for review.
 
 | Name | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `comment_id` | `integer` | **yes** | — | Comment Id |
+| `comment_id` | `integer` | **yes** | - | Comment Id |
 
-**Request body** — `application/json` (required)
+**Request body** - `application/json` (required)
 
 Schema: [`FlagCommentRequest`](#schema-flagcommentrequest)
 
@@ -2018,7 +2018,7 @@ curl -X POST 'https://nhentai.net/api/v2/comments/4410927/flag' \
   -d '{"reason": "Duplicate of an existing entry"}'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -2054,7 +2054,7 @@ Get the authenticated user's favorite galleries.
 
 | Name | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `q` | `string` *(nullable)* | no | — | Search within favorites |
+| `q` | `string` *(nullable)* | no | - | Search within favorites |
 | `page` | `integer` | no | min: `1`; default: `1` | Page |
 
 **Responses**
@@ -2074,7 +2074,7 @@ curl -X GET 'https://nhentai.net/api/v2/favorites?page=1' \
   -H 'Authorization: Key nh_live_7b1d9c3e5f8a4260b9d1c4e7f0a3b6d9'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -2135,7 +2135,7 @@ curl -X GET 'https://nhentai.net/api/v2/favorites/random' \
   -H 'Authorization: Key nh_live_7b1d9c3e5f8a4260b9d1c4e7f0a3b6d9'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {}
@@ -2180,7 +2180,7 @@ curl -X GET 'https://nhentai.net/api/v2/blacklist' \
   -H 'Authorization: Key nh_live_7b1d9c3e5f8a4260b9d1c4e7f0a3b6d9'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -2214,7 +2214,7 @@ Add or remove tags from the authenticated user's blacklist.
 | **Security schemes** | `User Token` or `API Key` |
 | **Rate limits** | 20/15min per user • 20/15min per API key owner |
 
-**Request body** — `application/json` (required)
+**Request body** - `application/json` (required)
 
 Schema: [`BlacklistUpdateRequest`](#schema-blacklistupdaterequest)
 
@@ -2254,7 +2254,7 @@ curl -X POST 'https://nhentai.net/api/v2/blacklist' \
   -d '{"added": [1], "removed": [1]}'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -2296,7 +2296,7 @@ curl -X GET 'https://nhentai.net/api/v2/blacklist/ids' \
   -H 'Authorization: Key nh_live_7b1d9c3e5f8a4260b9d1c4e7f0a3b6d9'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 [
@@ -2333,8 +2333,8 @@ Requires both the user ID and correct username slug.
 
 | Name | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `user_id` | `integer` | **yes** | — | User Id |
-| `slug` | `string` | **yes** | — | Slug |
+| `user_id` | `integer` | **yes** | - | User Id |
+| `slug` | `string` | **yes** | - | Slug |
 
 **Responses**
 
@@ -2353,7 +2353,7 @@ curl -X GET 'https://nhentai.net/api/v2/users/90210/example-slug' \
   -H 'Authorization: Key nh_live_7b1d9c3e5f8a4260b9d1c4e7f0a3b6d9'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -2432,7 +2432,7 @@ curl -X GET 'https://nhentai.net/api/v2/user' \
   -H 'Authorization: Key nh_live_7b1d9c3e5f8a4260b9d1c4e7f0a3b6d9'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -2466,19 +2466,19 @@ Update your profile.
 | **Security schemes** | `User Token` |
 | **Rate limits** | 30/15min per user • 30/15min per IP + user |
 
-**Request body** — `application/json` (required)
+**Request body** - `application/json` (required)
 
 Schema: [`UpdateProfileRequest`](#schema-updateprofilerequest)
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `username` | `string` *(nullable)* | no | — | Username |
-| `email` | `string` *(nullable)* | no | — | Email |
-| `about` | `string` *(nullable)* | no | — | About |
-| `favorite_tags` | `string` *(nullable)* | no | — | Favorite Tags |
-| `theme` | `string` *(nullable)* | no | — | Theme |
-| `current_password` | `string` *(nullable)* | no | — | Current Password |
-| `new_password` | `string` *(nullable)* | no | — | New Password |
+| `username` | `string` *(nullable)* | no | - | Username |
+| `email` | `string` *(nullable)* | no | - | Email |
+| `about` | `string` *(nullable)* | no | - | About |
+| `favorite_tags` | `string` *(nullable)* | no | - | Favorite Tags |
+| `theme` | `string` *(nullable)* | no | - | Theme |
+| `current_password` | `string` *(nullable)* | no | - | Current Password |
+| `new_password` | `string` *(nullable)* | no | - | New Password |
 | `default_avatar` | `string` enum *(nullable)* | no | one of `"default"`, `"classic"` | Default Avatar |
 
 ```json
@@ -2515,7 +2515,7 @@ curl -X PUT 'https://nhentai.net/api/v2/user' \
   -d '{"username": "example_user", "email": "user@example.com", "about": "Long-time reader. Mostly here for the artbooks.", "favorite_tags": "english", "theme": "string", "current_password": "S3cur3-Passphrase!", "new_password": "S3cur3-Passphrase!", "default_avatar": "default"}'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -2546,14 +2546,14 @@ Delete your account. Requires password and username confirmation.
 | **Security schemes** | `User Token` |
 | **Rate limits** | 3/1h per user • 3/1h per IP + user |
 
-**Request body** — `application/json` (required)
+**Request body** - `application/json` (required)
 
 Schema: [`DeleteProfileRequest`](#schema-deleteprofilerequest)
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `password` | `string` | **yes** | — | Password |
-| `confirmation` | `string` | **yes** | — | Confirmation |
+| `password` | `string` | **yes** | - | Password |
+| `confirmation` | `string` | **yes** | - | Confirmation |
 
 ```json
 {
@@ -2582,7 +2582,7 @@ curl -X DELETE 'https://nhentai.net/api/v2/user' \
   -d '{"password": "S3cur3-Passphrase!", "confirmation": "string"}'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -2611,7 +2611,7 @@ PNG and resized to fit within 200x200 pixels. Returns the new avatar URL.
 | **Security schemes** | `User Token` |
 | **Rate limits** | 5/1min per user |
 
-**Request body** — `multipart/form-data` (required)
+**Request body** - `multipart/form-data` (required)
 
 Schema: [`Body_upload_avatar_api_v2_user_avatar_post`](#schema-body-upload-avatar-api-v2-user-avatar-post)
 
@@ -2651,7 +2651,7 @@ curl -X POST 'https://nhentai.net/api/v2/user/avatar' \
   -F 'avatar=@avatar.png'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {}
@@ -2690,7 +2690,7 @@ curl -X GET 'https://nhentai.net/api/v2/user/keys' \
   -H 'Authorization: User eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 [
@@ -2723,7 +2723,7 @@ Create a new API key. The raw key is only shown once.
 | **Protection** | Proof of Work required (`GET /api/v2/pow?action=api_key`) <br> CAPTCHA required (`GET /api/v2/captcha` for provider info) |
 | **Rate limits** | 5/1h per user • 5/1h per IP + user |
 
-**Request body** — `application/json` (required)
+**Request body** - `application/json` (required)
 
 Schema: [`Body_create_api_key_api_v2_user_keys_post`](#schema-body-create-api-key-api-v2-user-keys-post)
 
@@ -2731,9 +2731,9 @@ Schema: [`Body_create_api_key_api_v2_user_keys_post`](#schema-body-create-api-ke
 |---|---|---|---|---|
 | `name` | `string` | **yes** | min length: `1`; max length: `255` | Name |
 | `purpose` | `string` | no | default: `""` | Purpose |
-| `pow_challenge` | `string` | **yes** | — | PoW challenge from GET /api/v2/pow. Empty string is fine when the action's difficulty is 0. |
-| `pow_nonce` | `string` | **yes** | — | Nonce that solves the PoW challenge. Empty string is fine when the action's difficulty is 0. |
-| `captcha_response` | `string` | **yes** | — | CAPTCHA response token from the widget |
+| `pow_challenge` | `string` | **yes** | - | PoW challenge from GET /api/v2/pow. Empty string is fine when the action's difficulty is 0. |
+| `pow_nonce` | `string` | **yes** | - | Nonce that solves the PoW challenge. Empty string is fine when the action's difficulty is 0. |
+| `captcha_response` | `string` | **yes** | - | CAPTCHA response token from the widget |
 
 ```json
 {
@@ -2766,7 +2766,7 @@ curl -X POST 'https://nhentai.net/api/v2/user/keys' \
   -d '{"name": "example", "purpose": "string", "pow_challenge": "0f3a9c7e21b845d6", "pow_nonce": "000000000001a2f7", "captcha_response": "03AGdBq26k...captcha-token"}'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -2798,7 +2798,7 @@ Revoke an API key.
 
 | Name | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `key_id` | `string` | **yes** | — | Key Id |
+| `key_id` | `string` | **yes** | - | Key Id |
 
 **Responses**
 
@@ -2819,7 +2819,7 @@ curl -X DELETE 'https://nhentai.net/api/v2/user/keys/string' \
   -H 'Authorization: User eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -2854,17 +2854,17 @@ Returns access token and refresh token.
 | **Protection** | Proof of Work required (`GET /api/v2/pow?action=login`) <br> CAPTCHA required (`GET /api/v2/captcha` for provider info) |
 | **Rate limits** | 10/15min per IP |
 
-**Request body** — `application/json` (required)
+**Request body** - `application/json` (required)
 
 Schema: [`Body_login_api_v2_auth_login_post`](#schema-body-login-api-v2-auth-login-post)
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `username` | `string` | **yes** | — | Username or email |
-| `password` | `string` | **yes** | — | Password |
-| `pow_challenge` | `string` | **yes** | — | PoW challenge from GET /api/v2/pow. Empty string is fine when the action's difficulty is 0. |
-| `pow_nonce` | `string` | **yes** | — | Nonce that solves the PoW challenge. Empty string is fine when the action's difficulty is 0. |
-| `captcha_response` | `string` | **yes** | — | CAPTCHA response token from the widget |
+| `username` | `string` | **yes** | - | Username or email |
+| `password` | `string` | **yes** | - | Password |
+| `pow_challenge` | `string` | **yes** | - | PoW challenge from GET /api/v2/pow. Empty string is fine when the action's difficulty is 0. |
+| `pow_nonce` | `string` | **yes** | - | Nonce that solves the PoW challenge. Empty string is fine when the action's difficulty is 0. |
+| `captcha_response` | `string` | **yes** | - | CAPTCHA response token from the widget |
 
 ```json
 {
@@ -2894,7 +2894,7 @@ curl -X POST 'https://nhentai.net/api/v2/auth/login' \
   -d '{"username": "example_user", "password": "S3cur3-Passphrase!", "pow_challenge": "0f3a9c7e21b845d6", "pow_nonce": "000000000001a2f7", "captcha_response": "03AGdBq26k...captcha-token"}'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -2933,18 +2933,18 @@ Returns access token and refresh token.
 | **Protection** | Proof of Work required (`GET /api/v2/pow?action=register`) <br> CAPTCHA required (`GET /api/v2/captcha` for provider info) |
 | **Rate limits** | 3/1h per IP |
 
-**Request body** — `application/json` (required)
+**Request body** - `application/json` (required)
 
 Schema: [`Body_register_api_v2_auth_register_post`](#schema-body-register-api-v2-auth-register-post)
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
 | `username` | `string` | **yes** | min length: `3`; max length: `30` | Username |
-| `email` | `string` | **yes** | — | Email |
+| `email` | `string` | **yes** | - | Email |
 | `password` | `string` | **yes** | min length: `8` | Password |
-| `pow_challenge` | `string` | **yes** | — | PoW challenge from GET /api/v2/pow. Empty string is fine when the action's difficulty is 0. |
-| `pow_nonce` | `string` | **yes** | — | Nonce that solves the PoW challenge. Empty string is fine when the action's difficulty is 0. |
-| `captcha_response` | `string` | **yes** | — | CAPTCHA response token from the widget |
+| `pow_challenge` | `string` | **yes** | - | PoW challenge from GET /api/v2/pow. Empty string is fine when the action's difficulty is 0. |
+| `pow_nonce` | `string` | **yes** | - | Nonce that solves the PoW challenge. Empty string is fine when the action's difficulty is 0. |
+| `captcha_response` | `string` | **yes** | - | CAPTCHA response token from the widget |
 
 ```json
 {
@@ -2977,7 +2977,7 @@ curl -X POST 'https://nhentai.net/api/v2/auth/register' \
   -d '{"username": "example_user", "email": "user@example.com", "password": "S3cur3-Passphrase!", "pow_challenge": "0f3a9c7e21b845d6", "pow_nonce": "000000000001a2f7", "captcha_response": "03AGdBq26k...captcha-token"}'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -3014,13 +3014,13 @@ The old refresh token is revoked (token rotation).
 | **Security schemes** | None declared |
 | **Rate limits** | 15/15min per IP |
 
-**Request body** — `application/json` (required)
+**Request body** - `application/json` (required)
 
 Schema: [`Body_refresh_api_v2_auth_refresh_post`](#schema-body-refresh-api-v2-auth-refresh-post)
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `refresh_token` | `string` | **yes** | — | Refresh token to exchange |
+| `refresh_token` | `string` | **yes** | - | Refresh token to exchange |
 
 ```json
 {
@@ -3046,7 +3046,7 @@ curl -X POST 'https://nhentai.net/api/v2/auth/refresh' \
   -d '{"refresh_token": "rt_9f2c4b1ae7d34c8fb0a1e5d6c7b8a9f0"}'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -3081,13 +3081,13 @@ Revoke the refresh token.
 | **Security schemes** | `User Token` |
 | **Rate limits** | 10/15min per user • 10/15min per IP + user |
 
-**Request body** — `application/json` (required)
+**Request body** - `application/json` (required)
 
 Schema: [`Body_logout_api_v2_auth_logout_post`](#schema-body-logout-api-v2-auth-logout-post)
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `refresh_token` | `string` | **yes** | — | Refresh token to revoke |
+| `refresh_token` | `string` | **yes** | - | Refresh token to revoke |
 
 ```json
 {
@@ -3113,7 +3113,7 @@ curl -X POST 'https://nhentai.net/api/v2/auth/logout' \
   -d '{"refresh_token": "rt_9f2c4b1ae7d34c8fb0a1e5d6c7b8a9f0"}'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -3154,7 +3154,7 @@ curl -X POST 'https://nhentai.net/api/v2/auth/logout/all' \
   -H 'Authorization: User eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -3184,7 +3184,7 @@ List all active sessions for the current user.
 
 | Name | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `x-refresh-token` | `string` *(nullable)* | no | — | X-Refresh-Token |
+| `x-refresh-token` | `string` *(nullable)* | no | - | X-Refresh-Token |
 
 **Responses**
 
@@ -3203,7 +3203,7 @@ curl -X GET 'https://nhentai.net/api/v2/auth/sessions' \
   -H 'x-refresh-token: string'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 [
@@ -3239,7 +3239,7 @@ Revoke a specific session by ID.
 
 | Name | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `session_id` | `string` | **yes** | — | Session Id |
+| `session_id` | `string` | **yes** | - | Session Id |
 
 **Responses**
 
@@ -3257,7 +3257,7 @@ curl -X DELETE 'https://nhentai.net/api/v2/auth/sessions/string' \
   -H 'Authorization: User eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -3287,16 +3287,16 @@ Sends a reset link to the user's email if the account exists.
 | **Protection** | Proof of Work required (`GET /api/v2/pow?action=reset`) <br> CAPTCHA required (`GET /api/v2/captcha` for provider info) |
 | **Rate limits** | 3/15min per IP |
 
-**Request body** — `application/json` (required)
+**Request body** - `application/json` (required)
 
 Schema: [`Body_request_password_reset_api_v2_auth_reset_post`](#schema-body-request-password-reset-api-v2-auth-reset-post)
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `username_or_email` | `string` | **yes** | — | Username or email address |
-| `pow_challenge` | `string` | **yes** | — | PoW challenge from GET /api/v2/pow. Empty string is fine when the action's difficulty is 0. |
-| `pow_nonce` | `string` | **yes** | — | Nonce that solves the PoW challenge. Empty string is fine when the action's difficulty is 0. |
-| `captcha_response` | `string` | **yes** | — | CAPTCHA response token from the widget |
+| `username_or_email` | `string` | **yes** | - | Username or email address |
+| `pow_challenge` | `string` | **yes** | - | PoW challenge from GET /api/v2/pow. Empty string is fine when the action's difficulty is 0. |
+| `pow_nonce` | `string` | **yes** | - | Nonce that solves the PoW challenge. Empty string is fine when the action's difficulty is 0. |
+| `captcha_response` | `string` | **yes** | - | CAPTCHA response token from the widget |
 
 ```json
 {
@@ -3326,7 +3326,7 @@ curl -X POST 'https://nhentai.net/api/v2/auth/reset' \
   -d '{"username_or_email": "user@example.com", "pow_challenge": "0f3a9c7e21b845d6", "pow_nonce": "000000000001a2f7", "captcha_response": "03AGdBq26k...captcha-token"}'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -3354,17 +3354,17 @@ Confirm a password reset with the token from the reset email.
 | **Protection** | Proof of Work required (`GET /api/v2/pow?action=reset`) <br> CAPTCHA required (`GET /api/v2/captcha` for provider info) |
 | **Rate limits** | 5/15min per IP |
 
-**Request body** — `application/json` (required)
+**Request body** - `application/json` (required)
 
 Schema: [`Body_confirm_password_reset_api_v2_auth_reset_confirm_post`](#schema-body-confirm-password-reset-api-v2-auth-reset-confirm-post)
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `token` | `string` | **yes** | — | Reset token from the email link |
+| `token` | `string` | **yes** | - | Reset token from the email link |
 | `password` | `string` | **yes** | min length: `8` | New password |
-| `pow_challenge` | `string` | **yes** | — | PoW challenge from GET /api/v2/pow. Empty string is fine when the action's difficulty is 0. |
-| `pow_nonce` | `string` | **yes** | — | Nonce that solves the PoW challenge. Empty string is fine when the action's difficulty is 0. |
-| `captcha_response` | `string` | **yes** | — | CAPTCHA response token from the widget |
+| `pow_challenge` | `string` | **yes** | - | PoW challenge from GET /api/v2/pow. Empty string is fine when the action's difficulty is 0. |
+| `pow_nonce` | `string` | **yes** | - | Nonce that solves the PoW challenge. Empty string is fine when the action's difficulty is 0. |
+| `captcha_response` | `string` | **yes** | - | CAPTCHA response token from the widget |
 
 ```json
 {
@@ -3395,7 +3395,7 @@ curl -X POST 'https://nhentai.net/api/v2/auth/reset/confirm' \
   -d '{"token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI0NDIx", "password": "S3cur3-Passphrase!", "pow_challenge": "0f3a9c7e21b845d6", "pow_nonce": "000000000001a2f7", "captcha_response": "03AGdBq26k...captcha-token"}'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -3432,7 +3432,7 @@ List current tag-change proposals on a gallery.
 
 | Name | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `gallery_id` | `integer` | **yes** | — | Gallery Id |
+| `gallery_id` | `integer` | **yes** | - | Gallery Id |
 
 **Query parameters**
 
@@ -3458,7 +3458,7 @@ curl -X GET 'https://nhentai.net/api/v2/galleries/2841902/suggestions?tier=all&l
   -H 'Authorization: Key nh_live_7b1d9c3e5f8a4260b9d1c4e7f0a3b6d9'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -3536,9 +3536,9 @@ instead of creating a duplicate.
 
 | Name | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `gallery_id` | `integer` | **yes** | — | Gallery Id |
+| `gallery_id` | `integer` | **yes** | - | Gallery Id |
 
-**Request body** — `application/json` (required)
+**Request body** - `application/json` (required)
 
 Schema: [`Body_create_suggestion_api_v2_galleries__gallery_id__suggestions_post`](#schema-body-create-suggestion-api-v2-galleries-gallery-id-suggestions-post)
 
@@ -3546,9 +3546,9 @@ Schema: [`Body_create_suggestion_api_v2_galleries__gallery_id__suggestions_post`
 |---|---|---|---|---|
 | `tag_id` | `integer` | **yes** | exclusive min: `0.0` | Tag Id |
 | `action` | `string` enum | no | one of `"add"`, `"remove"`; default: `"add"` | Action |
-| `captcha_response` | `string` *(nullable)* | no | — | CAPTCHA response token |
-| `pow_challenge` | `string` | **yes** | — | PoW challenge from GET /api/v2/pow. Empty string is fine when the action's difficulty is 0. |
-| `pow_nonce` | `string` | **yes** | — | Nonce that solves the PoW challenge. Empty string is fine when the action's difficulty is 0. |
+| `captcha_response` | `string` *(nullable)* | no | - | CAPTCHA response token |
+| `pow_challenge` | `string` | **yes** | - | PoW challenge from GET /api/v2/pow. Empty string is fine when the action's difficulty is 0. |
+| `pow_nonce` | `string` | **yes** | - | Nonce that solves the PoW challenge. Empty string is fine when the action's difficulty is 0. |
 
 ```json
 {
@@ -3582,7 +3582,7 @@ curl -X POST 'https://nhentai.net/api/v2/galleries/2841902/suggestions' \
   -d '{"tag_id": 1234, "action": "add", "captcha_response": "03AGdBq26k...captcha-token", "pow_challenge": "0f3a9c7e21b845d6", "pow_nonce": "000000000001a2f7"}'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -3673,7 +3673,7 @@ curl -X GET 'https://nhentai.net/api/v2/gts/backlog?page=1&per_page=20&sort_by=s
   -H 'Authorization: Key nh_live_7b1d9c3e5f8a4260b9d1c4e7f0a3b6d9'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -3759,7 +3759,7 @@ curl -X GET 'https://nhentai.net/api/v2/gts/new-tags?limit=25' \
   -H 'User-Agent: ExampleApp/1.0 (https://example.com)'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -3806,18 +3806,18 @@ Up/down vote on a suggestion. Pass vote=0 to clear your vote.
 
 | Name | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `gallery_id` | `integer` | **yes** | — | Gallery Id |
+| `gallery_id` | `integer` | **yes** | - | Gallery Id |
 | `suggestion_id` | `string` (`uuid`) | **yes** | format: `uuid` | Suggestion Id |
 
-**Request body** — `application/json` (required)
+**Request body** - `application/json` (required)
 
 Schema: [`Body_vote_on_suggestion_api_v2_galleries__gallery_id__suggestions__suggestion_id__vote_post`](#schema-body-vote-on-suggestion-api-v2-galleries-gallery-id-suggestions-suggestion-id-vote-post)
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
 | `vote` | `integer` | **yes** | min: `-1.0`; max: `1.0` | Vote |
-| `pow_challenge` | `string` | **yes** | — | PoW challenge from GET /api/v2/pow. Empty string is fine when the action's difficulty is 0. |
-| `pow_nonce` | `string` | **yes** | — | Nonce that solves the PoW challenge. Empty string is fine when the action's difficulty is 0. |
+| `pow_challenge` | `string` | **yes** | - | PoW challenge from GET /api/v2/pow. Empty string is fine when the action's difficulty is 0. |
+| `pow_nonce` | `string` | **yes** | - | Nonce that solves the PoW challenge. Empty string is fine when the action's difficulty is 0. |
 
 ```json
 {
@@ -3849,7 +3849,7 @@ curl -X POST 'https://nhentai.net/api/v2/galleries/2841902/suggestions/string/vo
   -d '{"vote": -1.0, "pow_challenge": "0f3a9c7e21b845d6", "pow_nonce": "000000000001a2f7"}'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -3916,7 +3916,7 @@ Proposer withdraws their own pending suggestion.
 
 | Name | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `gallery_id` | `integer` | **yes** | — | Gallery Id |
+| `gallery_id` | `integer` | **yes** | - | Gallery Id |
 | `suggestion_id` | `string` (`uuid`) | **yes** | format: `uuid` | Suggestion Id |
 
 **Responses**
@@ -3938,7 +3938,7 @@ curl -X DELETE 'https://nhentai.net/api/v2/galleries/2841902/suggestions/string'
   -H 'Authorization: User eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {}
@@ -3988,7 +3988,7 @@ curl -X GET 'https://nhentai.net/api/v2/moderation/gts?status=pending&sort=score
   -H 'Authorization: User eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -4063,7 +4063,7 @@ Apply a pending suggestion to the gallery and mark accepted.
 |---|---|---|---|---|
 | `suggestion_id` | `string` (`uuid`) | **yes** | format: `uuid` | Suggestion Id |
 
-**Request body** — `application/json` (required)
+**Request body** - `application/json` (required)
 
 Schema: [`ResolveSuggestionRequest`](#schema-resolvesuggestionrequest)
 
@@ -4097,7 +4097,7 @@ curl -X POST 'https://nhentai.net/api/v2/moderation/gts/string/accept' \
   -d '{"note": "Reviewed and approved by staff."}'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {}
@@ -4126,7 +4126,7 @@ Reject a pending suggestion without applying it.
 |---|---|---|---|---|
 | `suggestion_id` | `string` (`uuid`) | **yes** | format: `uuid` | Suggestion Id |
 
-**Request body** — `application/json` (required)
+**Request body** - `application/json` (required)
 
 Schema: [`ResolveSuggestionRequest`](#schema-resolvesuggestionrequest)
 
@@ -4160,7 +4160,7 @@ curl -X POST 'https://nhentai.net/api/v2/moderation/gts/string/reject' \
   -d '{"note": "Reviewed and approved by staff."}'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {}
@@ -4207,7 +4207,7 @@ curl -X POST 'https://nhentai.net/api/v2/moderation/gts/string/revert' \
   -H 'Authorization: User eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {}
@@ -4229,7 +4229,7 @@ Create a new tag. Slug is derived from `name`.
 | **Auth** | Staff Token required |
 | **Security schemes** | `User Token` |
 
-**Request body** — `application/json` (required)
+**Request body** - `application/json` (required)
 
 Schema: [`CreateTagRequest`](#schema-createtagrequest)
 
@@ -4264,7 +4264,7 @@ curl -X POST 'https://nhentai.net/api/v2/moderation/tags' \
   -d '{"type": "tag", "name": "example"}'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -4311,7 +4311,7 @@ List pending tag suggestions.
 | `target_tag_id` | `integer` *(nullable)* | no | exclusive min: `0` | Target Tag Id |
 | `sort_by` | `string` | no | pattern: `^(score\|votes\|comment_count\|last_comment_at\|created_at)$`; default: `"score"` | Field to sort by. score (sum of votes), votes (unique voter count), comment_count, last_comment_at, created_at. |
 | `sort` | `string` | no | pattern: `^(asc\|desc)$`; default: `"desc"` | Sort direction. Pairs with sort_by. |
-| `action` | `string` *(nullable)* | no | — | Comma-separated subset of create,rename,merge,describe. Defaults to all. |
+| `action` | `string` *(nullable)* | no | - | Comma-separated subset of create,rename,merge,describe. Defaults to all. |
 | `discussion` | `string` *(nullable)* | no | pattern: `^(with\|without)$` | Filter by comment presence: 'with' = has at least one comment, 'without' = none. Omit for any. |
 | `edited` | `string` *(nullable)* | no | pattern: `^(yes\|no)$` | Filter by edit status: 'yes' = edited, 'no' = never edited. Omit for any. |
 
@@ -4332,7 +4332,7 @@ curl -X GET 'https://nhentai.net/api/v2/taxonomy?tier=all&page=1&per_page=50&sor
   -H 'Authorization: Key nh_live_7b1d9c3e5f8a4260b9d1c4e7f0a3b6d9'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -4434,7 +4434,7 @@ Submit a tag suggestion.
 | **Protection** | Proof of Work required (`GET /api/v2/pow?action=taxonomy_create`) <br> CAPTCHA required (`GET /api/v2/captcha` for provider info) |
 | **Rate limits** | 4/4h per user • 12/4h per IP |
 
-**Request body** — `application/json` (required)
+**Request body** - `application/json` (required)
 
 Schema: [`Body_create_taxonomy_suggestion_api_v2_taxonomy_post`](#schema-body-create-taxonomy-suggestion-api-v2-taxonomy-post)
 
@@ -4447,9 +4447,9 @@ Schema: [`Body_create_taxonomy_suggestion_api_v2_taxonomy_post`](#schema-body-cr
 | `new_type` | `string` enum *(nullable)* | no | one of `"tag"`, `"artist"`, `"parody"`, `"character"`, `"group"`, `"language"`, `"category"` | New Type |
 | `new_description` | `string` *(nullable)* | no | min length: `1`; max length: `2000` | New Description |
 | `proposer_note` | `string` *(nullable)* | no | max length: `500` | Proposer Note |
-| `captcha_response` | `string` *(nullable)* | no | — | CAPTCHA response token |
-| `pow_challenge` | `string` | **yes** | — | PoW challenge from GET /api/v2/pow. Empty string is fine when the action's difficulty is 0. |
-| `pow_nonce` | `string` | **yes** | — | Nonce that solves the PoW challenge. Empty string is fine when the action's difficulty is 0. |
+| `captcha_response` | `string` *(nullable)* | no | - | CAPTCHA response token |
+| `pow_challenge` | `string` | **yes** | - | PoW challenge from GET /api/v2/pow. Empty string is fine when the action's difficulty is 0. |
+| `pow_nonce` | `string` | **yes** | - | Nonce that solves the PoW challenge. Empty string is fine when the action's difficulty is 0. |
 
 ```json
 {
@@ -4488,7 +4488,7 @@ curl -X POST 'https://nhentai.net/api/v2/taxonomy' \
   -d '{"action": "create", "target_tag_id": 1234, "merge_into_tag_id": 1234, "new_name": "example", "new_type": "tag", "new_description": "A short human-readable description.", "proposer_note": "Reviewed and approved by staff.", "captcha_response": "03AGdBq26k...captcha-token", "pow_challenge": "0f3a9c7e21b845d6", "pow_nonce": "000000000001a2f7"}'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -4604,7 +4604,7 @@ curl -X GET 'https://nhentai.net/api/v2/taxonomy/stats' \
   -H 'User-Agent: ExampleApp/1.0 (https://example.com)'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -4722,7 +4722,7 @@ List resolved tag suggestions.
 | `q` | `string` *(nullable)* | no | min length: `1`; max length: `100` | Q |
 | `discussion` | `string` *(nullable)* | no | pattern: `^(with\|without)$` | Discussion |
 | `edited` | `string` *(nullable)* | no | pattern: `^(yes\|no)$` | Edited |
-| `action` | `string` *(nullable)* | no | — | Comma-separated subset of create,rename,merge,describe. |
+| `action` | `string` *(nullable)* | no | - | Comma-separated subset of create,rename,merge,describe. |
 | `sort_by` | `string` | no | pattern: `^(resolved_at\|score\|votes\|comment_count\|last_comment_at\|created_at)$`; default: `"resolved_at"` | Field to sort by. resolved_at (default), score, votes, comment_count, last_comment_at, created_at. |
 | `sort` | `string` | no | pattern: `^(asc\|desc)$`; default: `"desc"` | Sort direction. Pairs with sort_by. |
 | `page` | `integer` | no | min: `1`; default: `1` | Page number |
@@ -4745,7 +4745,7 @@ curl -X GET 'https://nhentai.net/api/v2/taxonomy/resolved?status=all&sort_by=res
   -H 'Authorization: Key nh_live_7b1d9c3e5f8a4260b9d1c4e7f0a3b6d9'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -4870,7 +4870,7 @@ curl -X GET 'https://nhentai.net/api/v2/taxonomy/string' \
   -H 'Authorization: Key nh_live_7b1d9c3e5f8a4260b9d1c4e7f0a3b6d9'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -4997,7 +4997,7 @@ curl -X DELETE 'https://nhentai.net/api/v2/taxonomy/string' \
   -H 'Authorization: User eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {}
@@ -5027,7 +5027,7 @@ Edit a pending tag suggestion.
 |---|---|---|---|---|
 | `suggestion_id` | `string` (`uuid`) | **yes** | format: `uuid` | Suggestion Id |
 
-**Request body** — `application/json` (required)
+**Request body** - `application/json` (required)
 
 Schema: [`Body_edit_taxonomy_suggestion_api_v2_taxonomy__suggestion_id__patch`](#schema-body-edit-taxonomy-suggestion-api-v2-taxonomy-suggestion-id-patch)
 
@@ -5078,7 +5078,7 @@ curl -X PATCH 'https://nhentai.net/api/v2/taxonomy/string' \
   -d '{"action": "create", "target_tag_id": 1234, "merge_into_tag_id": 1234, "new_name": "example", "new_type": "tag", "new_description": "A short human-readable description.", "proposer_note": "Reviewed and approved by staff.", "summary": "string"}'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -5210,7 +5210,7 @@ curl -X GET 'https://nhentai.net/api/v2/taxonomy/string/comments?page=1&per_page
   -H 'Authorization: Key nh_live_7b1d9c3e5f8a4260b9d1c4e7f0a3b6d9'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -5262,16 +5262,16 @@ Post a comment on a tag suggestion.
 |---|---|---|---|---|
 | `suggestion_id` | `string` (`uuid`) | **yes** | format: `uuid` | Suggestion Id |
 
-**Request body** — `application/json` (required)
+**Request body** - `application/json` (required)
 
 Schema: [`Body_create_taxonomy_comment_api_v2_taxonomy__suggestion_id__comments_post`](#schema-body-create-taxonomy-comment-api-v2-taxonomy-suggestion-id-comments-post)
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
 | `body` | `string` | **yes** | min length: `10`; max length: `1000` | Body |
-| `captcha_response` | `string` *(nullable)* | no | — | CAPTCHA response token |
-| `pow_challenge` | `string` | **yes** | — | PoW challenge from GET /api/v2/pow. Empty string is fine when the action's difficulty is 0. |
-| `pow_nonce` | `string` | **yes** | — | Nonce that solves the PoW challenge. Empty string is fine when the action's difficulty is 0. |
+| `captcha_response` | `string` *(nullable)* | no | - | CAPTCHA response token |
+| `pow_challenge` | `string` | **yes** | - | PoW challenge from GET /api/v2/pow. Empty string is fine when the action's difficulty is 0. |
+| `pow_nonce` | `string` | **yes** | - | Nonce that solves the PoW challenge. Empty string is fine when the action's difficulty is 0. |
 
 ```json
 {
@@ -5304,7 +5304,7 @@ curl -X POST 'https://nhentai.net/api/v2/taxonomy/string/comments' \
   -d '{"body": "Thanks for the upload!", "captcha_response": "03AGdBq26k...captcha-token", "pow_challenge": "0f3a9c7e21b845d6", "pow_nonce": "000000000001a2f7"}'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -5403,7 +5403,7 @@ curl -X DELETE 'https://nhentai.net/api/v2/taxonomy/string/comments/Thanks for t
   -H 'Authorization: User eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {}
@@ -5434,15 +5434,15 @@ Vote on a tag suggestion. Pass vote=0 to clear.
 |---|---|---|---|---|
 | `suggestion_id` | `string` (`uuid`) | **yes** | format: `uuid` | Suggestion Id |
 
-**Request body** — `application/json` (required)
+**Request body** - `application/json` (required)
 
 Schema: [`Body_vote_on_taxonomy_suggestion_api_v2_taxonomy__suggestion_id__vote_post`](#schema-body-vote-on-taxonomy-suggestion-api-v2-taxonomy-suggestion-id-vote-post)
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
 | `vote` | `integer` | **yes** | min: `-1.0`; max: `1.0` | Vote |
-| `pow_challenge` | `string` | **yes** | — | PoW challenge from GET /api/v2/pow. Empty string is fine when the action's difficulty is 0. |
-| `pow_nonce` | `string` | **yes** | — | Nonce that solves the PoW challenge. Empty string is fine when the action's difficulty is 0. |
+| `pow_challenge` | `string` | **yes** | - | PoW challenge from GET /api/v2/pow. Empty string is fine when the action's difficulty is 0. |
+| `pow_nonce` | `string` | **yes** | - | Nonce that solves the PoW challenge. Empty string is fine when the action's difficulty is 0. |
 
 ```json
 {
@@ -5474,7 +5474,7 @@ curl -X POST 'https://nhentai.net/api/v2/taxonomy/string/vote' \
   -d '{"vote": -1.0, "pow_challenge": "0f3a9c7e21b845d6", "pow_nonce": "000000000001a2f7"}'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -5598,7 +5598,7 @@ curl -X GET 'https://nhentai.net/api/v2/taxonomy/string/edits' \
   -H 'User-Agent: ExampleApp/1.0 (https://example.com)'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -5648,7 +5648,7 @@ Accept a tag suggestion.
 |---|---|---|---|---|
 | `suggestion_id` | `string` (`uuid`) | **yes** | format: `uuid` | Suggestion Id |
 
-**Request body** — `application/json` (required)
+**Request body** - `application/json` (required)
 
 Schema: [`ResolveTaxonomySuggestionRequest`](#schema-resolvetaxonomysuggestionrequest)
 
@@ -5687,7 +5687,7 @@ curl -X POST 'https://nhentai.net/api/v2/moderation/taxonomy/string/accept' \
   -d '{"note": "Reviewed and approved by staff.", "name_override": "example", "description_override": "A short human-readable description."}'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {}
@@ -5735,7 +5735,7 @@ curl -X DELETE 'https://nhentai.net/api/v2/moderation/taxonomy/string' \
   -H 'Authorization: User eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {}
@@ -5764,7 +5764,7 @@ Reject a tag suggestion.
 |---|---|---|---|---|
 | `suggestion_id` | `string` (`uuid`) | **yes** | format: `uuid` | Suggestion Id |
 
-**Request body** — `application/json` (required)
+**Request body** - `application/json` (required)
 
 Schema: [`ResolveTaxonomySuggestionRequest`](#schema-resolvetaxonomysuggestionrequest)
 
@@ -5802,7 +5802,7 @@ curl -X POST 'https://nhentai.net/api/v2/moderation/taxonomy/string/reject' \
   -d '{"note": "Reviewed and approved by staff.", "name_override": "example", "description_override": "A short human-readable description."}'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {}
@@ -5834,7 +5834,7 @@ Get moderation info for a user. Staff sees shadowban, admins also see email.
 
 | Name | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `user_id` | `integer` | **yes** | — | User Id |
+| `user_id` | `integer` | **yes** | - | User Id |
 
 **Responses**
 
@@ -5853,7 +5853,7 @@ curl -X GET 'https://nhentai.net/api/v2/moderation/users/90210' \
   -H 'Authorization: User eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -5884,7 +5884,7 @@ Delete a user account. Cascades user-owned content. Staff only.
 
 | Name | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `user_id` | `integer` | **yes** | — | User Id |
+| `user_id` | `integer` | **yes** | - | User Id |
 
 **Responses**
 
@@ -5904,7 +5904,7 @@ curl -X DELETE 'https://nhentai.net/api/v2/moderation/users/90210' \
   -H 'Authorization: User eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {}
@@ -5931,7 +5931,7 @@ Shadowban a user. Staff only.
 
 | Name | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `user_id` | `integer` | **yes** | — | User Id |
+| `user_id` | `integer` | **yes** | - | User Id |
 
 **Responses**
 
@@ -5951,7 +5951,7 @@ curl -X PUT 'https://nhentai.net/api/v2/moderation/users/90210/shadowban' \
   -H 'Authorization: User eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -5980,7 +5980,7 @@ Remove shadowban from a user. Staff only.
 
 | Name | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `user_id` | `integer` | **yes** | — | User Id |
+| `user_id` | `integer` | **yes** | - | User Id |
 
 **Responses**
 
@@ -6000,7 +6000,7 @@ curl -X DELETE 'https://nhentai.net/api/v2/moderation/users/90210/shadowban' \
   -H 'Authorization: User eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -6046,7 +6046,7 @@ curl -X GET 'https://nhentai.net/api/v2/moderation/galleries/hidden?page=1&per_p
   -H 'Authorization: User eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -6093,7 +6093,7 @@ Get moderation status for a gallery.
 
 | Name | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `gallery_id` | `integer` | **yes** | — | Gallery Id |
+| `gallery_id` | `integer` | **yes** | - | Gallery Id |
 
 **Responses**
 
@@ -6112,7 +6112,7 @@ curl -X GET 'https://nhentai.net/api/v2/moderation/galleries/2841902' \
   -H 'Authorization: User eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -6142,7 +6142,7 @@ Hide a gallery from public reads. Staff only.
 
 | Name | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `gallery_id` | `integer` | **yes** | — | Gallery Id |
+| `gallery_id` | `integer` | **yes** | - | Gallery Id |
 
 **Responses**
 
@@ -6162,7 +6162,7 @@ curl -X PUT 'https://nhentai.net/api/v2/moderation/galleries/2841902/hidden' \
   -H 'Authorization: User eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -6192,7 +6192,7 @@ Reveal a previously-hidden gallery. Staff only.
 
 | Name | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `gallery_id` | `integer` | **yes** | — | Gallery Id |
+| `gallery_id` | `integer` | **yes** | - | Gallery Id |
 
 **Responses**
 
@@ -6212,7 +6212,7 @@ curl -X DELETE 'https://nhentai.net/api/v2/moderation/galleries/2841902/hidden' 
   -H 'Authorization: User eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -6248,9 +6248,9 @@ Staff only.
 
 | Name | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `flag_id` | `integer` | **yes** | — | Flag Id |
+| `flag_id` | `integer` | **yes** | - | Flag Id |
 
-**Request body** — `application/json` (required)
+**Request body** - `application/json` (required)
 
 Schema: [`ReviewFlagRequest`](#schema-reviewflagrequest)
 
@@ -6284,7 +6284,7 @@ curl -X POST 'https://nhentai.net/api/v2/comments/flags/1842/review' \
   -d '{"action": "approve"}'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -6315,7 +6315,7 @@ Get pending (unreviewed) comment flags. Staff only.
 |---|---|---|---|---|
 | `page` | `integer` | no | min: `1`; default: `1` | Page |
 | `per_page` | `integer` | no | min: `1`; max: `200`; default: `50` | Per Page |
-| `q` | `string` *(nullable)* | no | — | Search by username or comment body |
+| `q` | `string` *(nullable)* | no | - | Search by username or comment body |
 | `hide_shadowbanned` | `boolean` | no | default: `true` | Exclude flags on shadowbanned users' comments |
 
 **Responses**
@@ -6334,7 +6334,7 @@ curl -X GET 'https://nhentai.net/api/v2/moderation/flags?page=1&per_page=50&hide
   -H 'Authorization: User eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -6403,7 +6403,7 @@ curl -X GET 'https://nhentai.net/api/v2/moderation/edits?limit=50' \
   -H 'Authorization: User eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -6471,7 +6471,7 @@ Retired. Tag changes go through the suggestion flow now.
 
 | Name | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `edit_id` | `integer` | **yes** | — | Edit Id |
+| `edit_id` | `integer` | **yes** | - | Edit Id |
 
 **Responses**
 
@@ -6490,7 +6490,7 @@ curl -X GET 'https://nhentai.net/api/v2/moderation/edits/1842' \
   -H 'Authorization: User eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -6554,15 +6554,15 @@ Retired. Tag changes go through the suggestion flow now.
 
 | Name | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `edit_id` | `integer` | **yes** | — | Edit Id |
+| `edit_id` | `integer` | **yes** | - | Edit Id |
 
-**Request body** — `application/json` (required)
+**Request body** - `application/json` (required)
 
 Schema: [`VoteRequest`](#schema-voterequest)
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `accept` | `boolean` | **yes** | — | Accept |
+| `accept` | `boolean` | **yes** | - | Accept |
 
 ```json
 {
@@ -6591,7 +6591,7 @@ curl -X POST 'https://nhentai.net/api/v2/moderation/edits/1842/vote' \
   -d '{"accept": false}'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -6622,7 +6622,7 @@ Retired. Tag changes go through the suggestion flow now.
 
 | Name | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `edit_id` | `integer` | **yes** | — | Edit Id |
+| `edit_id` | `integer` | **yes** | - | Edit Id |
 
 **Responses**
 
@@ -6643,7 +6643,7 @@ curl -X POST 'https://nhentai.net/api/v2/moderation/edits/1842/apply' \
   -H 'Authorization: User eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -6673,7 +6673,7 @@ Retired. Tag changes go through the suggestion flow now.
 
 | Name | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `edit_id` | `integer` | **yes** | — | Edit Id |
+| `edit_id` | `integer` | **yes** | - | Edit Id |
 
 **Responses**
 
@@ -6694,7 +6694,7 @@ curl -X POST 'https://nhentai.net/api/v2/moderation/edits/1842/reject' \
   -H 'Authorization: User eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -6725,7 +6725,7 @@ Get recent visible comments. Admin only.
 |---|---|---|---|---|
 | `page` | `integer` | no | min: `1`; default: `1` | Page |
 | `per_page` | `integer` | no | min: `1`; max: `500`; default: `100` | Per Page |
-| `q` | `string` *(nullable)* | no | — | Search by username or comment body |
+| `q` | `string` *(nullable)* | no | - | Search by username or comment body |
 
 **Responses**
 
@@ -6743,7 +6743,7 @@ curl -X GET 'https://nhentai.net/api/v2/moderation/comments/recent?page=1&per_pa
   -H 'Authorization: User eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -6791,7 +6791,7 @@ Get spam/hidden comments. Admin only.
 |---|---|---|---|---|
 | `page` | `integer` | no | min: `1`; default: `1` | Page |
 | `per_page` | `integer` | no | min: `1`; max: `500`; default: `100` | Per Page |
-| `q` | `string` *(nullable)* | no | — | Search by username or comment body |
+| `q` | `string` *(nullable)* | no | - | Search by username or comment body |
 
 **Responses**
 
@@ -6809,7 +6809,7 @@ curl -X GET 'https://nhentai.net/api/v2/moderation/comments/spam?page=1&per_page
   -H 'Authorization: User eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -6856,7 +6856,7 @@ Hide a comment. Staff only.
 
 | Name | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `comment_id` | `integer` | **yes** | — | Comment Id |
+| `comment_id` | `integer` | **yes** | - | Comment Id |
 
 **Responses**
 
@@ -6876,7 +6876,7 @@ curl -X PUT 'https://nhentai.net/api/v2/moderation/comments/4410927/hide' \
   -H 'Authorization: User eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -6906,7 +6906,7 @@ Unhide a comment. Staff only.
 
 | Name | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `comment_id` | `integer` | **yes** | — | Comment Id |
+| `comment_id` | `integer` | **yes** | - | Comment Id |
 
 **Responses**
 
@@ -6926,7 +6926,7 @@ curl -X DELETE 'https://nhentai.net/api/v2/moderation/comments/4410927/hide' \
   -H 'Authorization: User eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -6952,7 +6952,7 @@ Hide multiple comments. Staff only.
 | **Security schemes** | `User Token` |
 | **Rate limits** | 30/15min per user |
 
-**Request body** — `application/json` (required)
+**Request body** - `application/json` (required)
 
 ```json
 [
@@ -6979,7 +6979,7 @@ curl -X POST 'https://nhentai.net/api/v2/moderation/bulk/hide' \
   -d '[1]'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -7005,7 +7005,7 @@ Unhide multiple comments. Staff only.
 | **Security schemes** | `User Token` |
 | **Rate limits** | 30/15min per user |
 
-**Request body** — `application/json` (required)
+**Request body** - `application/json` (required)
 
 ```json
 [
@@ -7032,7 +7032,7 @@ curl -X POST 'https://nhentai.net/api/v2/moderation/bulk/unhide' \
   -d '[1]'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -7058,7 +7058,7 @@ Shadowban multiple users. Staff only.
 | **Security schemes** | `User Token` |
 | **Rate limits** | 30/15min per user |
 
-**Request body** — `application/json` (required)
+**Request body** - `application/json` (required)
 
 ```json
 [
@@ -7085,7 +7085,7 @@ curl -X POST 'https://nhentai.net/api/v2/moderation/bulk/shadowban' \
   -d '[1]'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -7111,7 +7111,7 @@ Unshadowban multiple users. Staff only.
 | **Security schemes** | `User Token` |
 | **Rate limits** | 30/15min per user |
 
-**Request body** — `application/json` (required)
+**Request body** - `application/json` (required)
 
 ```json
 [
@@ -7138,7 +7138,7 @@ curl -X POST 'https://nhentai.net/api/v2/moderation/bulk/unshadowban' \
   -d '[1]'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -7170,9 +7170,9 @@ List all active API keys with user info. Admin only.
 | `page` | `integer` | no | min: `1`; default: `1` | Page |
 | `per_page` | `integer` | no | min: `1`; max: `200`; default: `50` | Per Page |
 | `sort` | `string` enum | no | one of `"created"`, `"last_used"`; default: `"created"` | Sort |
-| `has_purpose` | `boolean` *(nullable)* | no | — | True = only with purpose set; False = only without |
+| `has_purpose` | `boolean` *(nullable)* | no | - | True = only with purpose set; False = only without |
 | `q` | `string` | no | max length: `200`; default: `""` | Substring match on name or purpose |
-| `key_id` | `string` *(nullable)* | no | — | Exact key id; returns 0 or 1 result |
+| `key_id` | `string` *(nullable)* | no | - | Exact key id; returns 0 or 1 result |
 
 **Responses**
 
@@ -7190,7 +7190,7 @@ curl -X GET 'https://nhentai.net/api/v2/moderation/api-keys?page=1&per_page=50&s
   -H 'Authorization: User eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -7235,7 +7235,7 @@ Revoke any API key. Admin only.
 
 | Name | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `key_id` | `string` | **yes** | — | Key Id |
+| `key_id` | `string` | **yes** | - | Key Id |
 
 **Responses**
 
@@ -7254,7 +7254,7 @@ curl -X DELETE 'https://nhentai.net/api/v2/moderation/api-keys/string' \
   -H 'Authorization: User eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -7294,7 +7294,7 @@ curl -X GET 'https://nhentai.net/api/v2/moderation/spam/config' \
   -H 'Authorization: User eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {}
@@ -7321,15 +7321,15 @@ Staff only.
 
 | Name | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `name` | `string` | **yes** | — | Name |
+| `name` | `string` | **yes** | - | Name |
 
-**Request body** — `application/json` (required)
+**Request body** - `application/json` (required)
 
 Schema: [`Body_update_spam_config_api_v2_moderation_spam_config__name__put`](#schema-body-update-spam-config-api-v2-moderation-spam-config-name-put)
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `items` | array of `string` | **yes** | — | Items |
+| `items` | array of `string` | **yes** | - | Items |
 
 ```json
 {
@@ -7360,7 +7360,7 @@ curl -X PUT 'https://nhentai.net/api/v2/moderation/spam/config/example' \
   -d '{"items": ["string"]}'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -7395,7 +7395,7 @@ are gated per-creative on CF-IPCountry.
 
 | Name | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `user-agent` | `string` | no | — | User-Agent |
+| `user-agent` | `string` | no | - | User-Agent |
 | `cf-ipcountry` | `string` | no | default: `""` | Cf-Ipcountry |
 
 **Responses**
@@ -7414,7 +7414,7 @@ curl -X GET 'https://nhentai.net/api/v2/zones' \
   -H 'cf-ipcountry: string'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -7450,14 +7450,14 @@ delta is in milliseconds (0 means ready to show).
 
 | Name | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `user-agent` | `string` | no | — | User-Agent |
+| `user-agent` | `string` | no | - | User-Agent |
 | `cf-ipcountry` | `string` | no | default: `""` | Cf-Ipcountry |
 
 **Cookie parameters**
 
 | Name | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `tor_session` | `string` *(nullable)* | no | — | Tor Session |
+| `tor_session` | `string` *(nullable)* | no | - | Tor Session |
 
 **Responses**
 
@@ -7475,7 +7475,7 @@ curl -X GET 'https://nhentai.net/api/v2/zones/i' \
   -H 'cf-ipcountry: string'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -7506,21 +7506,21 @@ Called by frontend when a popunder is triggered.
 
 | Name | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `user-agent` | `string` | no | — | User-Agent |
+| `user-agent` | `string` | no | - | User-Agent |
 
 **Cookie parameters**
 
 | Name | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `tor_session` | `string` *(nullable)* | no | — | Tor Session |
+| `tor_session` | `string` *(nullable)* | no | - | Tor Session |
 
-**Request body** — `application/json` (required)
+**Request body** - `application/json` (required)
 
 Schema: [`RecordPopunderRequest`](#schema-recordpopunderrequest)
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `name` | `string` | **yes** | — | Name |
+| `name` | `string` | **yes** | - | Name |
 | `type` | `string` | no | default: `"popunder"` | Type |
 | `record` | `boolean` | no | default: `true` | Record |
 
@@ -7549,7 +7549,7 @@ curl -X POST 'https://nhentai.net/api/v2/zones/h' \
   -d '{"name": "example", "type": "popunder", "record": true}'
 ```
 
-**Example response** — `200`
+**Example response** - `200`
 
 ```json
 {
@@ -7583,20 +7583,20 @@ This allows tracking of both opens and actual redirects.
 
 | Name | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `name` | `string` | **yes** | — | Name |
-| `out` | `string` *(nullable)* | no | — | Out |
+| `name` | `string` | **yes** | - | Name |
+| `out` | `string` *(nullable)* | no | - | Out |
 
 **Header parameters**
 
 | Name | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `user-agent` | `string` | no | — | User-Agent |
+| `user-agent` | `string` | no | - | User-Agent |
 
 **Cookie parameters**
 
 | Name | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `tor_session` | `string` *(nullable)* | no | — | Tor Session |
+| `tor_session` | `string` *(nullable)* | no | - | Tor Session |
 
 **Responses**
 
@@ -7618,7 +7618,7 @@ curl -X GET 'https://nhentai.net/api/v2/zones/pu?name=example' \
 
 ## Schema reference
 
-All 117 schema definitions, alphabetically. Types marked *(nullable)* accept `null`. "Required" reflects the schema's `required` array — for response objects it means the field is always present; for request objects it means you must supply it.
+All 117 schema definitions, alphabetically. Types marked *(nullable)* accept `null`. "Required" reflects the schema's `required` array - for response objects it means the field is always present; for request objects it means you must supply it.
 
 <a id="schema-announcement"></a>
 
@@ -7626,7 +7626,7 @@ All 117 schema definitions, alphabetically. Types marked *(nullable)* accept `nu
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `message` | `string` | **yes** | — |  |
+| `message` | `string` | **yes** | - |  |
 | `links` | array of [`AnnouncementLink`](#schema-announcementlink) | no | default: `[]` |  |
 
 **Example**
@@ -7651,8 +7651,8 @@ All 117 schema definitions, alphabetically. Types marked *(nullable)* accept `nu
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `text` | `string` | **yes** | — |  |
-| `url` | `string` | **yes** | — |  |
+| `text` | `string` | **yes** | - |  |
+| `url` | `string` | **yes** | - |  |
 
 **Example**
 
@@ -7671,9 +7671,9 @@ All 117 schema definitions, alphabetically. Types marked *(nullable)* accept `nu
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `id` | `string` | **yes** | — |  |
-| `key` | `string` | **yes** | — |  |
-| `name` | `string` | **yes** | — |  |
+| `id` | `string` | **yes** | - |  |
+| `key` | `string` | **yes** | - |  |
+| `name` | `string` | **yes** | - |  |
 
 **Example**
 
@@ -7695,11 +7695,11 @@ All 117 schema definitions, alphabetically. Types marked *(nullable)* accept `nu
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `id` | `string` | **yes** | — |  |
-| `key_prefix` | `string` | **yes** | — |  |
-| `name` | `string` | **yes** | — |  |
-| `created_at` | `integer` | **yes** | — |  |
-| `last_used_at` | `integer` *(nullable)* | no | — |  |
+| `id` | `string` | **yes** | - |  |
+| `key_prefix` | `string` | **yes** | - |  |
+| `name` | `string` | **yes** | - |  |
+| `created_at` | `integer` | **yes** | - |  |
+| `last_used_at` | `integer` *(nullable)* | no | - |  |
 
 **Example**
 
@@ -7723,8 +7723,8 @@ All 117 schema definitions, alphabetically. Types marked *(nullable)* accept `nu
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `version` | `string` | **yes** | — |  |
-| `message` | `string` | **yes** | — |  |
+| `version` | `string` | **yes** | - |  |
+| `message` | `string` | **yes** | - |  |
 
 **Example**
 
@@ -7747,8 +7747,8 @@ Autocomplete request body.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `type` | `string` *(nullable)* | no | — |  |
-| `query` | `string` *(nullable)* | no | — |  |
+| `type` | `string` *(nullable)* | no | - |  |
+| `query` | `string` *(nullable)* | no | - |  |
 | `limit` | `integer` | no | min: `1.0`; max: `50.0`; default: `10` |  |
 
 **Example**
@@ -7773,17 +7773,17 @@ Gallery info attached to a backlog row.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `id` | `integer` | **yes** | — |  |
-| `media_id` | `string` | **yes** | — |  |
-| `thumbnail` | `string` | **yes** | — |  |
-| `thumbnail_width` | `integer` | **yes** | — |  |
-| `thumbnail_height` | `integer` | **yes** | — |  |
-| `english_title` | `string` | **yes** | — |  |
-| `japanese_title` | `string` *(nullable)* | no | — |  |
-| `num_pages` | `integer` | **yes** | — |  |
-| `num_favorites` | `integer` | **yes** | — |  |
-| `upload_date` | `integer` | **yes** | — |  |
-| `age_days` | `integer` | **yes** | — |  |
+| `id` | `integer` | **yes** | - |  |
+| `media_id` | `string` | **yes** | - |  |
+| `thumbnail` | `string` | **yes** | - |  |
+| `thumbnail_width` | `integer` | **yes** | - |  |
+| `thumbnail_height` | `integer` | **yes** | - |  |
+| `english_title` | `string` | **yes** | - |  |
+| `japanese_title` | `string` *(nullable)* | no | - |  |
+| `num_pages` | `integer` | **yes** | - |  |
+| `num_favorites` | `integer` | **yes** | - |  |
+| `upload_date` | `integer` | **yes** | - |  |
+| `age_days` | `integer` | **yes** | - |  |
 | `tags` | array of [`TagResponse`](#schema-tagresponse) | no | default: `[]` |  |
 
 **Example**
@@ -7825,10 +7825,10 @@ Gallery info attached to a backlog row.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `result` | array of [`BacklogRow`](#schema-backlogrow) | **yes** | — |  |
+| `result` | array of [`BacklogRow`](#schema-backlogrow) | **yes** | - |  |
 | `has_more` | `boolean` | no | default: `false` |  |
-| `num_pages` | `integer` *(nullable)* | no | — |  |
-| `total` | `integer` *(nullable)* | no | — |  |
+| `num_pages` | `integer` *(nullable)* | no | - |  |
+| `total` | `integer` *(nullable)* | no | - |  |
 
 **Example**
 
@@ -7888,8 +7888,8 @@ A pending tag-change suggestion plus the gallery it applies to.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `suggestion` | [`SuggestionResponse`](#schema-suggestionresponse) | **yes** | — |  |
-| `gallery` | [`BacklogGallery`](#schema-backloggallery) | **yes** | — |  |
+| `suggestion` | [`SuggestionResponse`](#schema-suggestionresponse) | **yes** | - |  |
+| `gallery` | [`BacklogGallery`](#schema-backloggallery) | **yes** | - |  |
 
 **Example**
 
@@ -7974,8 +7974,8 @@ Response for listing blacklisted tags.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `tags` | array of [`BlacklistedTagResponse`](#schema-blacklistedtagresponse) | **yes** | — |  |
-| `count` | `integer` | **yes** | — |  |
+| `tags` | array of [`BlacklistedTagResponse`](#schema-blacklistedtagresponse) | **yes** | - |  |
+| `count` | `integer` | **yes** | - |  |
 
 **Example**
 
@@ -8006,8 +8006,8 @@ Response for blacklist operations.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `success` | `boolean` | **yes** | — |  |
-| `count` | `integer` | **yes** | — |  |
+| `success` | `boolean` | **yes** | - |  |
+| `count` | `integer` | **yes** | - |  |
 
 **Example**
 
@@ -8058,11 +8058,11 @@ Blacklisted tag info.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `id` | `integer` | **yes** | — |  |
-| `type` | `string` | **yes** | — |  |
-| `name` | `string` | **yes** | — |  |
-| `slug` | `string` | **yes** | — |  |
-| `count` | `integer` | **yes** | — |  |
+| `id` | `integer` | **yes** | - |  |
+| `type` | `string` | **yes** | - |  |
+| `name` | `string` | **yes** | - |  |
+| `slug` | `string` | **yes** | - |  |
+| `count` | `integer` | **yes** | - |  |
 
 **Example**
 
@@ -8084,11 +8084,11 @@ Blacklisted tag info.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `token` | `string` | **yes** | — | Reset token from the email link |
+| `token` | `string` | **yes** | - | Reset token from the email link |
 | `password` | `string` | **yes** | min length: `8` | New password |
-| `pow_challenge` | `string` | **yes** | — | PoW challenge from GET /api/v2/pow. Empty string is fine when the action's difficulty is 0. |
-| `pow_nonce` | `string` | **yes** | — | Nonce that solves the PoW challenge. Empty string is fine when the action's difficulty is 0. |
-| `captcha_response` | `string` | **yes** | — | CAPTCHA response token from the widget |
+| `pow_challenge` | `string` | **yes** | - | PoW challenge from GET /api/v2/pow. Empty string is fine when the action's difficulty is 0. |
+| `pow_nonce` | `string` | **yes** | - | Nonce that solves the PoW challenge. Empty string is fine when the action's difficulty is 0. |
+| `captcha_response` | `string` | **yes** | - | CAPTCHA response token from the widget |
 
 **Example**
 
@@ -8114,9 +8114,9 @@ Blacklisted tag info.
 |---|---|---|---|---|
 | `name` | `string` | **yes** | min length: `1`; max length: `255` |  |
 | `purpose` | `string` | no | default: `""` |  |
-| `pow_challenge` | `string` | **yes** | — | PoW challenge from GET /api/v2/pow. Empty string is fine when the action's difficulty is 0. |
-| `pow_nonce` | `string` | **yes** | — | Nonce that solves the PoW challenge. Empty string is fine when the action's difficulty is 0. |
-| `captcha_response` | `string` | **yes** | — | CAPTCHA response token from the widget |
+| `pow_challenge` | `string` | **yes** | - | PoW challenge from GET /api/v2/pow. Empty string is fine when the action's difficulty is 0. |
+| `pow_nonce` | `string` | **yes** | - | Nonce that solves the PoW challenge. Empty string is fine when the action's difficulty is 0. |
+| `captcha_response` | `string` | **yes** | - | CAPTCHA response token from the widget |
 
 **Example**
 
@@ -8141,9 +8141,9 @@ Blacklisted tag info.
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
 | `body` | `string` | **yes** | min length: `10`; max length: `1000` | Comment text |
-| `captcha_response` | `string` *(nullable)* | no | — | CAPTCHA response token |
-| `pow_challenge` | `string` | **yes** | — | PoW challenge from GET /api/v2/pow. Empty string is fine when the action's difficulty is 0. |
-| `pow_nonce` | `string` | **yes** | — | Nonce that solves the PoW challenge. Empty string is fine when the action's difficulty is 0. |
+| `captcha_response` | `string` *(nullable)* | no | - | CAPTCHA response token |
+| `pow_challenge` | `string` | **yes** | - | PoW challenge from GET /api/v2/pow. Empty string is fine when the action's difficulty is 0. |
+| `pow_nonce` | `string` | **yes** | - | Nonce that solves the PoW challenge. Empty string is fine when the action's difficulty is 0. |
 
 **Example**
 
@@ -8168,9 +8168,9 @@ Blacklisted tag info.
 |---|---|---|---|---|
 | `tag_id` | `integer` | **yes** | exclusive min: `0.0` |  |
 | `action` | `string` enum | no | one of `"add"`, `"remove"`; default: `"add"` |  |
-| `captcha_response` | `string` *(nullable)* | no | — | CAPTCHA response token |
-| `pow_challenge` | `string` | **yes** | — | PoW challenge from GET /api/v2/pow. Empty string is fine when the action's difficulty is 0. |
-| `pow_nonce` | `string` | **yes** | — | Nonce that solves the PoW challenge. Empty string is fine when the action's difficulty is 0. |
+| `captcha_response` | `string` *(nullable)* | no | - | CAPTCHA response token |
+| `pow_challenge` | `string` | **yes** | - | PoW challenge from GET /api/v2/pow. Empty string is fine when the action's difficulty is 0. |
+| `pow_nonce` | `string` | **yes** | - | Nonce that solves the PoW challenge. Empty string is fine when the action's difficulty is 0. |
 
 **Example**
 
@@ -8195,9 +8195,9 @@ Blacklisted tag info.
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
 | `body` | `string` | **yes** | min length: `10`; max length: `1000` |  |
-| `captcha_response` | `string` *(nullable)* | no | — | CAPTCHA response token |
-| `pow_challenge` | `string` | **yes** | — | PoW challenge from GET /api/v2/pow. Empty string is fine when the action's difficulty is 0. |
-| `pow_nonce` | `string` | **yes** | — | Nonce that solves the PoW challenge. Empty string is fine when the action's difficulty is 0. |
+| `captcha_response` | `string` *(nullable)* | no | - | CAPTCHA response token |
+| `pow_challenge` | `string` | **yes** | - | PoW challenge from GET /api/v2/pow. Empty string is fine when the action's difficulty is 0. |
+| `pow_nonce` | `string` | **yes** | - | Nonce that solves the PoW challenge. Empty string is fine when the action's difficulty is 0. |
 
 **Example**
 
@@ -8227,9 +8227,9 @@ Blacklisted tag info.
 | `new_type` | `string` enum *(nullable)* | no | one of `"tag"`, `"artist"`, `"parody"`, `"character"`, `"group"`, `"language"`, `"category"` |  |
 | `new_description` | `string` *(nullable)* | no | min length: `1`; max length: `2000` |  |
 | `proposer_note` | `string` *(nullable)* | no | max length: `500` |  |
-| `captcha_response` | `string` *(nullable)* | no | — | CAPTCHA response token |
-| `pow_challenge` | `string` | **yes** | — | PoW challenge from GET /api/v2/pow. Empty string is fine when the action's difficulty is 0. |
-| `pow_nonce` | `string` | **yes** | — | Nonce that solves the PoW challenge. Empty string is fine when the action's difficulty is 0. |
+| `captcha_response` | `string` *(nullable)* | no | - | CAPTCHA response token |
+| `pow_challenge` | `string` | **yes** | - | PoW challenge from GET /api/v2/pow. Empty string is fine when the action's difficulty is 0. |
+| `pow_nonce` | `string` | **yes** | - | Nonce that solves the PoW challenge. Empty string is fine when the action's difficulty is 0. |
 
 **Example**
 
@@ -8292,11 +8292,11 @@ Blacklisted tag info.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `username` | `string` | **yes** | — | Username or email |
-| `password` | `string` | **yes** | — |  |
-| `pow_challenge` | `string` | **yes** | — | PoW challenge from GET /api/v2/pow. Empty string is fine when the action's difficulty is 0. |
-| `pow_nonce` | `string` | **yes** | — | Nonce that solves the PoW challenge. Empty string is fine when the action's difficulty is 0. |
-| `captcha_response` | `string` | **yes** | — | CAPTCHA response token from the widget |
+| `username` | `string` | **yes** | - | Username or email |
+| `password` | `string` | **yes** | - |  |
+| `pow_challenge` | `string` | **yes** | - | PoW challenge from GET /api/v2/pow. Empty string is fine when the action's difficulty is 0. |
+| `pow_nonce` | `string` | **yes** | - | Nonce that solves the PoW challenge. Empty string is fine when the action's difficulty is 0. |
+| `captcha_response` | `string` | **yes** | - | CAPTCHA response token from the widget |
 
 **Example**
 
@@ -8320,7 +8320,7 @@ Blacklisted tag info.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `refresh_token` | `string` | **yes** | — | Refresh token to revoke |
+| `refresh_token` | `string` | **yes** | - | Refresh token to revoke |
 
 **Example**
 
@@ -8340,7 +8340,7 @@ Blacklisted tag info.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `refresh_token` | `string` | **yes** | — | Refresh token to exchange |
+| `refresh_token` | `string` | **yes** | - | Refresh token to exchange |
 
 **Example**
 
@@ -8361,11 +8361,11 @@ Blacklisted tag info.
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
 | `username` | `string` | **yes** | min length: `3`; max length: `30` |  |
-| `email` | `string` | **yes** | — |  |
+| `email` | `string` | **yes** | - |  |
 | `password` | `string` | **yes** | min length: `8` |  |
-| `pow_challenge` | `string` | **yes** | — | PoW challenge from GET /api/v2/pow. Empty string is fine when the action's difficulty is 0. |
-| `pow_nonce` | `string` | **yes** | — | Nonce that solves the PoW challenge. Empty string is fine when the action's difficulty is 0. |
-| `captcha_response` | `string` | **yes** | — | CAPTCHA response token from the widget |
+| `pow_challenge` | `string` | **yes** | - | PoW challenge from GET /api/v2/pow. Empty string is fine when the action's difficulty is 0. |
+| `pow_nonce` | `string` | **yes** | - | Nonce that solves the PoW challenge. Empty string is fine when the action's difficulty is 0. |
+| `captcha_response` | `string` | **yes** | - | CAPTCHA response token from the widget |
 
 **Example**
 
@@ -8390,10 +8390,10 @@ Blacklisted tag info.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `username_or_email` | `string` | **yes** | — | Username or email address |
-| `pow_challenge` | `string` | **yes** | — | PoW challenge from GET /api/v2/pow. Empty string is fine when the action's difficulty is 0. |
-| `pow_nonce` | `string` | **yes** | — | Nonce that solves the PoW challenge. Empty string is fine when the action's difficulty is 0. |
-| `captcha_response` | `string` | **yes** | — | CAPTCHA response token from the widget |
+| `username_or_email` | `string` | **yes** | - | Username or email address |
+| `pow_challenge` | `string` | **yes** | - | PoW challenge from GET /api/v2/pow. Empty string is fine when the action's difficulty is 0. |
+| `pow_nonce` | `string` | **yes** | - | Nonce that solves the PoW challenge. Empty string is fine when the action's difficulty is 0. |
+| `captcha_response` | `string` | **yes** | - | CAPTCHA response token from the widget |
 
 **Example**
 
@@ -8416,7 +8416,7 @@ Blacklisted tag info.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `items` | array of `string` | **yes** | — |  |
+| `items` | array of `string` | **yes** | - |  |
 
 **Example**
 
@@ -8459,8 +8459,8 @@ Blacklisted tag info.
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
 | `vote` | `integer` | **yes** | min: `-1.0`; max: `1.0` |  |
-| `pow_challenge` | `string` | **yes** | — | PoW challenge from GET /api/v2/pow. Empty string is fine when the action's difficulty is 0. |
-| `pow_nonce` | `string` | **yes** | — | Nonce that solves the PoW challenge. Empty string is fine when the action's difficulty is 0. |
+| `pow_challenge` | `string` | **yes** | - | PoW challenge from GET /api/v2/pow. Empty string is fine when the action's difficulty is 0. |
+| `pow_nonce` | `string` | **yes** | - | Nonce that solves the PoW challenge. Empty string is fine when the action's difficulty is 0. |
 
 **Example**
 
@@ -8483,8 +8483,8 @@ Blacklisted tag info.
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
 | `vote` | `integer` | **yes** | min: `-1.0`; max: `1.0` |  |
-| `pow_challenge` | `string` | **yes** | — | PoW challenge from GET /api/v2/pow. Empty string is fine when the action's difficulty is 0. |
-| `pow_nonce` | `string` | **yes** | — | Nonce that solves the PoW challenge. Empty string is fine when the action's difficulty is 0. |
+| `pow_challenge` | `string` | **yes** | - | PoW challenge from GET /api/v2/pow. Empty string is fine when the action's difficulty is 0. |
+| `pow_nonce` | `string` | **yes** | - | Nonce that solves the PoW challenge. Empty string is fine when the action's difficulty is 0. |
 
 **Example**
 
@@ -8508,9 +8508,9 @@ Error response when CAPTCHA verification fails.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `error` | `string` | **yes** | — |  |
+| `error` | `string` | **yes** | - |  |
 | `captcha_required` | `boolean` | no | default: `true` |  |
-| `captcha_public_key` | `string` | **yes** | — |  |
+| `captcha_public_key` | `string` | **yes** | - |  |
 
 **Example**
 
@@ -8532,8 +8532,8 @@ Error response when CAPTCHA verification fails.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `provider` | `string` | **yes** | — |  |
-| `site_key` | `string` | **yes** | — |  |
+| `provider` | `string` | **yes** | - |  |
+| `site_key` | `string` | **yes** | - |  |
 
 **Example**
 
@@ -8554,8 +8554,8 @@ Error response when CAPTCHA verification fails.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `image_servers` | array of `string` | **yes** | — |  |
-| `thumb_servers` | array of `string` | **yes** | — |  |
+| `image_servers` | array of `string` | **yes** | - |  |
+| `thumb_servers` | array of `string` | **yes** | - |  |
 
 **Example**
 
@@ -8582,11 +8582,11 @@ Comment response matching Django format.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `id` | `integer` | **yes** | — |  |
-| `gallery_id` | `integer` | **yes** | — |  |
-| `poster` | [`UserPublic`](#schema-userpublic) | **yes** | — |  |
-| `post_date` | `integer` | **yes** | — |  |
-| `body` | `string` | **yes** | — |  |
+| `id` | `integer` | **yes** | - |  |
+| `gallery_id` | `integer` | **yes** | - |  |
+| `poster` | [`UserPublic`](#schema-userpublic) | **yes** | - |  |
+| `post_date` | `integer` | **yes** | - |  |
+| `body` | `string` | **yes** | - |  |
 
 **Example**
 
@@ -8619,9 +8619,9 @@ Combined config: CDN servers + announcement.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `image_servers` | array of `string` | **yes** | — |  |
-| `thumb_servers` | array of `string` | **yes** | — |  |
-| `announcement` | [`Announcement`](#schema-announcement) *(nullable)* | no | — |  |
+| `image_servers` | array of `string` | **yes** | - |  |
+| `thumb_servers` | array of `string` | **yes** | - |  |
+| `announcement` | [`Announcement`](#schema-announcement) *(nullable)* | no | - |  |
 
 **Example**
 
@@ -8657,9 +8657,9 @@ Cover/thumbnail image with path and dimensions.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `path` | `string` | **yes** | — |  |
-| `width` | `integer` | **yes** | — |  |
-| `height` | `integer` | **yes** | — |  |
+| `path` | `string` | **yes** | - |  |
+| `width` | `integer` | **yes** | - |  |
+| `height` | `integer` | **yes** | - |  |
 
 **Example**
 
@@ -8705,8 +8705,8 @@ Tag to be created as part of an edit.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `type` | `string` | **yes** | — |  |
-| `name` | `string` | **yes** | — |  |
+| `type` | `string` | **yes** | - |  |
+| `name` | `string` | **yes** | - |  |
 
 **Example**
 
@@ -8725,11 +8725,11 @@ Tag to be created as part of an edit.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `id` | `integer` | **yes** | — |  |
-| `type` | `string` | **yes** | — |  |
-| `name` | `string` | **yes** | — |  |
-| `slug` | `string` | **yes** | — |  |
-| `url` | `string` | **yes** | — |  |
+| `id` | `integer` | **yes** | - |  |
+| `type` | `string` | **yes** | - |  |
+| `name` | `string` | **yes** | - |  |
+| `slug` | `string` | **yes** | - |  |
+| `url` | `string` | **yes** | - |  |
 
 **Example**
 
@@ -8758,8 +8758,8 @@ the API hint variants without renegotiating the schema.
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
 | `type` | `string` | no | default: `"creative"` |  |
-| `name` | `string` | **yes** | — |  |
-| `params` | `object` | no | — |  |
+| `name` | `string` | **yes** | - |  |
+| `params` | `object` | no | - |  |
 
 **Example**
 
@@ -8781,8 +8781,8 @@ Request body for deleting user profile.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `password` | `string` | **yes** | — |  |
-| `confirmation` | `string` | **yes** | — |  |
+| `password` | `string` | **yes** | - |  |
+| `confirmation` | `string` | **yes** | - |  |
 
 **Example**
 
@@ -8805,8 +8805,8 @@ Response for profile deletion.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `success` | `boolean` | **yes** | — |  |
-| `message` | `string` | **yes** | — |  |
+| `success` | `boolean` | **yes** | - |  |
+| `message` | `string` | **yes** | - |  |
 
 **Example**
 
@@ -8827,8 +8827,8 @@ Response for profile deletion.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `url` | `string` | **yes** | — |  |
-| `expires_at` | `integer` | **yes** | — |  |
+| `url` | `string` | **yes** | - |  |
+| `expires_at` | `integer` | **yes** | - |  |
 
 **Example**
 
@@ -8851,8 +8851,8 @@ Response for listing edits.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `edits` | array of [`EditResponse`](#schema-editresponse) | **yes** | — |  |
-| `count` | `integer` | **yes** | — |  |
+| `edits` | array of [`EditResponse`](#schema-editresponse) | **yes** | - |  |
+| `count` | `integer` | **yes** | - |  |
 
 **Example**
 
@@ -8914,19 +8914,19 @@ Single edit response.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `id` | `integer` | **yes** | — |  |
-| `user_id` | `integer` *(nullable)* | **yes** | — |  |
-| `user_username` | `string` *(nullable)* | **yes** | — |  |
-| `gallery_id` | `integer` | **yes** | — |  |
-| `gallery_title` | `string` *(nullable)* | **yes** | — |  |
-| `date` | `integer` | **yes** | — |  |
-| `accepted` | `boolean` *(nullable)* | **yes** | — |  |
-| `added_tags` | array of [`EditTagInfo`](#schema-edittaginfo) | **yes** | — |  |
-| `removed_tags` | array of [`EditTagInfo`](#schema-edittaginfo) | **yes** | — |  |
-| `created_tags` | array of [`CreatedTag`](#schema-createdtag) | **yes** | — |  |
+| `id` | `integer` | **yes** | - |  |
+| `user_id` | `integer` *(nullable)* | **yes** | - |  |
+| `user_username` | `string` *(nullable)* | **yes** | - |  |
+| `gallery_id` | `integer` | **yes** | - |  |
+| `gallery_title` | `string` *(nullable)* | **yes** | - |  |
+| `date` | `integer` | **yes** | - |  |
+| `accepted` | `boolean` *(nullable)* | **yes** | - |  |
+| `added_tags` | array of [`EditTagInfo`](#schema-edittaginfo) | **yes** | - |  |
+| `removed_tags` | array of [`EditTagInfo`](#schema-edittaginfo) | **yes** | - |  |
+| `created_tags` | array of [`CreatedTag`](#schema-createdtag) | **yes** | - |  |
 | `upvotes` | `integer` | no | default: `0` |  |
 | `downvotes` | `integer` | no | default: `0` |  |
-| `user_vote` | `boolean` *(nullable)* | no | — |  |
+| `user_vote` | `boolean` *(nullable)* | no | - |  |
 
 **Example**
 
@@ -8983,12 +8983,12 @@ Tag info for edit display.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `id` | `integer` | **yes** | — |  |
-| `type` | `string` | **yes** | — |  |
-| `name` | `string` | **yes** | — |  |
-| `slug` | `string` | **yes** | — |  |
-| `count` | `integer` | **yes** | — |  |
-| `action` | `string` | **yes** | — |  |
+| `id` | `integer` | **yes** | - |  |
+| `type` | `string` | **yes** | - |  |
+| `name` | `string` | **yes** | - |  |
+| `slug` | `string` | **yes** | - |  |
+| `count` | `integer` | **yes** | - |  |
+| `action` | `string` | **yes** | - |  |
 
 **Example**
 
@@ -9013,7 +9013,7 @@ Error response.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `error` | `string` | **yes** | — |  |
+| `error` | `string` | **yes** | - |  |
 
 **Example**
 
@@ -9035,8 +9035,8 @@ Response for favorite/unfavorite actions.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `favorited` | `boolean` | **yes** | — |  |
-| `num_favorites` | `integer` *(nullable)* | no | — |  |
+| `favorited` | `boolean` | **yes** | - |  |
+| `num_favorites` | `integer` *(nullable)* | no | - |  |
 
 **Example**
 
@@ -9081,22 +9081,22 @@ Gallery detail with optional included data (comments, related, favorite, suggest
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `id` | `integer` | **yes** | — |  |
-| `media_id` | `string` | **yes** | — |  |
-| `title` | [`GalleryTitle`](#schema-gallerytitle) | **yes** | — |  |
-| `cover` | [`CoverInfo`](#schema-coverinfo) | **yes** | — |  |
-| `thumbnail` | [`CoverInfo`](#schema-coverinfo) | **yes** | — |  |
+| `id` | `integer` | **yes** | - |  |
+| `media_id` | `string` | **yes** | - |  |
+| `title` | [`GalleryTitle`](#schema-gallerytitle) | **yes** | - |  |
+| `cover` | [`CoverInfo`](#schema-coverinfo) | **yes** | - |  |
+| `thumbnail` | [`CoverInfo`](#schema-coverinfo) | **yes** | - |  |
 | `scanlator` | `string` | no | default: `""` |  |
-| `upload_date` | `integer` | **yes** | — |  |
-| `tags` | array of [`TagResponse`](#schema-tagresponse) | **yes** | — |  |
-| `num_pages` | `integer` | **yes** | — |  |
-| `num_favorites` | `integer` | **yes** | — |  |
+| `upload_date` | `integer` | **yes** | - |  |
+| `tags` | array of [`TagResponse`](#schema-tagresponse) | **yes** | - |  |
+| `num_pages` | `integer` | **yes** | - |  |
+| `num_favorites` | `integer` | **yes** | - |  |
 | `pages` | array of [`PageInfo`](#schema-pageinfo) | no | default: `[]` |  |
-| `comments` | array of [`CommentResponse`](#schema-commentresponse) *(nullable)* | no | — |  |
-| `comment_count` | `integer` *(nullable)* | no | — |  |
-| `related` | array of [`GalleryListItem`](#schema-gallerylistitem) *(nullable)* | no | — |  |
-| `is_favorited` | `boolean` *(nullable)* | no | — |  |
-| `suggestions` | [`GallerySuggestionsBundle`](#schema-gallerysuggestionsbundle) *(nullable)* | no | — |  |
+| `comments` | array of [`CommentResponse`](#schema-commentresponse) *(nullable)* | no | - |  |
+| `comment_count` | `integer` *(nullable)* | no | - |  |
+| `related` | array of [`GalleryListItem`](#schema-gallerylistitem) *(nullable)* | no | - |  |
+| `is_favorited` | `boolean` *(nullable)* | no | - |  |
+| `suggestions` | [`GallerySuggestionsBundle`](#schema-gallerysuggestionsbundle) *(nullable)* | no | - |  |
 
 **Example**
 
@@ -9261,11 +9261,11 @@ Gallery detail with optional included data (comments, related, favorite, suggest
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `start` | `integer` | **yes** | — |  |
-| `end` | `integer` | **yes** | — |  |
-| `matched` | `string` | **yes** | — |  |
+| `start` | `integer` | **yes** | - |  |
+| `end` | `integer` | **yes** | - |  |
+| `matched` | `string` | **yes** | - |  |
 | `kind` | `string` | no | default: `"gallery"` |  |
-| `gallery` | [`GalleryListItem`](#schema-gallerylistitem) | **yes** | — |  |
+| `gallery` | [`GalleryListItem`](#schema-gallerylistitem) | **yes** | - |  |
 
 **Example**
 
@@ -9304,13 +9304,13 @@ Used in search results, tag listings, homepage.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `id` | `integer` | **yes** | — |  |
-| `media_id` | `string` | **yes** | — |  |
-| `english_title` | `string` | **yes** | — |  |
-| `japanese_title` | `string` *(nullable)* | no | — |  |
-| `thumbnail` | `string` | **yes** | — |  |
-| `thumbnail_width` | `integer` | **yes** | — |  |
-| `thumbnail_height` | `integer` | **yes** | — |  |
+| `id` | `integer` | **yes** | - |  |
+| `media_id` | `string` | **yes** | - |  |
+| `english_title` | `string` | **yes** | - |  |
+| `japanese_title` | `string` *(nullable)* | no | - |  |
+| `thumbnail` | `string` | **yes** | - |  |
+| `thumbnail_width` | `integer` | **yes** | - |  |
+| `thumbnail_height` | `integer` | **yes** | - |  |
 | `num_pages` | `integer` | no | default: `0` |  |
 | `num_favorites` | `integer` | no | default: `0` |  |
 | `tag_ids` | array of `integer` | no | default: `[]` |  |
@@ -9352,10 +9352,10 @@ viewers. Bounded by the per-user-per-gallery quota.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `trending` | array of [`SuggestionResponse`](#schema-suggestionresponse) | **yes** | — |  |
-| `active` | array of [`SuggestionResponse`](#schema-suggestionresponse) | **yes** | — |  |
+| `trending` | array of [`SuggestionResponse`](#schema-suggestionresponse) | **yes** | - |  |
+| `active` | array of [`SuggestionResponse`](#schema-suggestionresponse) | **yes** | - |  |
 | `mine` | array of [`SuggestionResponse`](#schema-suggestionresponse) | no | default: `[]` |  |
-| `counts` | [`SuggestionTierCounts`](#schema-suggestiontiercounts) | **yes** | — |  |
+| `counts` | [`SuggestionTierCounts`](#schema-suggestiontiercounts) | **yes** | - |  |
 
 **Example**
 
@@ -9506,9 +9506,9 @@ Gallery title in multiple languages.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `english` | `string` | **yes** | — |  |
-| `japanese` | `string` *(nullable)* | no | — |  |
-| `pretty` | `string` | **yes** | — |  |
+| `english` | `string` | **yes** | - |  |
+| `japanese` | `string` *(nullable)* | no | - |  |
+| `pretty` | `string` | **yes** | - |  |
 
 **Example**
 
@@ -9528,7 +9528,7 @@ Gallery title in multiple languages.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `detail` | array of [`ValidationError`](#schema-validationerror) | no | — |  |
+| `detail` | array of [`ValidationError`](#schema-validationerror) | no | - |  |
 
 **Example**
 
@@ -9560,8 +9560,8 @@ Response for gallery hide/unhide actions.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `id` | `integer` | **yes** | — |  |
-| `hidden` | `boolean` | **yes** | — |  |
+| `id` | `integer` | **yes** | - |  |
+| `hidden` | `boolean` | **yes** | - |  |
 
 **Example**
 
@@ -9585,7 +9585,7 @@ Paid-inventory slot: API hands the web pre-rendered HTML to inject.
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
 | `type` | `string` | no | default: `"html"` |  |
-| `html` | `string` | **yes** | — |  |
+| `html` | `string` | **yes** | - |  |
 
 **Example**
 
@@ -9606,16 +9606,16 @@ A single API key with its owner info (admin view).
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `id` | `string` | **yes** | — |  |
-| `key_prefix` | `string` | **yes** | — |  |
-| `name` | `string` *(nullable)* | **yes** | — |  |
-| `purpose` | `string` *(nullable)* | **yes** | — |  |
-| `scopes` | array of `string` *(nullable)* | **yes** | — |  |
-| `created_at` | `string` | **yes** | — |  |
-| `last_used_at` | `string` *(nullable)* | **yes** | — |  |
-| `user_id` | `integer` | **yes** | — |  |
-| `username` | `string` | **yes** | — |  |
-| `user_slug` | `string` | **yes** | — |  |
+| `id` | `string` | **yes** | - |  |
+| `key_prefix` | `string` | **yes** | - |  |
+| `name` | `string` *(nullable)* | **yes** | - |  |
+| `purpose` | `string` *(nullable)* | **yes** | - |  |
+| `scopes` | array of `string` *(nullable)* | **yes** | - |  |
+| `created_at` | `string` | **yes** | - |  |
+| `last_used_at` | `string` *(nullable)* | **yes** | - |  |
+| `user_id` | `integer` | **yes** | - |  |
+| `username` | `string` | **yes** | - |  |
+| `user_slug` | `string` | **yes** | - |  |
 
 **Example**
 
@@ -9646,11 +9646,11 @@ Paginated list of API keys for admin.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `keys` | array of [`ModerationApiKeyItem`](#schema-moderationapikeyitem) | **yes** | — |  |
-| `total` | `integer` | **yes** | — |  |
-| `page` | `integer` | **yes** | — |  |
-| `per_page` | `integer` | **yes** | — |  |
-| `num_pages` | `integer` | **yes** | — |  |
+| `keys` | array of [`ModerationApiKeyItem`](#schema-moderationapikeyitem) | **yes** | - |  |
+| `total` | `integer` | **yes** | - |  |
+| `page` | `integer` | **yes** | - |  |
+| `per_page` | `integer` | **yes** | - |  |
+| `num_pages` | `integer` | **yes** | - |  |
 
 **Example**
 
@@ -9689,17 +9689,17 @@ Comment info for moderation views.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `id` | `integer` | **yes** | — |  |
-| `gallery_id` | `integer` | **yes** | — |  |
-| `gallery_title` | `string` *(nullable)* | **yes** | — |  |
-| `poster_id` | `integer` | **yes** | — |  |
-| `poster_username` | `string` | **yes** | — |  |
-| `poster_slug` | `string` | **yes** | — |  |
-| `poster_avatar` | `string` | **yes** | — |  |
-| `poster_is_shadowbanned` | `boolean` | **yes** | — |  |
-| `body` | `string` | **yes** | — |  |
-| `post_date` | `integer` | **yes** | — |  |
-| `is_hidden` | `boolean` | **yes** | — |  |
+| `id` | `integer` | **yes** | - |  |
+| `gallery_id` | `integer` | **yes** | - |  |
+| `gallery_title` | `string` *(nullable)* | **yes** | - |  |
+| `poster_id` | `integer` | **yes** | - |  |
+| `poster_username` | `string` | **yes** | - |  |
+| `poster_slug` | `string` | **yes** | - |  |
+| `poster_avatar` | `string` | **yes** | - |  |
+| `poster_is_shadowbanned` | `boolean` | **yes** | - |  |
+| `body` | `string` | **yes** | - |  |
+| `post_date` | `integer` | **yes** | - |  |
+| `is_hidden` | `boolean` | **yes** | - |  |
 
 **Example**
 
@@ -9729,11 +9729,11 @@ Response for moderation comment lists.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `comments` | array of [`ModerationCommentResponse`](#schema-moderationcommentresponse) | **yes** | — |  |
-| `total` | `integer` | **yes** | — |  |
-| `page` | `integer` | **yes** | — |  |
-| `per_page` | `integer` | **yes** | — |  |
-| `num_pages` | `integer` | **yes** | — |  |
+| `comments` | array of [`ModerationCommentResponse`](#schema-moderationcommentresponse) | **yes** | - |  |
+| `total` | `integer` | **yes** | - |  |
+| `page` | `integer` | **yes** | - |  |
+| `per_page` | `integer` | **yes** | - |  |
+| `num_pages` | `integer` | **yes** | - |  |
 
 **Example**
 
@@ -9773,22 +9773,22 @@ A single pending comment flag.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `id` | `integer` | **yes** | — |  |
-| `user_id` | `integer` | **yes** | — |  |
-| `comment_id` | `integer` | **yes** | — |  |
-| `reason` | `string` *(nullable)* | **yes** | — |  |
-| `date` | `integer` | **yes** | — |  |
-| `poster_id` | `integer` | **yes** | — |  |
-| `poster_username` | `string` | **yes** | — |  |
-| `poster_slug` | `string` | **yes** | — |  |
-| `poster_avatar` | `string` | **yes** | — |  |
-| `poster_is_shadowbanned` | `boolean` | **yes** | — |  |
-| `reporter_username` | `string` | **yes** | — |  |
-| `reporter_slug` | `string` | **yes** | — |  |
-| `reporter_avatar` | `string` | **yes** | — |  |
-| `comment_body` | `string` | **yes** | — |  |
-| `gallery_id` | `integer` | **yes** | — |  |
-| `gallery_title` | `string` *(nullable)* | **yes** | — |  |
+| `id` | `integer` | **yes** | - |  |
+| `user_id` | `integer` | **yes** | - |  |
+| `comment_id` | `integer` | **yes** | - |  |
+| `reason` | `string` *(nullable)* | **yes** | - |  |
+| `date` | `integer` | **yes** | - |  |
+| `poster_id` | `integer` | **yes** | - |  |
+| `poster_username` | `string` | **yes** | - |  |
+| `poster_slug` | `string` | **yes** | - |  |
+| `poster_avatar` | `string` | **yes** | - |  |
+| `poster_is_shadowbanned` | `boolean` | **yes** | - |  |
+| `reporter_username` | `string` | **yes** | - |  |
+| `reporter_slug` | `string` | **yes** | - |  |
+| `reporter_avatar` | `string` | **yes** | - |  |
+| `comment_body` | `string` | **yes** | - |  |
+| `gallery_id` | `integer` | **yes** | - |  |
+| `gallery_title` | `string` *(nullable)* | **yes** | - |  |
 
 **Example**
 
@@ -9823,11 +9823,11 @@ Paginated list of pending flags.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `flags` | array of [`ModerationFlagItem`](#schema-moderationflagitem) | **yes** | — |  |
-| `total` | `integer` | **yes** | — |  |
-| `page` | `integer` | **yes** | — |  |
-| `per_page` | `integer` | **yes** | — |  |
-| `num_pages` | `integer` | **yes** | — |  |
+| `flags` | array of [`ModerationFlagItem`](#schema-moderationflagitem) | **yes** | - |  |
+| `total` | `integer` | **yes** | - |  |
+| `page` | `integer` | **yes** | - |  |
+| `per_page` | `integer` | **yes** | - |  |
+| `num_pages` | `integer` | **yes** | - |  |
 
 **Example**
 
@@ -9872,8 +9872,8 @@ Moderation status for a gallery.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `id` | `integer` | **yes** | — |  |
-| `hidden` | `boolean` | **yes** | — |  |
+| `id` | `integer` | **yes** | - |  |
+| `hidden` | `boolean` | **yes** | - |  |
 
 **Example**
 
@@ -9896,9 +9896,9 @@ Moderation details for a user. `email` is present only for admins.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `id` | `integer` | **yes** | — |  |
-| `is_shadowbanned` | `boolean` | **yes** | — |  |
-| `email` | `string` *(nullable)* | no | — |  |
+| `id` | `integer` | **yes** | - |  |
+| `is_shadowbanned` | `boolean` | **yes** | - |  |
+| `email` | `string` *(nullable)* | no | - |  |
 
 **Example**
 
@@ -9923,9 +9923,9 @@ suggestions that reference it.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `tag` | [`TagResponse`](#schema-tagresponse) | **yes** | — |  |
-| `created_at` | `integer` | **yes** | — |  |
-| `pending_gts_count` | `integer` | **yes** | — |  |
+| `tag` | [`TagResponse`](#schema-tagresponse) | **yes** | - |  |
+| `created_at` | `integer` | **yes** | - |  |
+| `pending_gts_count` | `integer` | **yes** | - |  |
 
 **Example**
 
@@ -9955,7 +9955,7 @@ suggestions that reference it.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `result` | array of [`NewTagIndexEntry`](#schema-newtagindexentry) | **yes** | — |  |
+| `result` | array of [`NewTagIndexEntry`](#schema-newtagindexentry) | **yes** | - |  |
 
 **Example**
 
@@ -9993,13 +9993,13 @@ Full page/image details for reader.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `number` | `integer` | **yes** | — |  |
-| `path` | `string` | **yes** | — |  |
-| `width` | `integer` | **yes** | — |  |
-| `height` | `integer` | **yes** | — |  |
-| `thumbnail` | `string` | **yes** | — |  |
-| `thumbnail_width` | `integer` | **yes** | — |  |
-| `thumbnail_height` | `integer` | **yes** | — |  |
+| `number` | `integer` | **yes** | - |  |
+| `path` | `string` | **yes** | - |  |
+| `width` | `integer` | **yes** | - |  |
+| `height` | `integer` | **yes** | - |  |
+| `thumbnail` | `string` | **yes** | - |  |
+| `thumbnail_width` | `integer` | **yes** | - |  |
+| `thumbnail_height` | `integer` | **yes** | - |  |
 
 **Example**
 
@@ -10025,10 +10025,10 @@ Full page/image details for reader.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `result` | array of [`CommentResponse`](#schema-commentresponse) | **yes** | — |  |
-| `num_pages` | `integer` | **yes** | — |  |
+| `result` | array of [`CommentResponse`](#schema-commentresponse) | **yes** | - |  |
+| `num_pages` | `integer` | **yes** | - |  |
 | `per_page` | `integer` | no | default: `25` |  |
-| `total` | `integer` *(nullable)* | no | — |  |
+| `total` | `integer` *(nullable)* | no | - |  |
 
 **Example**
 
@@ -10068,10 +10068,10 @@ Full page/image details for reader.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `result` | array of [`GalleryListItem`](#schema-gallerylistitem) | **yes** | — |  |
-| `num_pages` | `integer` | **yes** | — |  |
+| `result` | array of [`GalleryListItem`](#schema-gallerylistitem) | **yes** | - |  |
+| `num_pages` | `integer` | **yes** | - |  |
 | `per_page` | `integer` | no | default: `25` |  |
-| `total` | `integer` *(nullable)* | no | — |  |
+| `total` | `integer` *(nullable)* | no | - |  |
 
 **Example**
 
@@ -10110,8 +10110,8 @@ Full page/image details for reader.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `challenge` | `string` | **yes** | — |  |
-| `difficulty` | `integer` | **yes** | — |  |
+| `challenge` | `string` | **yes** | - |  |
+| `difficulty` | `integer` | **yes** | - |  |
 
 **Example**
 
@@ -10134,8 +10134,8 @@ Response for popunder inventory request.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `name` | `string` *(nullable)* | no | — |  |
-| `delta` | `integer` *(nullable)* | no | — |  |
+| `name` | `string` *(nullable)* | no | - |  |
+| `delta` | `integer` *(nullable)* | no | - |  |
 
 **Example**
 
@@ -10158,11 +10158,11 @@ Comment preview for profile.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `id` | `integer` | **yes** | — |  |
-| `gallery_id` | `integer` | **yes** | — |  |
-| `body` | `string` | **yes** | — |  |
-| `post_date` | `integer` | **yes** | — |  |
-| `gallery_title` | `string` | **yes** | — |  |
+| `id` | `integer` | **yes** | - |  |
+| `gallery_id` | `integer` | **yes** | - |  |
+| `body` | `string` | **yes** | - |  |
+| `post_date` | `integer` | **yes** | - |  |
+| `gallery_title` | `string` | **yes** | - |  |
 
 **Example**
 
@@ -10186,13 +10186,13 @@ Gallery info for recent favorites on profile page.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `id` | `integer` | **yes** | — |  |
-| `media_id` | `string` | **yes** | — |  |
-| `thumbnail` | `string` | **yes** | — |  |
-| `thumbnail_width` | `integer` | **yes** | — |  |
-| `thumbnail_height` | `integer` | **yes** | — |  |
-| `english_title` | `string` | **yes** | — |  |
-| `japanese_title` | `string` *(nullable)* | no | — |  |
+| `id` | `integer` | **yes** | - |  |
+| `media_id` | `string` | **yes** | - |  |
+| `thumbnail` | `string` | **yes** | - |  |
+| `thumbnail_width` | `integer` | **yes** | - |  |
+| `thumbnail_height` | `integer` | **yes** | - |  |
+| `english_title` | `string` | **yes** | - |  |
+| `japanese_title` | `string` *(nullable)* | no | - |  |
 | `num_pages` | `integer` | no | default: `0` |  |
 | `tag_ids` | array of `integer` | no | default: `[]` |  |
 
@@ -10224,7 +10224,7 @@ Request to record a popunder event.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `name` | `string` | **yes** | — |  |
+| `name` | `string` | **yes** | - |  |
 | `type` | `string` | no | default: `"popunder"` |  |
 | `record` | `boolean` | no | default: `true` |  |
 
@@ -10270,9 +10270,9 @@ Response for record popunder request.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `access_token` | `string` | **yes** | — |  |
-| `refresh_token` | `string` | **yes** | — |  |
-| `user` | [`UserInfo`](#schema-userinfo) | **yes** | — |  |
+| `access_token` | `string` | **yes** | - |  |
+| `refresh_token` | `string` | **yes** | - |  |
+| `user` | [`UserInfo`](#schema-userinfo) | **yes** | - |  |
 
 **Example**
 
@@ -10304,7 +10304,7 @@ Response for related galleries endpoint.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `result` | array of [`GalleryListItem`](#schema-gallerylistitem) | **yes** | — |  |
+| `result` | array of [`GalleryListItem`](#schema-gallerylistitem) | **yes** | - |  |
 
 **Example**
 
@@ -10412,7 +10412,7 @@ Response for flag review actions.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `success` | `boolean` | **yes** | — |  |
+| `success` | `boolean` | **yes** | - |  |
 | `is_user_shadowbanned` | `boolean` | no | default: `false` |  |
 
 **Example**
@@ -10434,11 +10434,11 @@ Response for flag review actions.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `id` | `string` | **yes** | — |  |
-| `created_at` | `integer` | **yes** | — |  |
-| `expires_at` | `integer` | **yes** | — |  |
-| `ip_address` | `string` *(nullable)* | no | — |  |
-| `user_agent` | `string` *(nullable)* | no | — |  |
+| `id` | `string` | **yes** | - |  |
+| `created_at` | `integer` | **yes** | - |  |
+| `expires_at` | `integer` | **yes** | - |  |
+| `ip_address` | `string` *(nullable)* | no | - |  |
+| `user_agent` | `string` *(nullable)* | no | - |  |
 | `current` | `boolean` | no | default: `false` |  |
 
 **Example**
@@ -10466,7 +10466,7 @@ Response for shadowban actions.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `shadowbanned` | `boolean` | **yes** | — |  |
+| `shadowbanned` | `boolean` | **yes** | - |  |
 
 **Example**
 
@@ -10523,9 +10523,9 @@ Response for edit submission.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `success` | `boolean` | **yes** | — |  |
-| `edit_id` | `integer` | **yes** | — |  |
-| `auto_applied` | `boolean` | **yes** | — |  |
+| `success` | `boolean` | **yes** | - |  |
+| `edit_id` | `integer` | **yes** | - |  |
+| `auto_applied` | `boolean` | **yes** | - |  |
 
 **Example**
 
@@ -10550,7 +10550,7 @@ Simple success response.
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
 | `success` | `boolean` | no | default: `true` |  |
-| `message` | `string` *(nullable)* | no | — |  |
+| `message` | `string` *(nullable)* | no | - |  |
 
 **Example**
 
@@ -10571,10 +10571,10 @@ Simple success response.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `result` | array of [`SuggestionResponse`](#schema-suggestionresponse) | **yes** | — |  |
-| `has_more` | `boolean` *(nullable)* | no | — |  |
-| `num_pages` | `integer` *(nullable)* | no | — |  |
-| `total` | `integer` *(nullable)* | no | — |  |
+| `result` | array of [`SuggestionResponse`](#schema-suggestionresponse) | **yes** | - |  |
+| `has_more` | `boolean` *(nullable)* | no | - |  |
+| `num_pages` | `integer` *(nullable)* | no | - |  |
+| `total` | `integer` *(nullable)* | no | - |  |
 
 **Example**
 
@@ -10638,10 +10638,10 @@ Simple success response.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `id` | `integer` | **yes** | — |  |
-| `username` | `string` | **yes** | — |  |
-| `slug` | `string` *(nullable)* | no | — |  |
-| `avatar_url` | `string` *(nullable)* | no | — |  |
+| `id` | `integer` | **yes** | - |  |
+| `username` | `string` | **yes** | - |  |
+| `slug` | `string` *(nullable)* | no | - |  |
+| `avatar_url` | `string` *(nullable)* | no | - |  |
 
 **Example**
 
@@ -10663,20 +10663,20 @@ Simple success response.
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
 | `id` | `string` (`uuid`) | **yes** | format: `uuid` |  |
-| `gallery_id` | `integer` | **yes** | — |  |
-| `tag` | [`SuggestionTag`](#schema-suggestiontag) | **yes** | — |  |
+| `gallery_id` | `integer` | **yes** | - |  |
+| `tag` | [`SuggestionTag`](#schema-suggestiontag) | **yes** | - |  |
 | `action` | `string` enum | **yes** | one of `"add"`, `"remove"` |  |
 | `status` | `string` enum | **yes** | one of `"pending"`, `"accepted"`, `"rejected"`, `"superseded"` |  |
-| `score` | `integer` *(nullable)* | no | — |  |
-| `voter_count` | `integer` | **yes** | — |  |
-| `proposer` | [`SuggestionProposer`](#schema-suggestionproposer) | **yes** | — |  |
+| `score` | `integer` *(nullable)* | no | - |  |
+| `voter_count` | `integer` | **yes** | - |  |
+| `proposer` | [`SuggestionProposer`](#schema-suggestionproposer) | **yes** | - |  |
 | `created_at` | `string` (`date-time`) | **yes** | format: `date-time` |  |
 | `resolved_at` | `string` (`date-time`) *(nullable)* | no | format: `date-time` |  |
-| `resolver` | [`SuggestionProposer`](#schema-suggestionproposer) *(nullable)* | no | — |  |
-| `resolution_note` | `string` *(nullable)* | no | — |  |
+| `resolver` | [`SuggestionProposer`](#schema-suggestionproposer) *(nullable)* | no | - |  |
+| `resolution_note` | `string` *(nullable)* | no | - |  |
 | `reverted_at` | `string` (`date-time`) *(nullable)* | no | format: `date-time` |  |
-| `reverter` | [`SuggestionProposer`](#schema-suggestionproposer) *(nullable)* | no | — |  |
-| `my_vote` | `integer` *(nullable)* | no | — |  |
+| `reverter` | [`SuggestionProposer`](#schema-suggestionproposer) *(nullable)* | no | - |  |
+| `my_vote` | `integer` *(nullable)* | no | - |  |
 | `tier` | `string` enum *(nullable)* | no | one of `"trending"`, `"active"`, `"declined"`, `"hidden"` |  |
 
 **Example**
@@ -10734,12 +10734,12 @@ Simple success response.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `id` | `integer` | **yes** | — |  |
-| `type` | `string` | **yes** | — |  |
-| `name` | `string` | **yes** | — |  |
-| `slug` | `string` | **yes** | — |  |
-| `url` | `string` | **yes** | — |  |
-| `description` | `string` *(nullable)* | no | — |  |
+| `id` | `integer` | **yes** | - |  |
+| `type` | `string` | **yes** | - |  |
+| `name` | `string` | **yes** | - |  |
+| `slug` | `string` | **yes** | - |  |
+| `url` | `string` | **yes** | - |  |
+| `description` | `string` *(nullable)* | no | - |  |
 
 **Example**
 
@@ -10788,11 +10788,11 @@ Paginated tag response with optional alphabet mapping.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `result` | array of [`TagResponse`](#schema-tagresponse) | **yes** | — |  |
-| `num_pages` | `integer` | **yes** | — |  |
+| `result` | array of [`TagResponse`](#schema-tagresponse) | **yes** | - |  |
+| `num_pages` | `integer` | **yes** | - |  |
 | `per_page` | `integer` | no | default: `120` |  |
-| `total` | `integer` *(nullable)* | no | — |  |
-| `alphabet` | object map of `string` → array of `integer` *(nullable)* *(nullable)* | no | — |  |
+| `total` | `integer` *(nullable)* | no | - |  |
+| `alphabet` | object map of `string` → array of `integer` *(nullable)* *(nullable)* | no | - |  |
 
 **Example**
 
@@ -10834,15 +10834,15 @@ Tag response matching Django format.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `id` | `integer` | **yes** | — |  |
-| `type` | `string` | **yes** | — |  |
-| `name` | `string` | **yes** | — |  |
-| `slug` | `string` | **yes** | — |  |
-| `url` | `string` | **yes** | — |  |
-| `count` | `integer` | **yes** | — |  |
-| `description` | `string` *(nullable)* | no | — |  |
-| `is_community` | `boolean` *(nullable)* | no | — |  |
-| `pending_describe_id` | `string` *(nullable)* | no | — |  |
+| `id` | `integer` | **yes** | - |  |
+| `type` | `string` | **yes** | - |  |
+| `name` | `string` | **yes** | - |  |
+| `slug` | `string` | **yes** | - |  |
+| `url` | `string` | **yes** | - |  |
+| `count` | `integer` | **yes** | - |  |
+| `description` | `string` *(nullable)* | no | - |  |
+| `is_community` | `boolean` *(nullable)* | no | - |  |
+| `pending_describe_id` | `string` *(nullable)* | no | - |  |
 
 **Example**
 
@@ -10870,10 +10870,10 @@ Tag response matching Django format.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `id` | `integer` | **yes** | — |  |
-| `username` | `string` | **yes** | — |  |
-| `slug` | `string` | **yes** | — |  |
-| `avatar_url` | `string` *(nullable)* | no | — |  |
+| `id` | `integer` | **yes** | - |  |
+| `username` | `string` | **yes** | - |  |
+| `slug` | `string` | **yes** | - |  |
+| `avatar_url` | `string` *(nullable)* | no | - |  |
 | `is_staff` | `boolean` | no | default: `false` |  |
 | `is_superuser` | `boolean` | no | default: `false` |  |
 
@@ -10898,10 +10898,10 @@ Tag response matching Django format.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `result` | array of [`TaxonomyCommentResponse`](#schema-taxonomycommentresponse) | **yes** | — |  |
-| `has_more` | `boolean` *(nullable)* | no | — |  |
-| `num_pages` | `integer` *(nullable)* | no | — |  |
-| `total` | `integer` *(nullable)* | no | — |  |
+| `result` | array of [`TaxonomyCommentResponse`](#schema-taxonomycommentresponse) | **yes** | - |  |
+| `has_more` | `boolean` *(nullable)* | no | - |  |
+| `num_pages` | `integer` *(nullable)* | no | - |  |
+| `total` | `integer` *(nullable)* | no | - |  |
 
 **Example**
 
@@ -10941,8 +10941,8 @@ Tag response matching Django format.
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
 | `id` | `string` (`uuid`) | **yes** | format: `uuid` |  |
-| `body` | `string` | **yes** | — |  |
-| `author` | [`TaxonomyCommentAuthor`](#schema-taxonomycommentauthor) | **yes** | — |  |
+| `body` | `string` | **yes** | - |  |
+| `author` | [`TaxonomyCommentAuthor`](#schema-taxonomycommentauthor) | **yes** | - |  |
 | `created_at` | `string` (`date-time`) | **yes** | format: `date-time` |  |
 | `can_delete` | `boolean` | no | default: `false` |  |
 | `link_previews` | array of [`TaxonomyLinkPreview`](#schema-taxonomylinkpreview) \| [`GalleryLinkPreview`](#schema-gallerylinkpreview) | no | default: `[]` |  |
@@ -11012,11 +11012,11 @@ Tag response matching Django format.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `start` | `integer` | **yes** | — |  |
-| `end` | `integer` | **yes** | — |  |
-| `matched` | `string` | **yes** | — |  |
+| `start` | `integer` | **yes** | - |  |
+| `end` | `integer` | **yes** | - |  |
+| `matched` | `string` | **yes** | - |  |
 | `kind` | `string` | no | default: `"taxonomy"` |  |
-| `suggestion` | [`TaxonomySuggestionResponse`](#schema-taxonomysuggestionresponse) | **yes** | — |  |
+| `suggestion` | [`TaxonomySuggestionResponse`](#schema-taxonomysuggestionresponse) | **yes** | - |  |
 
 **Example**
 
@@ -11112,9 +11112,9 @@ id, so the history renders even after the tag is deleted.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `field` | `string` | **yes** | — |  |
-| `old_value` | `string` *(nullable)* | no | — |  |
-| `new_value` | `string` *(nullable)* | no | — |  |
+| `field` | `string` | **yes** | - |  |
+| `old_value` | `string` *(nullable)* | no | - |  |
+| `new_value` | `string` *(nullable)* | no | - |  |
 
 **Example**
 
@@ -11139,9 +11139,9 @@ optional free-text summary describing why.
 |---|---|---|---|---|
 | `id` | `string` (`uuid`) | **yes** | format: `uuid` |  |
 | `created_at` | `string` (`date-time`) | **yes** | format: `date-time` |  |
-| `summary` | `string` *(nullable)* | no | — |  |
-| `changes` | array of [`TaxonomySuggestionEditChange`](#schema-taxonomysuggestioneditchange) | **yes** | — |  |
-| `editor` | [`TaxonomySuggestionProposer`](#schema-taxonomysuggestionproposer) *(nullable)* | no | — |  |
+| `summary` | `string` *(nullable)* | no | - |  |
+| `changes` | array of [`TaxonomySuggestionEditChange`](#schema-taxonomysuggestioneditchange) | **yes** | - |  |
+| `editor` | [`TaxonomySuggestionProposer`](#schema-taxonomysuggestionproposer) *(nullable)* | no | - |  |
 
 **Example**
 
@@ -11174,7 +11174,7 @@ optional free-text summary describing why.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `result` | array of [`TaxonomySuggestionEditEntry`](#schema-taxonomysuggestioneditentry) | **yes** | — |  |
+| `result` | array of [`TaxonomySuggestionEditEntry`](#schema-taxonomysuggestioneditentry) | **yes** | - |  |
 
 **Example**
 
@@ -11213,10 +11213,10 @@ optional free-text summary describing why.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `result` | array of [`TaxonomySuggestionResponse`](#schema-taxonomysuggestionresponse) | **yes** | — |  |
-| `has_more` | `boolean` *(nullable)* | no | — |  |
-| `num_pages` | `integer` *(nullable)* | no | — |  |
-| `total` | `integer` *(nullable)* | no | — |  |
+| `result` | array of [`TaxonomySuggestionResponse`](#schema-taxonomysuggestionresponse) | **yes** | - |  |
+| `has_more` | `boolean` *(nullable)* | no | - |  |
+| `num_pages` | `integer` *(nullable)* | no | - |  |
+| `total` | `integer` *(nullable)* | no | - |  |
 
 **Example**
 
@@ -11311,10 +11311,10 @@ optional free-text summary describing why.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `id` | `integer` | **yes** | — |  |
-| `username` | `string` | **yes** | — |  |
-| `slug` | `string` *(nullable)* | no | — |  |
-| `avatar_url` | `string` *(nullable)* | no | — |  |
+| `id` | `integer` | **yes** | - |  |
+| `username` | `string` | **yes** | - |  |
+| `slug` | `string` *(nullable)* | no | - |  |
+| `avatar_url` | `string` *(nullable)* | no | - |  |
 
 **Example**
 
@@ -11337,10 +11337,10 @@ Staff who resolved a suggestion. Included on resolved entries.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `id` | `integer` | **yes** | — |  |
-| `username` | `string` | **yes** | — |  |
-| `slug` | `string` *(nullable)* | no | — |  |
-| `avatar_url` | `string` *(nullable)* | no | — |  |
+| `id` | `integer` | **yes** | - |  |
+| `username` | `string` | **yes** | - |  |
+| `slug` | `string` *(nullable)* | no | - |  |
+| `avatar_url` | `string` *(nullable)* | no | - |  |
 
 **Example**
 
@@ -11364,27 +11364,27 @@ Staff who resolved a suggestion. Included on resolved entries.
 | `id` | `string` (`uuid`) | **yes** | format: `uuid` |  |
 | `action` | `string` enum | **yes** | one of `"create"`, `"rename"`, `"merge"`, `"describe"` |  |
 | `status` | `string` enum | **yes** | one of `"pending"`, `"accepted"`, `"rejected"`, `"withdrawn"` |  |
-| `score` | `integer` | **yes** | — |  |
-| `voter_count` | `integer` | **yes** | — |  |
-| `proposer` | [`TaxonomySuggestionProposer`](#schema-taxonomysuggestionproposer) | **yes** | — |  |
-| `proposer_note` | `string` *(nullable)* | no | — |  |
+| `score` | `integer` | **yes** | - |  |
+| `voter_count` | `integer` | **yes** | - |  |
+| `proposer` | [`TaxonomySuggestionProposer`](#schema-taxonomysuggestionproposer) | **yes** | - |  |
+| `proposer_note` | `string` *(nullable)* | no | - |  |
 | `created_at` | `string` (`date-time`) | **yes** | format: `date-time` |  |
 | `edited_at` | `string` (`date-time`) *(nullable)* | no | format: `date-time` |  |
 | `resolved_at` | `string` (`date-time`) *(nullable)* | no | format: `date-time` |  |
-| `resolution_note` | `string` *(nullable)* | no | — |  |
-| `resolver` | [`TaxonomySuggestionResolver`](#schema-taxonomysuggestionresolver) *(nullable)* | no | — |  |
-| `target_tag` | [`TaxonomySuggestionTag`](#schema-taxonomysuggestiontag) *(nullable)* | no | — |  |
-| `merge_into_tag` | [`TaxonomySuggestionTag`](#schema-taxonomysuggestiontag) *(nullable)* | no | — |  |
-| `new_name` | `string` *(nullable)* | no | — |  |
-| `new_type` | `string` *(nullable)* | no | — |  |
-| `new_description` | `string` *(nullable)* | no | — |  |
-| `accepted_type` | `string` *(nullable)* | no | — |  |
-| `accepted_name` | `string` *(nullable)* | no | — |  |
-| `accepted_description` | `string` *(nullable)* | no | — |  |
-| `resolved_tag` | [`TaxonomySuggestionTag`](#schema-taxonomysuggestiontag) *(nullable)* | no | — |  |
-| `my_vote` | `integer` *(nullable)* | no | — |  |
+| `resolution_note` | `string` *(nullable)* | no | - |  |
+| `resolver` | [`TaxonomySuggestionResolver`](#schema-taxonomysuggestionresolver) *(nullable)* | no | - |  |
+| `target_tag` | [`TaxonomySuggestionTag`](#schema-taxonomysuggestiontag) *(nullable)* | no | - |  |
+| `merge_into_tag` | [`TaxonomySuggestionTag`](#schema-taxonomysuggestiontag) *(nullable)* | no | - |  |
+| `new_name` | `string` *(nullable)* | no | - |  |
+| `new_type` | `string` *(nullable)* | no | - |  |
+| `new_description` | `string` *(nullable)* | no | - |  |
+| `accepted_type` | `string` *(nullable)* | no | - |  |
+| `accepted_name` | `string` *(nullable)* | no | - |  |
+| `accepted_description` | `string` *(nullable)* | no | - |  |
+| `resolved_tag` | [`TaxonomySuggestionTag`](#schema-taxonomysuggestiontag) *(nullable)* | no | - |  |
+| `my_vote` | `integer` *(nullable)* | no | - |  |
 | `tier` | `string` enum *(nullable)* | no | one of `"trending"`, `"active"`, `"declined"`, `"hidden"`, `"mine"` |  |
-| `tier_page` | `integer` *(nullable)* | no | — |  |
+| `tier_page` | `integer` *(nullable)* | no | - |  |
 | `comment_count` | `integer` | no | default: `0` |  |
 | `recent_comments` | array of [`TaxonomyCommentResponse`](#schema-taxonomycommentresponse) | no | default: `[]` |  |
 
@@ -11483,19 +11483,19 @@ Taxonomy activity summary: pending count + recently-accepted suggestions.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `pending` | `integer` | **yes** | — |  |
-| `accepted_total` | `integer` | **yes** | — |  |
-| `rejected_total` | `integer` | **yes** | — |  |
-| `accepted_30d` | `integer` | **yes** | — |  |
-| `accepted_7d` | `integer` | **yes** | — |  |
-| `created_30d` | `integer` | **yes** | — |  |
-| `renamed_30d` | `integer` | **yes** | — |  |
-| `merged_30d` | `integer` | **yes** | — |  |
-| `described_30d` | `integer` | **yes** | — |  |
+| `pending` | `integer` | **yes** | - |  |
+| `accepted_total` | `integer` | **yes** | - |  |
+| `rejected_total` | `integer` | **yes** | - |  |
+| `accepted_30d` | `integer` | **yes** | - |  |
+| `accepted_7d` | `integer` | **yes** | - |  |
+| `created_30d` | `integer` | **yes** | - |  |
+| `renamed_30d` | `integer` | **yes** | - |  |
+| `merged_30d` | `integer` | **yes** | - |  |
+| `described_30d` | `integer` | **yes** | - |  |
 | `trending_count` | `integer` | no | default: `0` |  |
 | `active_count` | `integer` | no | default: `0` |  |
 | `declined_count` | `integer` | no | default: `0` |  |
-| `recent_accepted` | array of [`TaxonomySuggestionResponse`](#schema-taxonomysuggestionresponse) | **yes** | — |  |
+| `recent_accepted` | array of [`TaxonomySuggestionResponse`](#schema-taxonomysuggestionresponse) | **yes** | - |  |
 
 **Example**
 
@@ -11599,13 +11599,13 @@ Taxonomy activity summary: pending count + recently-accepted suggestions.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `id` | `integer` *(nullable)* | no | — |  |
-| `type` | `string` | **yes** | — |  |
-| `name` | `string` | **yes** | — |  |
-| `slug` | `string` | **yes** | — |  |
-| `url` | `string` *(nullable)* | no | — |  |
-| `count` | `integer` *(nullable)* | no | — |  |
-| `description` | `string` *(nullable)* | no | — |  |
+| `id` | `integer` *(nullable)* | no | - |  |
+| `type` | `string` | **yes** | - |  |
+| `name` | `string` | **yes** | - |  |
+| `slug` | `string` | **yes** | - |  |
+| `url` | `string` *(nullable)* | no | - |  |
+| `count` | `integer` *(nullable)* | no | - |  |
+| `description` | `string` *(nullable)* | no | - |  |
 
 **Example**
 
@@ -11629,9 +11629,9 @@ Taxonomy activity summary: pending count + recently-accepted suggestions.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `access_token` | `string` | **yes** | — |  |
-| `refresh_token` | `string` | **yes** | — |  |
-| `user` | [`UserInfo`](#schema-userinfo) | **yes** | — |  |
+| `access_token` | `string` | **yes** | - |  |
+| `refresh_token` | `string` | **yes** | - |  |
+| `user` | [`UserInfo`](#schema-userinfo) | **yes** | - |  |
 
 **Example**
 
@@ -11663,13 +11663,13 @@ Request body for updating user profile.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `username` | `string` *(nullable)* | no | — |  |
-| `email` | `string` *(nullable)* | no | — |  |
-| `about` | `string` *(nullable)* | no | — |  |
-| `favorite_tags` | `string` *(nullable)* | no | — |  |
-| `theme` | `string` *(nullable)* | no | — |  |
-| `current_password` | `string` *(nullable)* | no | — |  |
-| `new_password` | `string` *(nullable)* | no | — |  |
+| `username` | `string` *(nullable)* | no | - |  |
+| `email` | `string` *(nullable)* | no | - |  |
+| `about` | `string` *(nullable)* | no | - |  |
+| `favorite_tags` | `string` *(nullable)* | no | - |  |
+| `theme` | `string` *(nullable)* | no | - |  |
+| `current_password` | `string` *(nullable)* | no | - |  |
+| `new_password` | `string` *(nullable)* | no | - |  |
 | `default_avatar` | `string` enum *(nullable)* | no | one of `"default"`, `"classic"` |  |
 
 **Example**
@@ -11699,10 +11699,10 @@ Response for profile update.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `success` | `boolean` | **yes** | — |  |
-| `username` | `string` | **yes** | — |  |
-| `email` | `string` *(nullable)* | no | — |  |
-| `avatar_url` | `string` | **yes** | — |  |
+| `success` | `boolean` | **yes** | - |  |
+| `username` | `string` | **yes** | - |  |
+| `email` | `string` *(nullable)* | no | - |  |
+| `avatar_url` | `string` | **yes** | - |  |
 | `about` | `string` | no | default: `""` |  |
 | `favorite_tags` | `string` | no | default: `""` |  |
 | `theme` | `string` | no | default: `"black"` |  |
@@ -11733,10 +11733,10 @@ User info returned in token responses.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `id` | `integer` | **yes** | — |  |
-| `username` | `string` | **yes** | — |  |
-| `slug` | `string` | **yes** | — |  |
-| `avatar_url` | `string` | **yes** | — |  |
+| `id` | `integer` | **yes** | - |  |
+| `username` | `string` | **yes** | - |  |
+| `slug` | `string` | **yes** | - |  |
+| `avatar_url` | `string` | **yes** | - |  |
 | `theme` | `string` | no | default: `"black"` |  |
 | `is_staff` | `boolean` | no | default: `false` |  |
 | `is_superuser` | `boolean` | no | default: `false` |  |
@@ -11765,16 +11765,16 @@ Full user profile. Email hidden for API key auth.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `id` | `integer` | **yes** | — |  |
-| `username` | `string` | **yes** | — |  |
-| `slug` | `string` | **yes** | — |  |
-| `avatar_url` | `string` | **yes** | — |  |
+| `id` | `integer` | **yes** | - |  |
+| `username` | `string` | **yes** | - |  |
+| `slug` | `string` | **yes** | - |  |
+| `avatar_url` | `string` | **yes** | - |  |
 | `theme` | `string` | no | default: `"black"` |  |
 | `is_staff` | `boolean` | no | default: `false` |  |
 | `is_superuser` | `boolean` | no | default: `false` |  |
 | `about` | `string` | no | default: `""` |  |
 | `favorite_tags` | `string` | no | default: `""` |  |
-| `email` | `string` *(nullable)* | no | — |  |
+| `email` | `string` *(nullable)* | no | - |  |
 
 **Example**
 
@@ -11805,17 +11805,17 @@ Full user profile response.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `id` | `integer` | **yes** | — |  |
-| `username` | `string` | **yes** | — |  |
-| `slug` | `string` | **yes** | — |  |
-| `avatar_url` | `string` | **yes** | — |  |
+| `id` | `integer` | **yes** | - |  |
+| `username` | `string` | **yes** | - |  |
+| `slug` | `string` | **yes** | - |  |
+| `avatar_url` | `string` | **yes** | - |  |
 | `is_superuser` | `boolean` | no | default: `false` |  |
 | `is_staff` | `boolean` | no | default: `false` |  |
-| `date_joined` | `integer` | **yes** | — |  |
+| `date_joined` | `integer` | **yes** | - |  |
 | `about` | `string` | no | default: `""` |  |
 | `favorite_tags` | `string` | no | default: `""` |  |
-| `recent_favorites` | array of [`RecentFavorite`](#schema-recentfavorite) | **yes** | — |  |
-| `recent_comments` | array of [`RecentComment`](#schema-recentcomment) | **yes** | — |  |
+| `recent_favorites` | array of [`RecentFavorite`](#schema-recentfavorite) | **yes** | - |  |
+| `recent_comments` | array of [`RecentComment`](#schema-recentcomment) | **yes** | - |  |
 
 **Example**
 
@@ -11869,10 +11869,10 @@ Public user information (shown in comments, etc.).
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `id` | `integer` | **yes** | — |  |
-| `username` | `string` | **yes** | — |  |
-| `slug` | `string` | **yes** | — |  |
-| `avatar_url` | `string` | **yes** | — |  |
+| `id` | `integer` | **yes** | - |  |
+| `username` | `string` | **yes** | - |  |
+| `slug` | `string` | **yes** | - |  |
+| `avatar_url` | `string` | **yes** | - |  |
 | `is_superuser` | `boolean` | no | default: `false` |  |
 | `is_staff` | `boolean` | no | default: `false` |  |
 
@@ -11897,11 +11897,11 @@ Public user information (shown in comments, etc.).
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `loc` | array of `string` \| `integer` | **yes** | — | Location |
-| `msg` | `string` | **yes** | — | Message |
-| `type` | `string` | **yes** | — | Error Type |
-| `input` | `any` | no | — |  |
-| `ctx` | `object` | no | — | Context |
+| `loc` | array of `string` \| `integer` | **yes** | - | Location |
+| `msg` | `string` | **yes** | - | Message |
+| `type` | `string` | **yes** | - | Error Type |
+| `input` | `any` | no | - |  |
+| `ctx` | `object` | no | - | Context |
 
 **Example**
 
@@ -11927,7 +11927,7 @@ Request body for voting on an edit.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `accept` | `boolean` | **yes** | — |  |
+| `accept` | `boolean` | **yes** | - |  |
 
 **Example**
 
@@ -11949,9 +11949,9 @@ Response for vote action.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `success` | `boolean` | **yes** | — |  |
-| `upvotes` | `integer` | **yes** | — |  |
-| `downvotes` | `integer` | **yes** | — |  |
+| `success` | `boolean` | **yes** | - |  |
+| `upvotes` | `integer` | **yes** | - |  |
+| `downvotes` | `integer` | **yes** | - |  |
 
 **Example**
 
@@ -11975,7 +11975,7 @@ All-zones response. Missing key = no ad for that slot.
 
 | Field | Type | Required | Constraints | Description |
 |---|---|---|---|---|
-| `zones` | object map of `string` → [`HtmlSlot`](#schema-htmlslot) \| [`CreativeSlot`](#schema-creativeslot) | **yes** | — |  |
+| `zones` | object map of `string` → [`HtmlSlot`](#schema-htmlslot) \| [`CreativeSlot`](#schema-creativeslot) | **yes** | - |  |
 
 **Example**
 
@@ -12141,7 +12141,7 @@ Operations that declare limits, verbatim from the specification. Where multiple 
 | [`POST /api/v2/moderation/bulk/unshadowban`](#post-apiv2moderationbulkunshadowban) | 30/15min per user |
 | [`PUT /api/v2/moderation/spam/config/{name}`](#put-apiv2moderationspamconfigname) | 30/15min per user |
 
-22 operations declare no explicit limit. Absence of a documented limit is not a guarantee of unlimited access — global abuse protections still apply.
+22 operations declare no explicit limit. Absence of a documented limit is not a guarantee of unlimited access - global abuse protections still apply.
 
 ### D. Schema index
 

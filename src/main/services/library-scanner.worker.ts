@@ -14,7 +14,7 @@ import { parentPort } from 'worker_threads'
 import { readFileSync, statSync, existsSync, mkdirSync, writeFileSync, appendFileSync } from 'fs'
 import { readdir } from 'fs/promises'
 import type { Dirent } from 'fs'
-import { join, relative, basename } from 'path'
+import { join, relative, basename, isAbsolute, normalize } from 'path'
 import { execFile } from 'child_process'
 import { createHash } from 'crypto'
 import { homedir } from 'os'
@@ -68,10 +68,10 @@ interface PdfMetadata {
 const NHENTAI_ID_REGEX = /nhentai:(\d+)/i
 const FILENAME_ID_REGEX = /\[nhentai-(\d+)\]/
 const PROGRESS_INTERVAL = 1
-// The main process sets DOUJIN_DATA_DIR to app.getPath('userData') and workers
+// The main process sets KOPIBON_DATA_DIR to app.getPath('userData') and workers
 // inherit it; without it the homedir fallback would diverge from Electron's
 // userData on Windows (AppData vs .config).
-const DATA_DIR = process.env.DOUJIN_DATA_DIR || join(homedir(), '.config', 'doujin-downloader')
+const DATA_DIR = process.env.KOPIBON_DATA_DIR || join(homedir(), '.config', 'kopibon')
 const LOG_DIR = join(DATA_DIR, 'logs')
 
 // ─── State ───────────────────────────────────────────────────────────────────
@@ -436,20 +436,32 @@ async function repairThumbnail(rowId: number, filePath: string): Promise<void> {
     const row = db!
       .prepare('SELECT custom_cover_path FROM library_item WHERE id = ?')
       .get(rowId) as { custom_cover_path: string | null } | undefined
-    if (row?.custom_cover_path && existsSync(row.custom_cover_path)) return
+    const coverFile = row?.custom_cover_path
+    const coverAbs = coverFile
+      ? (isAbsolute(coverFile) ? coverFile : join(currentThumbnailDir, coverFile))
+      : null
+    if (coverAbs && existsSync(coverAbs)) return
+
+    if (coverFile) {
+      log(`THUMBNAIL missing for id=${rowId}: stored="${coverFile}" resolved="${coverAbs}" file="${filePath}"`)
+    }
 
     const isCbz = filePath.toLowerCase().endsWith('.cbz')
     const made = isCbz ? await generateCbzThumbnail(filePath) : await generateThumbnail(filePath)
-    if (!made) return
+    if (!made) {
+      log(`THUMBNAIL generation failed for ${filePath}`)
+      return
+    }
 
     // Both columns, kept in step: `custom_cover_path` is what the UI reads and
     // `thumbnail_path` is what this scanner writes, and they had drifted apart.
+    const thumbFilename = basename(made)
     db!
       .prepare('UPDATE library_item SET custom_cover_path = ?, thumbnail_path = ? WHERE id = ?')
-      .run(made, made, rowId)
+      .run(thumbFilename, thumbFilename, rowId)
     log(`THUMBNAIL regenerated ${filePath}`)
-  } catch {
-    /* a missing cover is cosmetic; never fail a scan over it */
+  } catch (err) {
+    log(`THUMBNAIL repair error for id=${rowId}: ${String(err)}`)
   }
 }
 
@@ -609,13 +621,27 @@ async function walkLibraryFiles(dir: string): Promise<WalkResult> {
   return { files, failedDirs }
 }
 
+// ─── Path helpers ────────────────────────────────────────────────────────────
+
+/** Resolve a stored relative (or pre-migration absolute) path against the library root. */
+function resolveItemPath(storedPath: string): string {
+  if (!storedPath) return ''
+  if (isAbsolute(storedPath)) return storedPath
+  return normalize(join(currentLibraryRoot, storedPath))
+}
+
+/** Turn an absolute path into one relative to the library root, for DB storage. */
+function relativizePath(absolutePath: string): string {
+  return relative(currentLibraryRoot, absolutePath)
+}
+
 // ─── Queue Management ────────────────────────────────────────────────────────
 
 function populateQueue(filePaths: string[]): void {
   if (!db) return
   const stmt = db.prepare('INSERT OR IGNORE INTO scan_queue (file_path, status) VALUES (?, ?)')
   const tx = db.transaction(() => {
-    for (const fp of filePaths) stmt.run(fp, 'pending')
+    for (const fp of filePaths) stmt.run(relative(currentLibraryRoot, fp), 'pending')
   })
   tx()
   log(`QUEUE populated ${filePaths.length} paths`)
@@ -649,9 +675,10 @@ function shouldSkipFile(filePath: string): boolean {
     currentSize = stat.size
   } catch { return false }
 
+  const relPath = relativizePath(filePath)
   const row = db.prepare(
     'SELECT file_mtime, file_size FROM library_item WHERE file_path = ?'
-  ).get(filePath) as { file_mtime: number | null; file_size: number | null } | undefined
+  ).get(relPath) as { file_mtime: number | null; file_size: number | null } | undefined
 
   if (row && row.file_mtime === currentMtime && row.file_size === currentSize) {
     return true
@@ -689,8 +716,9 @@ function insertLibraryItem(data: {
 
 function updateLibraryItemMtime(id: number, filePath: string, fileMtime: number, fileSize: number): void {
   if (!db) return
+  const relPath = relativizePath(filePath)
   db.prepare('UPDATE library_item SET file_path = ?, file_mtime = ?, file_size = ?, updated_at = ? WHERE id = ?')
-    .run(filePath, fileMtime, fileSize, Date.now(), id)
+    .run(relPath, fileMtime, fileSize, Date.now(), id)
 }
 
 function insertArtist(libraryItemId: number, artistName: string, sortOrder: number): void {
@@ -715,40 +743,43 @@ function upsertGalleryStub(galleryId: number, title: string, uploadDate: number 
 
 function markQueueItem(filePath: string, status: string, error?: string): void {
   if (!db) return
+  const relPath = relativizePath(filePath)
   db.prepare('UPDATE scan_queue SET status = ?, scanned_at = ?, error_message = ? WHERE file_path = ?')
-    .run(status, Date.now(), error || null, filePath)
+    .run(status, Date.now(), error || null, relPath)
 }
 
 // ─── File Processing ─────────────────────────────────────────────────────────
 
 async function processFile(filePath: string): Promise<{ status: 'new' | 'skipped' | 'error'; title?: string; artist?: string; id?: number }> {
+  // The queue stores relative paths; resolve to absolute for filesystem ops.
+  const absPath = resolveItemPath(filePath)
   // Skip files modified in the last 5 seconds (still being written by concurrent downloads)
   try {
-    const recentStat = statSync(filePath)
+    const recentStat = statSync(absPath)
     if (Date.now() - recentStat.mtimeMs < 5_000) {
-      log(`SKIP (recently modified) ${filePath}`)
-      markQueueItem(filePath, 'completed')
+      log(`SKIP (recently modified) ${absPath}`)
+      markQueueItem(absPath, 'completed')
       return { status: 'skipped' }
     }
   } catch { /* stat failure, continue to process */ }
 
   // Incremental skip
-  if (shouldSkipFile(filePath)) {
-    log(`SKIP (unchanged) ${filePath}`)
-    markQueueItem(filePath, 'completed')
+  if (shouldSkipFile(absPath)) {
+    log(`SKIP (unchanged) ${absPath}`)
+    markQueueItem(absPath, 'completed')
     return { status: 'skipped' }
   }
 
   try {
     // Dispatch by file extension — PDF or CBZ
-    const isCbz = filePath.toLowerCase().endsWith('.cbz')
+    const isCbz = absPath.toLowerCase().endsWith('.cbz')
     const format = isCbz ? 'cbz' : 'pdf'
-    const metadata = isCbz ? await extractCbzMetadata(filePath) : await extractPdfMetadata(filePath)
+    const metadata = isCbz ? await extractCbzMetadata(absPath) : await extractPdfMetadata(absPath)
 
     let galleryId = metadata.galleryId
-    if (!galleryId) galleryId = extractIdFromFilename(filePath)
+    if (!galleryId) galleryId = extractIdFromFilename(absPath)
 
-    const relPath = relative(currentLibraryRoot, filePath)
+    const relPath = relative(currentLibraryRoot, absPath)
     const parts = relPath.replace(/\\/g, '/').split('/')
     const primaryArtist = parts[0] || 'Unknown'
     // Prefer XMP/Keywords series name over directory-derived
@@ -756,38 +787,38 @@ async function processFile(filePath: string): Promise<{ status: 'new' | 'skipped
     const seriesName = metadata.seriesName || dirSeriesName
     const artists = metadata.authors.length > 0 ? metadata.authors : [primaryArtist]
     const extRe = isCbz ? /\.cbz$/i : /\.pdf$/i
-    const title = metadata.title || basename(filePath).replace(extRe, '').replace(/^\[nhentai-\d+\]\s*/, '')
+    const title = metadata.title || basename(absPath).replace(extRe, '').replace(/^\[nhentai-\d+\]\s*/, '')
     const isCustom = galleryId ? 0 : 1
 
     let statInfo: { mtimeMs: number; size: number }
-    try { statInfo = statSync(filePath) } catch { statInfo = { mtimeMs: Date.now(), size: 0 } }
+    try { statInfo = statSync(absPath) } catch { statInfo = { mtimeMs: Date.now(), size: 0 } }
 
     // Check if already exists by gallery ID or file path
     if (galleryId) {
       const row = db!.prepare('SELECT id, file_path, file_mtime, file_size FROM library_item WHERE gallery_id = ?').get(galleryId) as any
       if (row) {
-        log(`SKIP (exists by gallery #${galleryId}) ${filePath}`)
-        updateLibraryItemMtime(row.id, filePath, statInfo.mtimeMs, statInfo.size)
-        await repairThumbnail(row.id, filePath)
-        markQueueItem(filePath, 'completed')
+        log(`SKIP (exists by gallery #${galleryId}) ${absPath}`)
+        updateLibraryItemMtime(row.id, absPath, statInfo.mtimeMs, statInfo.size)
+        await repairThumbnail(row.id, resolveItemPath(row.file_path))
+        markQueueItem(absPath, 'completed')
         return { status: 'skipped' }
       }
     }
 
-    const rowByPath = db!.prepare('SELECT id FROM library_item WHERE file_path = ?').get(filePath) as any
+    const rowByPath = db!.prepare('SELECT id FROM library_item WHERE file_path = ?').get(relPath) as any
     if (rowByPath) {
-      log(`SKIP (exists by path) ${filePath}`)
-      updateLibraryItemMtime(rowByPath.id, filePath, statInfo.mtimeMs, statInfo.size)
-      await repairThumbnail(rowByPath.id, filePath)
-      markQueueItem(filePath, 'completed')
+      log(`SKIP (exists by path) ${absPath}`)
+      updateLibraryItemMtime(rowByPath.id, absPath, statInfo.mtimeMs, statInfo.size)
+      await repairThumbnail(rowByPath.id, absPath)
+      markQueueItem(absPath, 'completed')
       return { status: 'skipped' }
     }
 
     // Generate thumbnail — PDF uses pdftoppm, CBZ uses sharp
     let thumbnailPath: string | null = null
-    if (!db!.prepare('SELECT thumbnail_path FROM library_item WHERE file_path = ?').get(filePath)) {
+    if (!db!.prepare('SELECT thumbnail_path FROM library_item WHERE file_path = ?').get(relPath)) {
       try {
-        thumbnailPath = isCbz ? await generateCbzThumbnail(filePath) : await generateThumbnail(filePath)
+        thumbnailPath = isCbz ? await generateCbzThumbnail(absPath) : await generateThumbnail(absPath)
       } catch { /* */ }
     }
 
@@ -798,7 +829,8 @@ async function processFile(filePath: string): Promise<{ status: 'new' | 'skipped
       customTags: metadata.tags.length > 0 ? metadata.tags.join(', ') : null,
       customLanguage: metadata.language || null,
       customDate: metadata.creationDate ? metadata.creationDate.toISOString().split('T')[0] : null,
-      customCoverPath: thumbnailPath, filePath, fileSize: statInfo.size, format,
+      customCoverPath: thumbnailPath ? basename(thumbnailPath) : null,
+      filePath: relPath, fileSize: statInfo.size, format,
       primaryArtist: artists[0] || 'Unknown', seriesName,
       seriesIndex: metadata.seriesIndex,
       language: metadata.language,
@@ -817,13 +849,13 @@ async function processFile(filePath: string): Promise<{ status: 'new' | 'skipped
         metadata.tags)
     }
 
-    log(`NEW [${artists[0]}] "${title}" ${filePath}`)
-    markQueueItem(filePath, 'completed')
+    log(`NEW [${artists[0]}] "${title}" ${absPath}`)
+    markQueueItem(absPath, 'completed')
     return { status: 'new', title, artist: artists[0], id: newId }
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err)
-    log(`ERROR ${filePath}: ${errMsg}`)
-    markQueueItem(filePath, 'failed', errMsg)
+    log(`ERROR ${absPath}: ${errMsg}`)
+    markQueueItem(absPath, 'failed', errMsg)
     return { status: 'error' }
   }
 }
@@ -975,13 +1007,27 @@ async function runScan(): Promise<void> {
     errors.push(removalSkippedReason)
   }
 
-  const allDbPaths = removalSkippedReason
+  const allDbRows = removalSkippedReason
     ? []
     : (db.prepare('SELECT id, file_path FROM library_item').all() as Array<{ id: number; file_path: string }>)
   const discoveredSet = new Set(discoveredFiles)
-  const gone = allDbPaths.filter((dbItem) => !discoveredSet.has(dbItem.file_path))
+  // DB stores relative paths; resolve to absolute for comparison with discovered files.
+  const gone = allDbRows.filter((dbItem) => !discoveredSet.has(resolveItemPath(dbItem.file_path)))
 
-  if (gone.length > 0) {
+  // Safety net: never delete a large fraction of the library in one pass. A
+  // sudden mass "disappearance" is far more likely to be a path-resolution or
+  // mount problem than a real mass deletion — the discovered-count guard above
+  // only catches a drop in the *walk*, not rows whose stored paths fail to
+  // resolve. This catches the latter.
+  if (gone.length > 0 && allDbRows.length > 0 && gone.length > allDbRows.length * 0.2) {
+    removalSkippedReason =
+      `Removal pass would delete ${gone.length} of ${allDbRows.length} items (over 20%). ` +
+      `Skipped removing missing items to avoid a mass deletion — check the library path.`
+    log(`REMOVAL_SKIPPED ${removalSkippedReason}`)
+    errors.push(removalSkippedReason)
+  }
+
+  if (gone.length > 0 && !removalSkippedReason) {
     // Nothing declares a foreign key, so artist rows must be removed by hand
     // or they linger as orphans and pollute the artist filter list.
     const delArtists = db.prepare('DELETE FROM library_item_artist WHERE library_item_id = ?')

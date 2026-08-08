@@ -89,7 +89,7 @@ export default function Sidebar(): React.JSX.Element {
         <span className="h-5 w-1 rounded-full bg-accent shrink-0" aria-hidden="true" />
         {!sidebarCollapsed && (
           <span className="text-lg font-bold tracking-tight text-fg truncate">
-            Doujin<span className="text-accent">DL</span>
+            Kopi<span className="text-accent">bon</span>
           </span>
         )}
       </div>

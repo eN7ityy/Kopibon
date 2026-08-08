@@ -1,17 +1,16 @@
 # External tools
 
 Two toolchains are **not** bundled with the app: Python with **pikepdf**, and
-**poppler**. Without them the app still starts and still downloads — it just
+**poppler**. Without them the app still starts and still downloads. It just
 quietly stops doing half of what you expect, which is why a **Required Tools**
 panel exists in Settings and why the app probes for them at startup. This page
 covers what each tool does, how to install it, and what degrades when it is
-missing. The probe itself is [`toolchain.ts`](../../src/main/services/toolchain.ts)
-and its UI is [`ToolchainStatus.tsx`](../../src/renderer/src/components/settings/ToolchainStatus.tsx).
+missing.
 
 ## Python 3 + pikepdf
 
 **What it does:** writes all PDF metadata. The app shells out to pikepdf to
-inject the XMP packet and the Info dictionary; nothing else can produce the
+inject the XMP packet and the Info dictionary. Nothing else can produce the
 exact byte format Kavita and calibre expect (pdf-lib cannot write custom XMP
 namespaces, and exiftool flattens nested structures). See
 [`metadata-formats.md`](metadata-formats.md).
@@ -66,8 +65,8 @@ without restarting the app.
 
 | Missing | Effect |
 | --- | --- |
-| **pikepdf** | PDFs are written with **no metadata** — no title, artist or tags. Downloads still succeed; the file is just blank metadata-wise. |
-| **poppler (pdfimages)** | **PDF → CBZ conversion is disabled** — there is no lossless extraction path. |
+| **pikepdf** | PDFs are written with **no metadata**. No title, artist or tags. Downloads still succeed. The file is just blank metadata-wise. |
+| **poppler (pdfimages)** | **PDF → CBZ conversion is disabled**; there is no lossless extraction path. |
 | **poppler (pdftoppm)** | **Library thumbnails for PDFs won't generate**, and the conversion fallback is gone. |
 | **poppler (pdfinfo)** | Conversion verification (page counting) cannot run, so conversion is disabled. |
 
@@ -77,7 +76,7 @@ quietly writing PDFs with empty metadata.
 
 ## CBZ is immune
 
-CBZ generation and CBZ metadata writing need **no external tools at all** — the
+CBZ generation and CBZ metadata writing need **no external tools at all**. The
 archive and its `ComicInfo.xml` are built in-process. If you only ever use CBZ,
 you can run without pikepdf and poppler (though PDFs you already own would
 still lack thumbnails). This is one of the reasons [`../features/conversion.md`](../features/conversion.md)
@@ -85,6 +84,6 @@ is worth doing.
 
 ## See also
 
-- [Installation](../getting-started/installation.md) — install commands up front
-- [Metadata formats](metadata-formats.md) — what pikepdf writes into PDFs
-- [Conversion](../features/conversion.md) — how poppler drives PDF → CBZ
+- [Installation](../getting-started/installation.md): install commands up front
+- [Metadata formats](metadata-formats.md): what pikepdf writes into PDFs
+- [Conversion](../features/conversion.md): how poppler drives PDF → CBZ

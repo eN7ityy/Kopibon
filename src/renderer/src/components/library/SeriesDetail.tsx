@@ -165,12 +165,15 @@ export default function SeriesDetail({
   const [notice, setNotice] = useState<string | null>(null)
 
   // Kavita connection, for the async detail block in the info column. Only
-  // rendered once the server is fully configured.
+  // rendered once the integration is switched on and fully configured. The
+  // toggle used to be checked nowhere, so switching it off did not stop this
+  // panel from still querying Kavita.
   const kavitaUrl = useSettingsStore((s) => s.kavitaUrl)
   const kavitaApiKey = useSettingsStore((s) => s.kavitaApiKey)
   const kavitaLibraryId = useSettingsStore((s) => s.kavitaLibraryId)
+  const kavitaEnabled = useSettingsStore((s) => s.kavitaEnabled)
   const kavitaConfigured = Boolean(
-    kavitaUrl.trim() && kavitaApiKey.trim() && kavitaLibraryId.trim()
+    kavitaEnabled && kavitaUrl.trim() && kavitaApiKey.trim() && kavitaLibraryId.trim()
   )
   const [kavitaDetail, setKavitaDetail] = useState<KavitaDetail | null>(null)
   const [kavitaLoading, setKavitaLoading] = useState(false)

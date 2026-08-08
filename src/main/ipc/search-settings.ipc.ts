@@ -9,6 +9,55 @@ import { getLogger } from '../services/logger'
 
 const log = getLogger('search-settings')
 
+// ─── Autocomplete cache ───────────────────────────────────────────────────────
+
+/**
+ * Bounded, time-limited cache for tag autocomplete, mirroring the gallery
+ * cache in api.ipc.ts.
+ *
+ * The search box's live-suggestion dropdown re-queries the same prefix
+ * constantly — retyping after a backspace, or two callers (the search box and
+ * the blocklist picker in Settings) typing the same common word — against an
+ * endpoint limited to 30 requests/minute per IP. Map preserves insertion
+ * order, which gives LRU eviction for free by re-inserting on every hit.
+ */
+const AUTOCOMPLETE_CACHE_MAX_ENTRIES = 200
+const AUTOCOMPLETE_CACHE_TTL_MS = 5 * 60_000
+
+interface CachedAutocomplete {
+  value: Array<{ id: number; type: string; name: string; count: number }>
+  cachedAt: number
+}
+
+const autocompleteCache = new Map<string, CachedAutocomplete>()
+
+/** `type` is part of the key: an artist-only and an all-types query for the same text are different requests. */
+function autocompleteCacheKey(query: string, type: string | null | undefined): string {
+  return `${type ?? ''}:${query.toLowerCase()}`
+}
+
+function getCachedAutocomplete(key: string): CachedAutocomplete['value'] | undefined {
+  const hit = autocompleteCache.get(key)
+  if (!hit) return undefined
+  if (Date.now() - hit.cachedAt > AUTOCOMPLETE_CACHE_TTL_MS) {
+    autocompleteCache.delete(key)
+    return undefined
+  }
+  autocompleteCache.delete(key)
+  autocompleteCache.set(key, hit)
+  return hit.value
+}
+
+function setCachedAutocomplete(key: string, value: CachedAutocomplete['value']): void {
+  autocompleteCache.delete(key)
+  autocompleteCache.set(key, { value, cachedAt: Date.now() })
+  while (autocompleteCache.size > AUTOCOMPLETE_CACHE_MAX_ENTRIES) {
+    const oldest = autocompleteCache.keys().next()
+    if (oldest.done) break
+    autocompleteCache.delete(oldest.value)
+  }
+}
+
 /**
  * Settings keys for the Search tab.
  *
@@ -23,13 +72,23 @@ export const SEARCH_SETTING_KEYS = {
   minPages: 'searchMinPages',
   minFavorites: 'searchMinFavorites',
   uploadedWithinDays: 'searchUploadedWithinDays',
-  respectBlacklist: 'searchRespectBlacklist'
+  respectBlacklist: 'searchRespectBlacklist',
+  /**
+   * Opt-in, default off. This app's search history is adult-content-specific,
+   * so recording it is something the user turns on rather than something they
+   * have to notice and turn off. Gates only the *recent-searches* dropdown —
+   * live tag autocomplete while typing is a stateless per-keystroke lookup
+   * against nhentai's own tag database and stores nothing, so it is not tied
+   * to this setting.
+   */
+  rememberRecentSearches: 'searchRememberRecent'
 } as const
 
 const VALID_SORTS = ['date', 'popular', 'popular-today', 'popular-week', 'popular-month']
 
 export interface SearchSettings extends SearchDefaults {
   respectBlacklist: boolean
+  rememberRecentSearches: boolean
 }
 
 /** Parse a stored string to a positive integer, or null when unset or unusable. */
@@ -50,7 +109,8 @@ export function readSearchSettings(): SearchSettings {
     minPages: positiveInt(settingsRepo.get(SEARCH_SETTING_KEYS.minPages)),
     minFavorites: positiveInt(settingsRepo.get(SEARCH_SETTING_KEYS.minFavorites)),
     uploadedWithinDays: positiveInt(settingsRepo.get(SEARCH_SETTING_KEYS.uploadedWithinDays)),
-    respectBlacklist: settingsRepo.get(SEARCH_SETTING_KEYS.respectBlacklist) === 'true'
+    respectBlacklist: settingsRepo.get(SEARCH_SETTING_KEYS.respectBlacklist) === 'true',
+    rememberRecentSearches: settingsRepo.get(SEARCH_SETTING_KEYS.rememberRecentSearches) === 'true'
   }
 }
 
@@ -85,6 +145,11 @@ export function registerSearchSettingsIpc(): void {
     }
     if (patch.respectBlacklist !== undefined) {
       writes[SEARCH_SETTING_KEYS.respectBlacklist] = patch.respectBlacklist ? 'true' : 'false'
+    }
+    if (patch.rememberRecentSearches !== undefined) {
+      writes[SEARCH_SETTING_KEYS.rememberRecentSearches] = patch.rememberRecentSearches
+        ? 'true'
+        : 'false'
     }
 
     settingsRepo.setAll(writes)
@@ -231,16 +296,19 @@ export function registerSearchSettingsIpc(): void {
   )
 
   handle('tags:autocomplete', async (_event, query: string, type?: string | null) => {
+    const key = autocompleteCacheKey(query, type)
+    const cached = getCachedAutocomplete(key)
+    if (cached) return { success: true, data: cached }
+
     const results = await getApiClient().searchTags(query, { type, limit: 15 })
-    return {
-      success: true,
-      data: results.map((tag) => ({
-        id: tag.id,
-        type: tag.type,
-        name: tag.name,
-        count: tag.count
-      }))
-    }
+    const data = results.map((tag) => ({
+      id: tag.id,
+      type: tag.type,
+      name: tag.name,
+      count: tag.count
+    }))
+    setCachedAutocomplete(key, data)
+    return { success: true, data }
   })
 
   handle('tags:cacheStats', async () => {

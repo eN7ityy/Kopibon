@@ -1,5 +1,5 @@
 /**
- * Core logger for the Doujin Downloader app.
+ * Core logger for the Kopibon app.
  *
  * Design (§1):
  * - Levels: error, warn, info, debug. Configurable, default 'info'.
@@ -129,7 +129,9 @@ const SENSITIVE_FIELDS = new Set([
   'authorization',
   'cookie',
   'password',
-  'nhentai_api_key'
+  'nhentai_api_key',
+  'kavitaapikey',
+  'kavita_api_key'
 ])
 
 const REDACTED = '[REDACTED]'

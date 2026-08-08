@@ -34,14 +34,31 @@ function getLogApi(): LogApi {
 const LEVEL_NAMES: LogLevel[] = ['error', 'warn', 'info', 'debug']
 
 /**
- * How many lines the panel shows.
+ * Severity order, lowest first — mirrors `LEVEL_PRIORITY` in the main-process
+ * logger. Needed here too because the level control filters what is currently
+ * on screen, not just what gets written from now on (see `handleSetLevel`).
+ */
+const LEVEL_PRIORITY: Record<LogLevel, number> = {
+  debug: 0,
+  info: 1,
+  warn: 2,
+  error: 3
+}
+
+/**
+ * How many lines the panel shows by default.
  *
  * A short tail rather than a scrolling window: this is a glance at what the app
  * is doing, and anything more than that is better read in the log file itself,
  * which "Open log folder" reaches. The full history is still in the ring buffer
  * and still exported by the diagnostics bundle.
+ *
+ * Adjustable from the panel itself but never persisted — like the level and
+ * retention controls, it is process-lifetime only and starts back at the
+ * default the next time Settings is opened.
  */
-const TAIL_LINES = 10
+const DEFAULT_TAIL_LINES = 10
+const TAIL_LINE_OPTIONS = [10, 25, 50, 100, 250, 500, 1000, 2000]
 
 const LEVEL_COLORS: Record<LogLevel, string> = {
   error: 'text-danger bg-danger-wash',
@@ -56,9 +73,9 @@ export default function LogsPage(): React.JSX.Element {
   const [records, setRecords] = useState<LogRecord[]>([])
   const [currentLevel, setCurrentLevel] = useState<LogLevel>('info')
   const [retentionDays, setRetentionDays] = useState(14)
+  const [tailLines, setTailLines] = useState(DEFAULT_TAIL_LINES)
 
   // Filters
-  const [filterLevel, setFilterLevel] = useState<LogLevel | 'all'>('all')
   const [filterScope, setFilterScope] = useState('')
   const [filterText, setFilterText] = useState('')
 
@@ -126,7 +143,11 @@ export default function LogsPage(): React.JSX.Element {
 
   const filtered = useMemo(() => {
     return records.filter((r) => {
-      if (filterLevel !== 'all' && r.level !== filterLevel) return false
+      // Same threshold the level control sets on the backend — a record
+      // already in the buffer below the current floor is hidden too, so
+      // raising the level has a visible effect immediately rather than only
+      // once new records arrive.
+      if (LEVEL_PRIORITY[r.level] < LEVEL_PRIORITY[currentLevel]) return false
       if (filterScope && !r.scope.includes(filterScope)) return false
       if (filterText) {
         const msg = r.msg.toLowerCase()
@@ -139,7 +160,7 @@ export default function LogsPage(): React.JSX.Element {
       }
       return true
     })
-  }, [records, filterLevel, filterScope, filterText])
+  }, [records, currentLevel, filterScope, filterText])
 
   // ─── Scopes for autocomplete ───────────────────────────────────────────
 
@@ -151,9 +172,19 @@ export default function LogsPage(): React.JSX.Element {
 
   // ─── Handlers ──────────────────────────────────────────────────────────
 
+  /**
+   * Set the level floor.
+   *
+   * Does two things, both from one selection: tells the backend not to
+   * bother recording anything below this severity from now on, and — since
+   * `filtered` above reads `currentLevel` too — immediately hides whatever is
+   * already on screen that falls below it. Previously only the first half
+   * happened, so picking "Error" changed nothing the user could see until an
+   * actual error occurred, which read as the control doing nothing at all.
+   */
   const handleSetLevel = async (level: LogLevel): Promise<void> => {
-    await api.setLevel(level)
     setCurrentLevel(level)
+    await api.setLevel(level)
   }
 
   const handleSetRetention = async (
@@ -230,6 +261,24 @@ export default function LogsPage(): React.JSX.Element {
           </select>
         </div>
 
+        {/* Tail length — adjustable, never persisted (see DEFAULT_TAIL_LINES) */}
+        <div className="flex items-center gap-1">
+          <label className="text-xs text-fg-muted mr-1">
+            Show:
+          </label>
+          <select
+            value={tailLines}
+            onChange={(e) => setTailLines(Number(e.target.value))}
+            className="px-2 py-1 text-xs rounded border border-line bg-surface text-fg"
+          >
+            {TAIL_LINE_OPTIONS.map((n) => (
+              <option key={n} value={n}>
+                {n} lines
+              </option>
+            ))}
+          </select>
+        </div>
+
         {/* Separator */}
         <span className="text-fg-faint">|</span>
 
@@ -251,23 +300,6 @@ export default function LogsPage(): React.JSX.Element {
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2 mb-3">
-        <select
-          value={filterLevel}
-          onChange={(e) =>
-            setFilterLevel(
-              e.target.value as LogLevel | 'all'
-            )
-          }
-          className="px-2 py-1 text-xs rounded border border-line bg-surface text-fg"
-        >
-          <option value="all">All levels</option>
-          {LEVEL_NAMES.map((l) => (
-            <option key={l} value={l}>
-              {l}
-            </option>
-          ))}
-        </select>
-
         <input
           type="text"
           value={filterScope}
@@ -301,8 +333,8 @@ export default function LogsPage(): React.JSX.Element {
         </label>
 
         <span className="tnum text-xs text-fg-faint">
-          {filtered.length > TAIL_LINES
-            ? `last ${TAIL_LINES} of ${filtered.length}`
+          {filtered.length > tailLines
+            ? `last ${tailLines} of ${filtered.length}`
             : `${filtered.length} of ${records.length}`}
         </span>
       </div>
@@ -319,7 +351,7 @@ export default function LogsPage(): React.JSX.Element {
               : 'No records match the current filters.'}
           </div>
         ) : (
-          filtered.slice(-TAIL_LINES).map((r, i) => (
+          filtered.slice(-tailLines).map((r, i) => (
             <div
               key={`${r.ts}-${i}`}
               className="flex items-start gap-2 px-3 py-0.5 hover:bg-raised border-b border-line last:border-b-0"
