@@ -6,5 +6,5 @@
 # Mirrors the `publish` block in electron-builder.yml.
 provider: github
 owner: eN7ityy
-repo: Doujinshi-Downloader
-updaterCacheDirName: doujin-downloader-updater
+repo: Kopibon
+updaterCacheDirName: kopibon-updater

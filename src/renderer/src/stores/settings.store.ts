@@ -9,6 +9,7 @@ import { create } from 'zustand'
  */
 export type OutputFormat = 'pdf' | 'cbz'
 export type PageSizeOption = 'Dynamic' | 'Fit to Image' | 'Letter' | 'A4'
+export type ReleaseChannel = 'stable' | 'beta'
 
 interface SettingsState {
   libraryPath: string
@@ -34,12 +35,26 @@ interface SettingsState {
   // Notification
   showNotifications: boolean
 
+  /**
+   * Which update feed the app checks: GitHub's stable releases, or also the
+   * pre-releases published from the `test` branch. Read by main
+   * (updater.ipc.ts) — the value here only reflects what is persisted.
+   */
+  releaseChannel: ReleaseChannel
+
   // Kavita integration (optional — every API call is gated on isConfigured)
   kavitaUrl: string
   kavitaApiKey: string
   kavitaLibraryId: string
   kavitaLibraryRoot: string
   kavitaEnabled: boolean
+
+  /**
+   * Whether the first-boot onboarding wizard has been completed. When false
+   * (a fresh database, or one that was deleted), App.tsx shows the wizard
+   * instead of the normal UI until the user finishes it.
+   */
+  onboardingCompleted: boolean
 
   // Track if settings have been loaded from DB
   loaded: boolean
@@ -55,11 +70,13 @@ interface SettingsState {
   setBlackBackground: (black: boolean) => void
   setCbzKeepOriginal: (keep: boolean) => void
   setShowNotifications: (show: boolean) => void
+  setReleaseChannel: (channel: ReleaseChannel) => void
   setKavitaUrl: (value: string) => void
   setKavitaApiKey: (value: string) => void
   setKavitaLibraryId: (value: string) => void
   setKavitaLibraryRoot: (value: string) => void
   setKavitaEnabled: (enabled: boolean) => void
+  setOnboardingCompleted: (completed: boolean) => void
 
   loadFromDb: () => Promise<void>
   saveToDb: () => Promise<void>
@@ -84,6 +101,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   blackBackground: true,
   cbzKeepOriginal: true,
   showNotifications: true,
+  releaseChannel: 'stable',
 
   // Kavita is off until configured; the root pre-fills from libraryPath on load.
   kavitaUrl: 'http://localhost:5000',
@@ -91,6 +109,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   kavitaLibraryId: '',
   kavitaLibraryRoot: '',
   kavitaEnabled: false,
+  onboardingCompleted: false,
   loaded: false,
 
   setLibraryPath: (path) => set({ libraryPath: path }),
@@ -104,11 +123,13 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   setBlackBackground: (black) => set({ blackBackground: black }),
   setCbzKeepOriginal: (keep) => set({ cbzKeepOriginal: keep }),
   setShowNotifications: (show) => set({ showNotifications: show }),
+  setReleaseChannel: (channel) => set({ releaseChannel: channel }),
   setKavitaUrl: (value) => set({ kavitaUrl: value }),
   setKavitaApiKey: (value) => set({ kavitaApiKey: value }),
   setKavitaLibraryId: (value) => set({ kavitaLibraryId: value }),
   setKavitaLibraryRoot: (value) => set({ kavitaLibraryRoot: value }),
   setKavitaEnabled: (enabled) => set({ kavitaEnabled: enabled }),
+  setOnboardingCompleted: (completed) => set({ onboardingCompleted: completed }),
 
   loadFromDb: async () => {
     try {
@@ -154,6 +175,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
         blackBackground: asBool(settings.blackBackground, true),
         cbzKeepOriginal: asBool(settings.cbzKeepOriginal, true),
         showNotifications: asBool(settings.showNotifications, true),
+        releaseChannel: settings.releaseChannel === 'beta' ? 'beta' : 'stable',
         // The root defaults to the app's library path so the user rarely needs
         // to set it by hand — it only needs to differ when Kavita scans a
         // different root than the app writes into.
@@ -165,6 +187,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
           settings.libraryPath ||
           DEFAULT_LIBRARY_PATH,
         kavitaEnabled: asBool(settings.kavitaEnabled, false),
+        onboardingCompleted: settings.onboardingCompleted === 'true',
         loaded: true
       })
     } catch {
@@ -187,11 +210,13 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
         blackBackground: String(state.blackBackground),
         cbzKeepOriginal: String(state.cbzKeepOriginal),
         showNotifications: String(state.showNotifications),
+        releaseChannel: state.releaseChannel,
         kavitaUrl: state.kavitaUrl,
         kavitaApiKey: state.kavitaApiKey,
         kavitaLibraryId: state.kavitaLibraryId,
         kavitaLibraryRoot: state.kavitaLibraryRoot,
-        kavitaEnabled: String(state.kavitaEnabled)
+        kavitaEnabled: String(state.kavitaEnabled),
+        onboardingCompleted: String(state.onboardingCompleted)
       })
     } catch {
       console.error('Failed to save settings to database')

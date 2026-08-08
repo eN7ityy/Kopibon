@@ -1,12 +1,7 @@
 # Metadata formats
 
 The exact fields the app writes, where they come from, and how the two formats
-differ. This is the reference for [`../features/metadata-pipeline.md`](../features/metadata-pipeline.md);
-the values are produced by [`mappers.ts`](../../src/main/services/metadata/mappers.ts),
-rendered from the two templates in
-[`resources/metadata-templates/`](../../resources/metadata-templates/README.md),
-and read back by [`comicinfo.ts`](../../src/main/services/comicinfo.ts) and the
-library scanner.
+differ. This is the reference for [`../features/metadata-pipeline.md`](../features/metadata-pipeline.md).
 
 ## ComicInfo v2.1 (CBZ)
 
@@ -17,7 +12,7 @@ notes:
 | --- | --- | --- |
 | `Title` | File title | Always present |
 | `Series` | Series name | Falls back to the title so it is never empty |
-| `LocalizedSeries` | Japanese title | **One-shots only**; see pipeline docs |
+| `LocalizedSeries` | Japanese title | **One-shots only**. See pipeline docs |
 | `Number` | Position in series | Only for real series members with `seriesIndex > 0` |
 | `Summary` | Description | |
 | `Writer` | Writers | Artists, else circles, else `Unknown` |
@@ -27,7 +22,7 @@ notes:
 | `Tags` | nhentai `tag`-type tags | Separate from Genre |
 | `Characters` | Characters | |
 | `Web` | nhentai gallery URL | `https://nhentai.net/g/{id}` |
-| `Notes` | "Tagged by Doujin Downloader" | Carries the gallery ID |
+| `Notes` | "Tagged by Kopibon" | Carries the gallery ID |
 | `PageCount` | Pages in the file | Derived from the archive, never trusted from the caller |
 | `LanguageISO` | Resolved language | ISO 639-1 code |
 | `Year` / `Month` / `Day` | Release date | All three written together, or none |
@@ -111,6 +106,6 @@ list. See [`../features/conversion.md`](../features/conversion.md).
 
 ## See also
 
-- [Metadata pipeline](../features/metadata-pipeline.md) — how the values are decided
-- [Library layout](library-layout.md) — how the scanner reads these fields back
-- [External tools](external-tools.md) — pikepdf's role in writing the PDF side
+- [Metadata pipeline](../features/metadata-pipeline.md): how the values are decided
+- [Library layout](library-layout.md): how the scanner reads these fields back
+- [External tools](external-tools.md): pikepdf's role in writing the PDF side

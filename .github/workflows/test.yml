@@ -1,7 +1,27 @@
 name: Test Release
+
+# Pre-release build for the `test` branch. Merge dev -> test and this
+# publishes a GitHub pre-release that beta testers auto-update onto. Whether a
+# given install receives it is a user-facing Settings > Advanced choice
+# (src/main/ipc/updater.ipc.ts sets autoUpdater.allowPrerelease from the
+# `releaseChannel` setting, defaulting from the version string only the first
+# time it is read, before the setting exists).
 on:
   push:
     branches: [test]
+
+# Creating a release needs write access to repository contents. GITHUB_TOKEN
+# defaults to read-only on repositories created since 2023, so this cannot be
+# left implicit.
+permissions:
+  contents: write
+
+# There is one self-hosted runner, so two quick pushes would queue anyway.
+# Serialising them here keeps the release ordering predictable rather than
+# letting the second build finish first.
+concurrency:
+  group: test-release
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -15,15 +35,45 @@ jobs:
 
       - run: npm ci
 
-      # Auto-bump the prerelease version, e.g. 1.0.0-beta.0, 1.0.0-beta.1...
-      - run: npm version prerelease --preid=beta --no-git-tag-version
+      # `build:linux` is only `electron-vite build && electron-builder`; unlike
+      # plain `build` it skips typecheck. Both gates run explicitly so a
+      # release cannot ship with a failing suite.
+      #
+      # `npm run lint` is deliberately NOT a gate: eslint currently exits
+      # non-zero on a large backlog of pre-existing errors and would fail every
+      # run. Add it once that backlog is cleared.
+      - run: npm run typecheck
+      - run: npm test
+
+      # The version comes from the run number, not from `npm version
+      # prerelease`. That command writes to package.json in the workspace, and
+      # nothing commits it — checkout wipes the tree each run, so every build
+      # recomputed the *same* version and silently overwrote the previous
+      # pre-release instead of publishing a new one.
+      #
+      # The patch is incremented first so the beta sorts *above* the last
+      # stable: with package.json at 1.0.0, `1.0.0-beta.N` is semver-older than
+      # the released 1.0.0 and testers would never be offered it. 1.0.1-beta.N
+      # is newer than 1.0.0 and older than 1.0.1, which is what we want.
+      - name: Resolve prerelease version
+        id: ver
+        run: |
+          NEXT=$(node -p 'const v=require("./package.json").version.split("-")[0].split(".").map(Number); v[0]+"."+v[1]+"."+(v[2]+1)')
+          VERSION="${NEXT}-beta.${{ github.run_number }}"
+          npm version "$VERSION" --no-git-tag-version --allow-same-version
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
 
       - run: npm run build:linux
 
+      # tag_name must be an expression: `with:` values are passed to the action
+      # as environment variables and are never run through a shell, so the
+      # previous `v$(node -p ...)` was taken literally — spaces and all, which
+      # is not even a valid git ref.
       - uses: softprops/action-gh-release@v2
         with:
           prerelease: true
-          tag_name: v$(node -p "require('./package.json').version")
+          tag_name: ${{ steps.ver.outputs.tag }}
+          name: ${{ steps.ver.outputs.tag }}
           generate_release_notes: true
           files: |
             dist/*.AppImage

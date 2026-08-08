@@ -1,5 +1,6 @@
 import { basename, join, relative, isAbsolute } from 'path'
 import { settingsRepo } from '../db/repositories/settings.repo'
+import { decryptKey } from '../ipc/auth.ipc'
 import { getLogger } from './logger'
 
 /**
@@ -144,23 +145,38 @@ class KavitaClient {
    * Explicitly provided values win; anything not provided falls back to the
    * persisted settings, so the fire-and-forget integration points always use
    * the saved config while the settings pane can test unsaved form values.
+   *
+   * The persisted API key is decrypted here — this is the one reader that
+   * goes straight to `settingsRepo`, bypassing the settings IPC layer that
+   * otherwise handles that transparently. An explicit override is never
+   * decrypted: it is always a plaintext value the caller already has in
+   * hand, typically the settings pane's live, unsaved form field.
    */
   private readConfig(overrides?: Partial<KavitaConfig>): KavitaConfig {
     return {
       url: ((overrides?.url ?? settingsRepo.get('kavitaUrl')) || '')
         .trim()
         .replace(/\/+$/, ''),
-      apiKey: ((overrides?.apiKey ?? settingsRepo.get('kavitaApiKey')) || '').trim(),
+      apiKey: (overrides?.apiKey ?? decryptKey(settingsRepo.get('kavitaApiKey') || '')).trim(),
       libraryId: ((overrides?.libraryId ?? settingsRepo.get('kavitaLibraryId')) || '').trim()
     }
   }
 
   /**
-   * True when a scan can actually be issued: URL, API key and library id are
-   * all present. Deliberately does not read `kavitaEnabled` — the toggle is a
-   * stored preference and the integration points gate on this method alone.
+   * True when a scan or delete can actually be issued: the "Enable Kavita
+   * integration" checkbox is on, and URL, API key and library id are all
+   * present.
+   *
+   * The checkbox used to be decorative — every write path checked URL/key/
+   * library alone, so unchecking it and leaving the fields filled in (the
+   * normal way to pause the integration without re-entering the key later)
+   * did not stop anything. It still does not gate the settings pane's own
+   * test-connection and find-libraries calls, which pass their own overrides
+   * and call the endpoints directly — you need to be able to finish setting
+   * up a connection before switching it on.
    */
   isConfigured(): boolean {
+    if (settingsRepo.get('kavitaEnabled') !== 'true') return false
     const { url, apiKey, libraryId } = this.readConfig()
     return Boolean(url && apiKey && libraryId)
   }
@@ -288,6 +304,9 @@ class KavitaClient {
    * count. Never throws; returns null when unconfigured or unreadable.
    */
   async getItemCount(url?: string, apiKey?: string): Promise<number | null> {
+    // Same enabled check as isConfigured(). This does not call isConfigured()
+    // itself only because it needs the override-aware config right after.
+    if (settingsRepo.get('kavitaEnabled') !== 'true') return null
     const config = this.readConfig({ url, apiKey })
     if (!config.url || !config.apiKey || !config.libraryId) return null
 
@@ -618,6 +637,15 @@ class KavitaClient {
    * Each item is matched to a Kavita series by name (its series name first, the
    * item title as a fallback), deduplicated, and deleted in one call. Fire-and-
    * forget: never throws.
+   *
+   * Requires an exact case-insensitive name match. Kavita's search is a
+   * substring match rather than a similarity ranking, so on a library of any
+   * size it will readily return an unrelated series for a query that shares a
+   * common word — "Volume", a character name, anything generic. Falling back
+   * to "the first hit" the way the rescan path does would mean an unrelated
+   * series' reading progress and collections get deleted from Kavita because
+   * *this* item's name didn't happen to match anything. An item with no exact
+   * match in Kavita is simply left alone; it is logged so a miss is visible.
    */
   async deleteItemsFromKavita(
     items: Array<{ title?: string | null; seriesName?: string | null }>,
@@ -626,8 +654,15 @@ class KavitaClient {
   ): Promise<void> {
     const ids = new Set<number>()
     for (const item of items) {
-      const id = await this.findSeriesIdForItem(item.title, item.seriesName, url, apiKey)
-      if (id != null) ids.add(id)
+      const id = await this.findSeriesIdForItem(item.title, item.seriesName, url, apiKey, true)
+      if (id != null) {
+        ids.add(id)
+      } else {
+        log.warn('Kavita delete skipped: no exact-name series match', {
+          title: (item.title || '').trim() || null,
+          seriesName: (item.seriesName || '').trim() || null
+        })
+      }
     }
     const seriesIds = [...ids]
     if (seriesIds.length === 0) return
@@ -638,12 +673,26 @@ class KavitaClient {
     }
   }
 
-  /** Best-matching Kavita series id for a library item, by name. */
+  /**
+   * Best-matching Kavita series id for a library item, by name.
+   *
+   * `requireExactMatch` decides what happens when nothing matches exactly:
+   *
+   * - false (the default) — falls back to the first search hit. Safe for a
+   *   rescan, which is idempotent: guessing wrong just re-indexes a series
+   *   that was already correct, at worst wasting one scan.
+   * - true — returns null instead. Kavita's search is a general substring
+   *   match, not a similarity ranking, so "no exact hit" can mean the query
+   *   matched an unrelated series that happens to share a word. That is an
+   *   acceptable guess to scan; it is not an acceptable guess to delete.
+   *   `deleteItemsFromKavita` passes true for exactly this reason.
+   */
   private async findSeriesIdForItem(
     title?: string | null,
     seriesName?: string | null,
     url?: string,
-    apiKey?: string
+    apiKey?: string,
+    requireExactMatch = false
   ): Promise<number | null> {
     const name = (seriesName || '').trim()
     let results = name ? await this.searchSeries(name, url, apiKey) : []
@@ -653,9 +702,9 @@ class KavitaClient {
     }
     if (results.length === 0) return null
     const exactTarget = name || fallback
-    const match =
-      results.find((r) => r.name.toLowerCase() === exactTarget.toLowerCase()) ?? results[0]
-    return match.id
+    const exact = results.find((r) => r.name.toLowerCase() === exactTarget.toLowerCase())
+    if (exact) return exact.id
+    return requireExactMatch ? null : results[0].id
   }
 
   /**

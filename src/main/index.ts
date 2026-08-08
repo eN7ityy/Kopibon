@@ -1,7 +1,6 @@
 import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
-import { autoUpdater } from 'electron-updater'
 import icon from '../../resources/icon.png?asset'
 import { initDatabase, closeDatabase } from './db/connection'
 import { registerApiIpc } from './ipc/api.ipc'
@@ -11,6 +10,7 @@ import { registerSettingsIpc } from './ipc/settings.ipc'
 import { registerSearchSettingsIpc } from './ipc/search-settings.ipc'
 import { registerAuthIpc, restoreAuthFromDb } from './ipc/auth.ipc'
 import { registerKavitaIpc } from './ipc/kavita.ipc'
+import { registerUpdaterIpc } from './ipc/updater.ipc'
 import { inFlightHandlers } from './ipc/handle'
 import { getDownloadManager } from './services/download-manager'
 import { checkToolchain } from './services/toolchain'
@@ -27,7 +27,7 @@ function createWindow(): void {
     minHeight: 600,
     show: false,
     autoHideMenuBar: true,
-    title: 'Doujin Downloader',
+    title: 'Kopibon',
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -87,7 +87,7 @@ function createWindow(): void {
 }
 
 app.whenReady().then(async () => {
-  electronApp.setAppUserModelId('com.en7ity.doujin-downloader')
+  electronApp.setAppUserModelId('com.en7ity.kopibon')
 
   // ─── Data directory ──────────────────────────────────────────────────
   //
@@ -98,7 +98,7 @@ app.whenReady().then(async () => {
   // .config) — giving every worker its own separate, empty database. Must run
   // before initDatabase() and before any worker is spawned.
 
-  process.env.DOUJIN_DATA_DIR = app.getPath('userData')
+  process.env.KOPIBON_DATA_DIR = app.getPath('userData')
 
   // ─── Logger ──────────────────────────────────────────────────────────
 
@@ -238,56 +238,7 @@ app.whenReady().then(async () => {
     return { success: true, data: await checkToolchain(force) }
   })
 
-  // ─── Auto-update ─────────────────────────────────────────────────────
-
-  /** Broadcast updater state so the renderer can show it instead of guessing. */
-  const sendUpdateStatus = (
-    payload: Record<string, unknown>
-  ): void => {
-    for (const win of BrowserWindow.getAllWindows()) {
-      win.webContents.send('app:updateStatus', payload)
-    }
-  }
-
-  autoUpdater.on('error', (err) => {
-    logger.error('Auto-updater error', {
-      err: err instanceof Error ? err : new Error(String((err as Error)?.message || err))
-    })
-    sendUpdateStatus({
-      state: 'error',
-      message: String(err?.message || err)
-    })
-  })
-  autoUpdater.on('update-available', (info) => {
-    logger.info('Update available', { version: info?.version })
-    sendUpdateStatus({
-      state: 'available',
-      version: info?.version
-    })
-  })
-  autoUpdater.on('update-not-available', () => {
-    sendUpdateStatus({ state: 'current' })
-  })
-  autoUpdater.on('download-progress', (p) => {
-    sendUpdateStatus({
-      state: 'downloading',
-      percent: Math.round(p?.percent ?? 0)
-    })
-  })
-  autoUpdater.on('update-downloaded', (info) => {
-    logger.info('Update downloaded', { version: info?.version })
-    sendUpdateStatus({
-      state: 'ready',
-      version: info?.version
-    })
-  })
-
-  // Pre-release builds (e.g. 1.0.0-beta.42) opt into pre-release updates so
-  // beta testers automatically receive newer betas. Stable builds keep the
-  // default (only stable releases).
-  if (/beta/.test(app.getVersion())) {
-    autoUpdater.allowPrerelease = true
-  }
+  registerUpdaterIpc()
 
   // ─── Renderer log forwarding (§1.6) ─────────────────────────────────
 
@@ -387,6 +338,21 @@ app.whenReady().then(async () => {
       /* the allowlist already keeps the key out; this is belt and braces */
     }
 
+    /*
+     * The Kavita key too.
+     *
+     * Registering the value scrubs it wherever it turns up — inside a field
+     * whose name nothing recognises, or embedded in a URL or an error string —
+     * which field-name matching alone cannot do. Nothing logs it today; this is
+     * so that nothing can start to by accident.
+     */
+    try {
+      const kavitaKey = settingsRepo.get('kavitaApiKey')
+      if (kavitaKey) secrets.push(kavitaKey)
+    } catch {
+      /* DB may not be ready */
+    }
+
     const input = {
       appVersion: app.getVersion(),
       versions: {
@@ -427,29 +393,6 @@ app.whenReady().then(async () => {
 
     await shell.showItemInFolder(exportPath)
     return { success: true, data: { path: exportPath } }
-  })
-
-  handle('app:checkForUpdates', async () => {
-    const result = await autoUpdater.checkForUpdates()
-    return {
-      success: true,
-      data: result
-        ? { version: result.updateInfo?.version }
-        : null
-    }
-  })
-
-  /** Apply a staged update now. No-op unless 'update-downloaded' has fired. */
-  handle('app:installUpdate', async () => {
-    // isSilent=false, isForceRunAfter=true — reopen the app after updating.
-    autoUpdater.quitAndInstall(false, true)
-    return { success: true }
-  })
-
-  // Startup check. Rejections are handled by the 'error' listener above; this
-  // catch only stops an unhandled rejection when no feed exists yet.
-  autoUpdater.checkForUpdates().catch(() => {
-    /* reported via the error event */
   })
 
   // App version for Settings display

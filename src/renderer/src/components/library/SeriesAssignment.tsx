@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import AutocompleteInput from '../shared/AutocompleteInput'
 import type { LibraryItemData } from './LibraryCard'
-import { FileText, ListX } from 'lucide-react'
+import { FileText, ListX, Sparkles, Check } from 'lucide-react'
+import { findCommonSeriesName, extractChapterNumber } from './series-auto-detect'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -38,53 +39,72 @@ export default function SeriesAssignment({
   const selectionSize = allSelectedIds?.length ?? items.length
   const [error, setError] = useState<string | null>(null)
 
-  // Pre-fill series name and volumes from existing data
+  /**
+   * Whether the current series name and per-item volumes were auto-detected
+   * from the titles. Drives the "auto" badges and the accept-suggestions
+   * button. Editing a value clears its flag.
+   */
+  const [seriesAuto, setSeriesAuto] = useState(false)
+  const [volumesAuto, setVolumesAuto] = useState<Set<number>>(new Set())
+
+  /**
+   * A stable signature of the selection, so auto-detection re-runs when the
+   * set of selected galleries changes but not on unrelated re-renders (the
+   * parent rebuilds the `items` array on every render, so it cannot be a dep).
+   */
+  const selectionSignature = useMemo(
+    () =>
+      items
+        .map((i) => `${i.id}|${i.customTitle ?? ''}|${i.seriesName ?? ''}|${i.seriesIndex ?? ''}`)
+        .join('§'),
+    [items]
+  )
+
+  // Auto-detect series name + chapters from the selected titles.
   useEffect(() => {
     if (!isOpen) return
 
-    // Pre-fill series name if all items have the same series
+    // Series: prefer an existing series shared by every item, else detect the
+    // common title substring.
     const allSeries = items.map((i) => i.seriesName).filter(Boolean)
-    if (allSeries.length === items.length && new Set(allSeries).size === 1) {
+    const sharedExisting = allSeries.length === items.length && new Set(allSeries).size === 1
+    if (sharedExisting) {
       setSeriesName(allSeries[0]!)
+      setSeriesAuto(false)
     } else {
-      setSeriesName('')
+      const titles = items.map((i) => i.customTitle || '')
+      const detected = findCommonSeriesName(titles)
+      setSeriesName(detected)
+      setSeriesAuto(detected.length > 0)
     }
 
-    // Pre-fill volumes from existing seriesIndex, title regex, or sequential
-    const volumePatterns = [
-      /vol\.?\s*(\d+(?:\.\d+)?)/i,
-      /ch\.?\s*(\d+(?:\.\d+)?)/i,
-      /chapter\s*(\d+(?:\.\d+)?)/i,
-      /ep\.?\s*(\d+(?:\.\d+)?)/i,
-      /episode\s*(\d+(?:\.\d+)?)/i,
-      /part\s*(\d+(?:\.\d+)?)/i,
-      /#(\d+(?:\.\d+)?)/
-    ]
-
+    // Chapters: keep an existing seriesIndex, else parse the title. Low
+    // confidence leaves the field blank rather than guessing a sequential
+    // number that is probably wrong.
     const next = new Map<number, string>()
-    items.forEach((item, idx) => {
+    const nextAuto = new Set<number>()
+    items.forEach((item) => {
       if (item.seriesIndex != null) {
         next.set(item.id, String(item.seriesIndex))
       } else {
-        // Try regex patterns on title first
-        const title = item.customTitle || ''
-        let found = false
-        for (const pattern of volumePatterns) {
-          const match = title.match(pattern)
-          if (match) {
-            next.set(item.id, match[1])
-            found = true
-            break
-          }
-        }
-        // Fall back to sequential
-        if (!found) {
-          next.set(item.id, String(idx + 1))
+        const chapter = extractChapterNumber(item.customTitle || '')
+        if (chapter != null) {
+          next.set(item.id, String(chapter))
+          nextAuto.add(item.id)
         }
       }
     })
     setVolumes(next)
-  }, [isOpen])
+    setVolumesAuto(nextAuto)
+  }, [isOpen, selectionSignature])
+
+  const hasSuggestions = seriesAuto || volumesAuto.size > 0
+
+  /** Accept every suggestion: the values stay, the "auto" badges clear. */
+  const acceptSuggestions = (): void => {
+    setSeriesAuto(false)
+    setVolumesAuto(new Set())
+  }
 
   if (!isOpen) return null
 
@@ -187,16 +207,41 @@ export default function SeriesAssignment({
         <div className="px-6 py-4 space-y-4">
           {/* Series input */}
           <div>
-            <label className="block text-sm font-medium text-fg mb-1">
+            <label className="flex items-center gap-1.5 text-sm font-medium text-fg mb-1">
               Series Name
+              {seriesAuto && (
+                <span
+                  className="inline-flex items-center gap-0.5 text-xs font-normal text-accent"
+                  title="Detected from the selected titles"
+                >
+                  <Sparkles size={11} aria-hidden="true" />
+                  auto
+                </span>
+              )}
             </label>
             <AutocompleteInput
               kind="series"
               value={seriesName}
-              onChange={setSeriesName}
+              onChange={(value) => {
+                setSeriesName(value)
+                setSeriesAuto(false)
+              }}
               placeholder="Search or type a series name..."
             />
           </div>
+
+          {/* Accept all auto-detected values at once */}
+          {hasSuggestions && (
+            <button
+              type="button"
+              onClick={acceptSuggestions}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-accent/40 bg-accent-wash px-3 py-1.5 text-sm font-medium text-accent transition-colors hover:bg-accent-wash"
+              title="Keep the suggested series name and chapters and clear the auto markers"
+            >
+              <Check size={14} aria-hidden="true" />
+              Accept suggestions
+            </button>
+          )}
 
           {/* Selected items with per-item volume */}
           <div>
@@ -216,6 +261,13 @@ export default function SeriesAssignment({
                     value={item.customTitle || item.filePath.split('/').pop() || `Item #${item.id}`}
                     className="flex-1 min-w-0 bg-transparent border-none text-fg-muted text-sm cursor-text select-all focus:outline-none"
                   />
+                  {volumesAuto.has(item.id) && (
+                    <Sparkles
+                      size={12}
+                      className="text-accent shrink-0"
+                      aria-label="Auto-detected chapter"
+                    />
+                  )}
                   <input
                     type="number"
                     step="any"
@@ -225,6 +277,13 @@ export default function SeriesAssignment({
                       setVolumes((prev) => {
                         const next = new Map(prev)
                         next.set(item.id, e.target.value)
+                        return next
+                      })
+                      // Editing a volume is an explicit override — drop its auto marker.
+                      setVolumesAuto((prev) => {
+                        if (!prev.has(item.id)) return prev
+                        const next = new Set(prev)
+                        next.delete(item.id)
                         return next
                       })
                     }}

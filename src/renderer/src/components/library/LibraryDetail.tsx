@@ -110,13 +110,16 @@ export default function LibraryDetail({
   const [convertError, setConvertError] = useState<string | null>(null)
   const [showConvertDialog, setShowConvertDialog] = useState(false)
 
-  // Kavita connection, for the async detail block below. Only rendered once the
-  // server is fully configured.
+  // Kavita connection, for the async detail block below and the "also remove
+  // from Kavita" delete option. Only rendered once the integration is
+  // switched on and fully configured — the toggle used to be checked
+  // nowhere, so switching it off did not hide either of those.
   const kavitaUrl = useSettingsStore((s) => s.kavitaUrl)
   const kavitaApiKey = useSettingsStore((s) => s.kavitaApiKey)
   const kavitaLibraryId = useSettingsStore((s) => s.kavitaLibraryId)
+  const kavitaEnabled = useSettingsStore((s) => s.kavitaEnabled)
   const kavitaConfigured = Boolean(
-    kavitaUrl.trim() && kavitaApiKey.trim() && kavitaLibraryId.trim()
+    kavitaEnabled && kavitaUrl.trim() && kavitaApiKey.trim() && kavitaLibraryId.trim()
   )
   const [kavitaDetail, setKavitaDetail] = useState<KavitaDetail | null>(null)
   const [kavitaLoading, setKavitaLoading] = useState(false)
@@ -1094,6 +1097,9 @@ export default function LibraryDetail({
                 ) : deleteConfirm === 'deleteFile' ? (
                   <div className="space-y-2">
                     <p className="text-xs text-danger">This will delete the database entry AND the file from disk. This cannot be undone.</p>
+                    {kavitaConfigured && (
+                      <p className="text-xs text-warning">If a matching series is found in Kavita, it will be removed there too.</p>
+                    )}
                     <div className="flex gap-2">
                       <button onClick={() => handleDelete('deleteFile')} disabled={deleting} className="flex-1 px-4 py-2 rounded-lg bg-danger-fill text-white text-sm font-medium hover:bg-danger-fill disabled:opacity-50">{deleting ? 'Deleting...' : 'Confirm Delete'}</button>
                       <button onClick={() => setDeleteConfirm('none')} className="px-4 py-2 rounded-lg bg-raised text-sm font-medium">Cancel</button>
