@@ -1,0 +1,108 @@
+# Self-hosted runner — deployment
+
+The release workflows (`release.yml`, `test.yml`) target
+`runs-on: [self-hosted, linux, doujin-builder]`. Until a runner carrying
+those labels is online, those workflows queue forever rather than failing,
+so nothing will look broken — it will just silently never run.
+
+This directory builds that runner as a container. It is designed to be
+disposable: all persistent state lives in three named volumes, and the
+runner re-registers itself on every start. If it misbehaves, delete the
+stack and redeploy — nothing is lost except build cache.
+
+## Before you start
+
+**Check free disk on the Docker host.** Named volumes live under
+`/var/lib/docker/volumes`. A release build pulls the full npm tree plus
+Electron (~100 MB on its own) and then writes an AppImage, a `.deb` and an
+`.rpm`. Budget **10 GB**; a host with a small root partition will fail
+partway through packaging, which reads as a confusing build error rather
+than an out-of-space one.
+
+```bash
+df -h /var/lib/docker
+```
+
+**Mint a PAT** that may manage self-hosted runners on this repository:
+
+- *Classic* → `repo` scope
+- *Fine-grained* → this repository only, **Administration: Read and write**
+
+This is the only secret involved. It is used solely to exchange for a
+short-lived registration token at container start (see `entrypoint.sh` for
+why a registration token is not supplied directly).
+
+## 1. Build the image on the Docker host
+
+Portainer's web-editor stacks have no build context and cannot build a
+Dockerfile. Building on the host itself sidesteps that, and means no
+registry is involved anywhere.
+
+```bash
+ssh <your-ubuntu-host>
+git clone git@github.com:eN7ityy/Doujinshi-Downloader.git
+cd Doujinshi-Downloader
+docker build -t doujin-ci-runner:1 ci/runner
+```
+
+Only `ci/runner/` is used as the build context — the clone is just a
+convenient way to get those three files onto the host. `scp -r ci/runner`
+works equally well if you would rather not clone a repo there.
+
+## 2. Deploy the stack in Portainer
+
+**Stacks → Add stack → Web editor.** Paste the contents of
+`docker-compose.yml`, then add one environment variable:
+
+| Name         | Value        |
+| ------------ | ------------ |
+| `GITHUB_PAT` | *your token* |
+
+Setting it as a stack variable rather than editing it into the compose
+text keeps the token out of the stack definition Portainer stores.
+
+**Leave "Pull latest image" off.** The image reference is unqualified, so
+a forced pull would go looking on Docker Hub for something that only
+exists in the local image store.
+
+Deploy.
+
+## 3. Confirm it registered
+
+GitHub → **Settings → Actions → Runners**. Within a few seconds
+`doujin-builder-01` should appear as **Idle**, labelled `self-hosted`,
+`linux`, `doujin-builder`.
+
+If it does not, the container logs say why — Portainer's log view is
+enough. The usual cause is a PAT missing the administration permission,
+which surfaces as a `jq` error on a response that was a `403` rather than
+a token.
+
+## 4. Prove it actually builds
+
+Push any commit to `test`. That triggers `test.yml`, which should produce
+a `v1.0.1-beta.<n>` **pre-release** carrying four artifacts: the AppImage,
+the `.rpm`, the `.deb`, and `latest-linux.yml`.
+
+Do this before trusting the pipeline with a real tag. The first build is
+also the slowest by a wide margin — the caches are cold, so it downloads
+the full dependency tree and Electron once.
+
+## Operating notes
+
+**Restarting is safe.** `config.sh --replace` takes over the existing
+registration rather than colliding with it, so a redeploy does not leave a
+stale offline runner behind in the GitHub UI.
+
+**Stopping mid-build is safe.** `run.sh` is PID 1 and receives `SIGTERM`
+directly, and `stop_grace_period: 5m` gives it room to finish the job in
+flight instead of being killed halfway through writing an artifact.
+
+**The Docker socket is deliberately not mounted.** The base image ships a
+Docker CLI, but no workflow here needs it, and mounting the socket would
+hand anything running in a workflow full root on the host.
+
+**Runner updates handle themselves.** The version pinned in the Dockerfile
+is only a starting point — the runner self-updates in place when GitHub
+requires a newer one. Rebuilding occasionally is still worth doing to pick
+up base-image security patches.

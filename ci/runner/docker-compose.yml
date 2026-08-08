@@ -4,13 +4,19 @@
 # as a stack environment variable so the secret is not stored in the stack
 # definition itself.
 #
-# The image comes from ci/runner/Dockerfile — build and push it once first:
-#   docker build -t ghcr.io/en7ityy/doujin-ci-runner:1 ci/runner
-#   docker push  ghcr.io/en7ityy/doujin-ci-runner:1
+# The image comes from ci/runner/Dockerfile. Build it once on the Docker host
+# itself and no registry is involved at all:
+#   docker build -t doujin-ci-runner:1 ci/runner
+#
+# If you later want to build elsewhere and pull, push to a registry and set
+# RUNNER_IMAGE as a stack variable to override the default below.
 
 services:
   doujin-runner:
-    image: ghcr.io/en7ityy/doujin-ci-runner:1
+    # Unqualified on purpose: Docker resolves this from the local image store.
+    # Leave Portainer's "Pull latest image" toggle OFF, or it will try Docker
+    # Hub and fail on an image that only exists locally.
+    image: ${RUNNER_IMAGE:-doujin-ci-runner:1}
     container_name: doujin-runner
     restart: unless-stopped
 

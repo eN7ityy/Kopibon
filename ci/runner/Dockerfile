@@ -13,11 +13,10 @@
 #      registers the runner, so entrypoint.sh does it.
 #   2. It ships no packaging tools, and this project builds .rpm and .deb.
 #
-# Build and push once, then deploy ci/runner/docker-compose.yml as a
-# Portainer stack:
+# Build this on the Docker host, then deploy ci/runner/docker-compose.yml as
+# a Portainer stack — see README.md in this directory:
 #
-#   docker build -t ghcr.io/en7ityy/doujin-ci-runner:1 ci/runner
-#   docker push  ghcr.io/en7ityy/doujin-ci-runner:1
+#   docker build -t doujin-ci-runner:1 ci/runner
 
 # Pinned for reproducible rebuilds. The runner self-updates in place when
 # GitHub requires a newer version, so this only sets the starting point —
