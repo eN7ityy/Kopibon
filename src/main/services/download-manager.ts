@@ -1,4 +1,4 @@
-import { join } from 'path'
+import { join, basename } from 'path'
 import { mkdirSync, existsSync, statSync, rmSync } from 'fs'
 import { Worker } from 'worker_threads'
 import { app, Notification } from 'electron'
@@ -8,6 +8,7 @@ import { downloadRepo } from '../db/repositories/download.repo'
 import { galleryRepo } from '../db/repositories/gallery.repo'
 import { settingsRepo } from '../db/repositories/settings.repo'
 import { libraryRepo } from '../db/repositories/library.repo'
+import { relativizeLibraryPath } from './library-paths'
 import { getApiClient } from './api-client'
 // import { getKavitaClient } from './kavita-client'
 import { resolveLanguageName } from './xml-utils'
@@ -704,7 +705,7 @@ export class DownloadManager {
           customTags: tagNames,
           customLanguage: languageIso,
           customDate: dateStr,
-          filePath: outputPath,
+          filePath: relativizeLibraryPath(outputPath, libraryRoot),
           fileSize,
           publisher: gallery.tags.find((t) => t.type === 'group')?.name || null,
           fileMtime: Date.now(),
@@ -727,8 +728,8 @@ export class DownloadManager {
         // Apply thumbnail path from worker result
         if (workerResult.thumbnailPath) {
           libraryRepo.update(libItem.id, {
-            customCoverPath: workerResult.thumbnailPath,
-            thumbnailPath: workerResult.thumbnailPath
+            customCoverPath: basename(workerResult.thumbnailPath),
+            thumbnailPath: basename(workerResult.thumbnailPath)
           })
         }
       }

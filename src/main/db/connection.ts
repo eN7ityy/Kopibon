@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { mkdirSync, existsSync } from 'fs'
-import { join } from 'path'
+import { join, relative, isAbsolute } from 'path'
 import { homedir } from 'os'
 import * as schema from './schema'
 
@@ -392,6 +392,104 @@ function runMigrations(sqlite: Database.Database): void {
   sqlite.exec(
     'CREATE INDEX IF NOT EXISTS idx_conversion_queue_status ON conversion_queue(status)'
   )
+
+  // ── Path-storage migration ────────────────────────────────────────────
+  // Strip directory prefix from custom_cover_path / thumbnail_path so only
+  // the bare filename is stored (e.g. "a1b2c3d4.jpg" instead of
+  // "/home/user/.config/kopibon/thumbnails/a1b2c3d4.jpg").
+  migrateCoverPaths(sqlite)
+
+  // Convert file_path from absolute to relative-to-library-root, so the
+  // database survives a library move or rename.
+  migrateFilePaths(sqlite)
+}
+
+/**
+ * Strip directory prefix from cover/thumbnail paths, leaving just the
+ * filename.  Rows that are already bare filenames are left alone.
+ */
+function migrateCoverPaths(sqlite: Database.Database): void {
+  // Guard: only run once. A sentinel row in app_settings tracks this.
+  const done = sqlite.prepare("SELECT value FROM app_settings WHERE key = ?").get('_migrated_cover_paths') as { value: string } | undefined
+  if (done) return
+
+  // SQLite has no reverse() — extract basename in JS.
+  for (const col of ['custom_cover_path', 'thumbnail_path']) {
+    const rows = sqlite.prepare(
+      `SELECT id, ${col} FROM library_item WHERE ${col} IS NOT NULL AND ${col} LIKE '%/%'`
+    ).all() as Array<{ id: number } & Record<string, string | null>>
+    const update = sqlite.prepare(`UPDATE library_item SET ${col} = ? WHERE id = ?`)
+    const tx = sqlite.transaction(() => {
+      for (const row of rows) {
+        const val = row[col]
+        if (!val) continue
+        const bn = basename(val)
+        if (bn !== val) {
+          update.run(bn, row.id)
+        }
+      }
+    })
+    tx()
+  }
+
+  sqlite.prepare(
+    "INSERT OR REPLACE INTO app_settings (key, value, updated_at) VALUES ('_migrated_cover_paths', '1', ?)"
+  ).run(Date.now())
+}
+
+/**
+ * Convert absolute file_path values to paths relative to the library root.
+ * Files outside the library root keep their absolute path.
+ */
+function migrateFilePaths(sqlite: Database.Database): void {
+  const done = sqlite.prepare("SELECT value FROM app_settings WHERE key = ?").get('_migrated_file_paths') as { value: string } | undefined
+  if (done) return
+
+  const settingRow = sqlite.prepare("SELECT value FROM app_settings WHERE key = 'libraryPath'").get() as { value: string } | undefined
+  const libraryRoot = (settingRow?.value || '').trim()
+  if (!libraryRoot) return // No library root set yet; migration runs on first launch after path is set.
+
+  const rows = sqlite.prepare(
+    'SELECT id, file_path FROM library_item WHERE file_path IS NOT NULL'
+  ).all() as Array<{ id: number; file_path: string }>
+
+  const update = sqlite.prepare('UPDATE library_item SET file_path = ? WHERE id = ?')
+
+  const tx = sqlite.transaction(() => {
+    for (const row of rows) {
+      // Already relative? Skip.
+      if (!isAbsolute(row.file_path)) continue
+
+      const rel = relative(libraryRoot, row.file_path)
+      if (!rel.startsWith('..') && rel !== row.file_path) {
+        update.run(rel, row.id)
+      }
+    }
+  })
+  tx()
+
+  // Migrate conversion_queue.file_path and scan_queue.file_path the same way.
+  for (const table of ['conversion_queue', 'scan_queue']) {
+    const qRows = sqlite.prepare(
+      `SELECT id, file_path FROM ${table} WHERE file_path IS NOT NULL`
+    ).all() as Array<{ id: number; file_path: string }>
+
+    const qUpdate = sqlite.prepare(`UPDATE ${table} SET file_path = ? WHERE id = ?`)
+    const qTx = sqlite.transaction(() => {
+      for (const row of qRows) {
+        if (!isAbsolute(row.file_path)) continue
+        const rel = relative(libraryRoot, row.file_path)
+        if (!rel.startsWith('..') && rel !== row.file_path) {
+          qUpdate.run(rel, row.id)
+        }
+      }
+    })
+    qTx()
+  }
+
+  sqlite.prepare(
+    "INSERT OR REPLACE INTO app_settings (key, value, updated_at) VALUES ('_migrated_file_paths', '1', ?)"
+  ).run(Date.now())
 }
 
 /**

@@ -23,7 +23,7 @@ import {
   rmdirSync
 } from 'fs'
 import { createHash } from 'crypto'
-import { dirname, join, basename, relative } from 'path'
+import { dirname, join, basename, relative, isAbsolute } from 'path'
 import { handle } from './handle'
 import { getLogger } from '../services/logger'
 import { getKavitaClient } from '../services/kavita-client'
@@ -41,6 +41,7 @@ import type { LibraryItem } from '../db/repositories/library.repo'
 import { countPages } from '../services/page-count'
 import { applyGalleryIdToFilename } from '../services/gallery-filename'
 import { endpointLimitPerMinute } from '../services/rate-limiter'
+import { resolveLibraryPath, relativizeLibraryPath } from '../services/library-paths'
 
 const log = getLogger('library')
 
@@ -218,6 +219,22 @@ function resolveThumbnailDir(): string {
 }
 
 /**
+ * Resolve a stored cover/thumbnail filename to an absolute path.
+ * Handles pre-migration rows that may still hold absolute paths.
+ */
+function resolveCoverPath(filename: string | null | undefined): string | null {
+  if (!filename) return null
+  if (isAbsolute(filename)) return filename // pre-migration row
+  return join(resolveThumbnailDir(), filename)
+}
+
+/** Extract just the filename from an absolute cover path, for DB storage. */
+function coverFilename(absolutePath: string | null | undefined): string | null {
+  if (!absolutePath) return null
+  return basename(absolutePath)
+}
+
+/**
  * Where converted PDFs are archived.
  *
  * Defaults to `_originals` inside the library, which is where conversions have
@@ -236,25 +253,26 @@ function renameThumbnailForPath(
   currentCover: string | null,
   newFilePath: string
 ): string | null {
-  if (!currentCover || !existsSync(currentCover)) return null
+  const resolved = resolveCoverPath(currentCover)
+  if (!resolved || !existsSync(resolved)) return null
   try {
     const hash = createHash('sha1')
       .update(newFilePath)
       .digest('hex')
       .slice(0, 16)
-    const dest = join(dirname(currentCover), `${hash}.jpg`)
-    if (dest === currentCover) return currentCover
+    const dest = join(resolveThumbnailDir(), `${hash}.jpg`)
+    if (dest === resolved) return basename(resolved)
     // A thumbnail already at the destination is equally valid — drop ours.
     if (existsSync(dest)) {
       try {
-        unlinkSync(currentCover)
+        unlinkSync(resolved)
       } catch {
         /* harmless leftover */
       }
-      return dest
+      return basename(dest)
     }
-    renameSync(currentCover, dest)
-    return dest
+    renameSync(resolved, dest)
+    return basename(dest)
   } catch {
     return null
   }
@@ -339,15 +357,46 @@ function metaForItem(
   )
 }
 
+/**
+ * Resolve stored relative paths to absolute for the renderer.
+ *
+ * The database stores relative paths for portability, but the renderer
+ * (and its isPathAccessible checks) needs absolute paths. This hydration
+ * happens once at the IPC boundary — internal code keeps working with
+ * whatever it has.
+ */
+function hydrateItem<T extends { filePath?: string | null; customCoverPath?: string | null }>(
+  item: T,
+  libraryRoot: string
+): T {
+  if (!item) return item
+  return {
+    ...item,
+    filePath: item.filePath ? resolveLibraryPath(item.filePath, libraryRoot) : item.filePath,
+    customCoverPath: item.customCoverPath
+      ? resolveCoverPath(item.customCoverPath) ?? item.customCoverPath
+      : item.customCoverPath
+  }
+}
+
+function hydrateItems<T extends { filePath?: string | null; customCoverPath?: string | null }>(
+  items: T[],
+  libraryRoot: string
+): T[] {
+  return items.map((item) => hydrateItem(item, libraryRoot))
+}
+
 export function registerLibraryIpc(): void {
   handle('library:getAll', async () => {
+    const libraryRoot = (settingsRepo.get('libraryPath') || '').trim()
     const items = libraryRepo.findAll()
-    return { success: true, data: items }
+    return { success: true, data: hydrateItems(items, libraryRoot) }
   })
 
   handle('library:getById', async (_event, id: number) => {
+    const libraryRoot = (settingsRepo.get('libraryPath') || '').trim()
     const item = libraryRepo.findById(id)
-    return { success: true, data: item }
+    return { success: true, data: item ? hydrateItem(item, libraryRoot) : item }
   })
 
   /**
@@ -375,8 +424,9 @@ export function registerLibraryIpc(): void {
   )
 
   handle('library:getByGalleryId', async (_event, galleryId: number) => {
+    const libraryRoot = (settingsRepo.get('libraryPath') || '').trim()
     const item = libraryRepo.findByGalleryId(galleryId)
-    return { success: true, data: item }
+    return { success: true, data: item ? hydrateItem(item, libraryRoot) : item }
   })
 
   /**
@@ -423,6 +473,7 @@ export function registerLibraryIpc(): void {
         showUnmatchedOnly?: boolean
       }
     ) => {
+      const libraryRoot = (settingsRepo.get('libraryPath') || '').trim()
       const result = libraryRepo.findPaginated({
         offset: params.offset,
         limit: params.limit,
@@ -437,7 +488,7 @@ export function registerLibraryIpc(): void {
         tagFilters: params.tagFilters,
         showUnmatchedOnly: params.showUnmatchedOnly
       })
-      return { success: true, data: result }
+      return { success: true, data: { ...result, items: hydrateItems(result.items, libraryRoot) } }
     }
   )
 
@@ -467,19 +518,28 @@ export function registerLibraryIpc(): void {
     ) => {
       const sortField = params.sortField as 'added' | 'title' | 'artist' | undefined
 
+      const libraryRoot = (settingsRepo.get('libraryPath') || '').trim()
+
       if (settingsRepo.get('seriesGrouping') !== 'true') {
         const flat = libraryRepo.findPaginated({ ...params, sortField })
         return {
           success: true,
           data: {
-            rows: flat.items.map((item) => ({ kind: 'item' as const, item })),
+            rows: flat.items.map((item) => ({ kind: 'item' as const, item: hydrateItem(item, libraryRoot) })),
             total: flat.total,
             galleries: flat.total
           }
         }
       }
 
-      return { success: true, data: libraryRepo.findPaginatedGrouped({ ...params, sortField }) }
+      const grouped = libraryRepo.findPaginatedGrouped({ ...params, sortField })
+      // Hydrate item rows within the grouped result
+      if (grouped && 'rows' in grouped) {
+        grouped.rows = grouped.rows.map((row: any) =>
+          row.kind === 'item' ? { ...row, item: hydrateItem(row.item, libraryRoot) } : row
+        )
+      }
+      return { success: true, data: grouped }
     }
   )
 
@@ -550,7 +610,13 @@ export function registerLibraryIpc(): void {
       for (let i = 0; i < missing.length; i += 4) {
         await Promise.all(
           missing.slice(i, i + 4).map(async (item) => {
-            const pages = await countPages(item.filePath, item.format)
+            const libraryRoot = (settingsRepo.get('libraryPath') || '').trim()
+            const filePath = resolveLibraryPath(item.filePath, libraryRoot)
+            if (!filePath || !existsSync(filePath)) {
+              log.warn('series facts: file not found', { id: item.id, stored: item.filePath, resolved: filePath })
+              return
+            }
+            const pages = await countPages(filePath, item.format)
             if (pages != null) libraryRepo.update(item.id, { pageCount: pages })
           })
         )
@@ -648,22 +714,24 @@ export function registerLibraryIpc(): void {
     const errors: string[] = []
     let renamed = 0
 
+    const libraryRoot = (settingsRepo.get('libraryPath') || '').trim()
     for (const item of members) {
       if (!item) continue
+      const itemPath = resolveLibraryPath(item.filePath, libraryRoot)
       if (isConversionLocked(item.id)) {
-        errors.push(`${basename(item.filePath)} is being converted`)
+        errors.push(`${basename(itemPath)} is being converted`)
         continue
       }
 
       try {
         const { applyMetadata } = await import('../services/apply-metadata')
         await applyMetadata(
-          item.filePath,
+          itemPath,
           item.format || 'pdf',
           metaForItem(item, { seriesName: trimmed })
         )
       } catch (err) {
-        errors.push(`Could not update metadata for ${basename(item.filePath)}: ${String(err)}`)
+        errors.push(`Could not update metadata for ${basename(itemPath)}: ${String(err)}`)
       }
 
       const update: Record<string, unknown> = { seriesName: trimmed }
@@ -671,20 +739,20 @@ export function registerLibraryIpc(): void {
       // Only move a file that actually sits in a folder named after the old
       // series. Anything else was filed differently by hand, and relocating it
       // would be a surprise rather than a rename.
-      const currentDir = dirname(item.filePath)
+      const currentDir = dirname(itemPath)
       if (basename(currentDir) === group.name) {
         const targetDir = join(dirname(currentDir), trimmed)
-        const targetPath = join(targetDir, basename(item.filePath))
+        const targetPath = join(targetDir, basename(itemPath))
         try {
           if (existsSync(targetPath)) {
             errors.push(`${basename(targetPath)} already exists in the new folder`)
           } else {
             mkdirSync(targetDir, { recursive: true })
-            renameSync(item.filePath, targetPath)
-            update.filePath = targetPath
+            renameSync(itemPath, targetPath)
+            update.filePath = relativizeLibraryPath(targetPath, libraryRoot)
           }
         } catch (err) {
-          errors.push(`Could not move ${basename(item.filePath)}: ${String(err)}`)
+          errors.push(`Could not move ${basename(itemPath)}: ${String(err)}`)
         }
       }
 
@@ -767,7 +835,13 @@ export function registerLibraryIpc(): void {
     // far too much on every render.
     if (item.pageCount != null) return { success: true, data: item.pageCount }
 
-    const pages = await countPages(item.filePath, item.format)
+    const libraryRoot = (settingsRepo.get('libraryPath') || '').trim()
+    const filePath = resolveLibraryPath(item.filePath, libraryRoot)
+    if (!filePath || !existsSync(filePath)) {
+      log.warn('page count: file not found', { id, stored: item.filePath, resolved: filePath })
+      return { success: true, data: null }
+    }
+    const pages = await countPages(filePath, item.format)
     // Filled on read as well as on write, so the existing library backfills as
     // it is browsed rather than needing a migration pass over 4,635 archives.
     if (pages != null) libraryRepo.update(id, { pageCount: pages })
@@ -803,27 +877,32 @@ export function registerLibraryIpc(): void {
     item: NonNullable<ReturnType<typeof libraryRepo.findById>>,
     galleryId: number | null
   ): Record<string, unknown> {
-    if (!item.filePath || !existsSync(item.filePath)) return {}
+    const libraryRoot = (settingsRepo.get('libraryPath') || '').trim()
+    const itemPath = resolveLibraryPath(item.filePath, libraryRoot)
+    if (!itemPath || !existsSync(itemPath)) {
+      log.warn('rename for gallery id: file not found', { id: item.id, stored: item.filePath, resolved: itemPath })
+      return {}
+    }
 
     const nextPath = join(
-      dirname(item.filePath),
-      applyGalleryIdToFilename(basename(item.filePath), galleryId)
+      dirname(itemPath),
+      applyGalleryIdToFilename(basename(itemPath), galleryId)
     )
-    if (nextPath === item.filePath) return {}
+    if (nextPath === itemPath) return {}
 
     if (existsSync(nextPath)) {
       log.warn('skipped rename: a file already has that name', {
-        from: item.filePath,
+        from: itemPath,
         to: nextPath
       })
       return {}
     }
 
     try {
-      renameSync(item.filePath, nextPath)
+      renameSync(itemPath, nextPath)
     } catch (err) {
       log.warn('could not rename after changing the nhentai id', {
-        from: item.filePath,
+        from: itemPath,
         error: String(err)
       })
       return {}
@@ -833,8 +912,8 @@ export function registerLibraryIpc(): void {
     // thumbnail unless it moves with the file.
     const movedCover = renameThumbnailForPath(item.customCoverPath, nextPath)
     return {
-      filePath: nextPath,
-      ...(movedCover ? { customCoverPath: movedCover, thumbnailPath: movedCover } : {})
+      filePath: relativizeLibraryPath(nextPath, libraryRoot),
+      ...(movedCover ? { customCoverPath: coverFilename(movedCover), thumbnailPath: coverFilename(movedCover) } : {})
     }
   }
 
@@ -876,8 +955,9 @@ export function registerLibraryIpc(): void {
   })
 
   handle('library:search', async (_event, query: string) => {
+    const libraryRoot = (settingsRepo.get('libraryPath') || '').trim()
     const items = libraryRepo.searchByTitle(query)
-    return { success: true, data: items }
+    return { success: true, data: hydrateItems(items, libraryRoot) }
   })
 
   handle('library:getArtists', async (_event, libraryItemId: number) => {
@@ -1108,8 +1188,10 @@ export function registerLibraryIpc(): void {
           }
 
           // 2. Move file into series subdirectory
-          const currentDir = dirname(item.filePath)
-          const fileName = basename(item.filePath)
+          const libraryRoot = (settingsRepo.get('libraryPath') || '').trim()
+          const itemPath = resolveLibraryPath(item.filePath, libraryRoot)
+          const currentDir = dirname(itemPath)
+          const fileName = basename(itemPath)
           const parentDirName = basename(currentDir)
 
           const dbUpdate: Record<string, unknown> = {
@@ -1127,8 +1209,8 @@ export function registerLibraryIpc(): void {
             }
             const newPath = join(seriesDir, fileName)
             try {
-              renameSync(item.filePath, newPath)
-              dbUpdate.filePath = newPath
+              renameSync(itemPath, newPath)
+              dbUpdate.filePath = relativizeLibraryPath(newPath, libraryRoot)
             } catch (moveErr) {
               errors.push(
                 `Failed to move file for item ${entry.id}: ${String(moveErr)}`
@@ -1481,8 +1563,8 @@ export function registerLibraryIpc(): void {
         customTags: metadata.tags || null,
         customLanguage: metadata.language || null,
         customDate: metadata.date || null,
-        customCoverPath: generatedThumb,
-        filePath: finalPath,
+        customCoverPath: coverFilename(generatedThumb),
+        filePath: relativizeLibraryPath(finalPath, libraryRoot),
         fileSize,
         format,
         primaryArtist,
@@ -1543,12 +1625,16 @@ export function registerLibraryIpc(): void {
   handle('library:deleteFile', async (_event, id: number) => {
     if (isConversionLocked(id)) return conversionLockError()
     const item = libraryRepo.findById(id)
-    if (item && existsSync(item.filePath)) {
+    const libraryRoot = (settingsRepo.get('libraryPath') || '').trim()
+    const itemPath = item ? resolveLibraryPath(item.filePath, libraryRoot) : ''
+    if (item && itemPath && existsSync(itemPath)) {
       try {
-        unlinkSync(item.filePath)
+        unlinkSync(itemPath)
       } catch {
         /* file may be locked */
       }
+    } else if (item) {
+      log.warn('deleteFile: file not found', { id, stored: item.filePath, resolved: itemPath })
     }
     libraryRepo.delete(id)
     // The file is gone, so drop it from Kavita too — fire-and-forget.
@@ -1589,15 +1675,19 @@ export function registerLibraryIpc(): void {
   handle('library:deleteFileMultiple', async (_event, ids: number[]) => {
     const removed: Array<{ title: string | null; seriesName: string | null }> = []
     const windows = BrowserWindow.getAllWindows()
+    const libraryRoot = (settingsRepo.get('libraryPath') || '').trim()
     for (const id of ids) {
       if (isConversionLocked(id)) continue
       const item = libraryRepo.findById(id)
-      if (item && existsSync(item.filePath)) {
+      const itemPath = item ? resolveLibraryPath(item.filePath, libraryRoot) : ''
+      if (item && itemPath && existsSync(itemPath)) {
         try {
-          unlinkSync(item.filePath)
+          unlinkSync(itemPath)
         } catch {
           /* file may be locked */
         }
+      } else if (item) {
+        log.warn('deleteFileMultiple: file not found', { id, stored: item.filePath, resolved: itemPath })
       }
       libraryRepo.delete(id)
       if (item) {
@@ -1618,14 +1708,13 @@ export function registerLibraryIpc(): void {
 
   handle('library:getThumbnail', async (_event, id: number) => {
     const item = libraryRepo.findById(id)
-    if (
-      !item ||
-      !item.customCoverPath ||
-      !existsSync(item.customCoverPath)
-    ) {
+    const coverPath = resolveCoverPath(item?.customCoverPath)
+    if (!item) return { success: true, data: null }
+    if (!coverPath || !existsSync(coverPath)) {
+      log.warn('thumbnail missing', { id, storedCover: item.customCoverPath, resolved: coverPath })
       return { success: true, data: null }
     }
-    const buffer = readFileSync(item.customCoverPath)
+    const buffer = readFileSync(coverPath)
     const base64 = buffer.toString('base64')
     return { success: true, data: `data:image/jpeg;base64,${base64}` }
   })
@@ -1753,7 +1842,7 @@ export function registerLibraryIpc(): void {
          * was how an edit to one field wiped every typed tag out of the file.
          */
         await applyMetadata(
-          item.filePath,
+          itemPath,
           format,
           metaForItem(item, {
             title:
@@ -1786,10 +1875,14 @@ export function registerLibraryIpc(): void {
         log.error('Failed to re-embed metadata', { err: embedErr })
       }
 
+      // ── Resolve file path for filesystem operations ────────────────
+      const resolvedRoot = (libraryRoot || (settingsRepo.get('libraryPath') || '')).trim()
+      const itemPath = resolveLibraryPath(item.filePath, resolvedRoot)
+
       // ── Determine library root ────────────────────────────────────
       let root = libraryRoot
       if (!root) {
-        const parentDir = dirname(item.filePath)
+        const parentDir = dirname(itemPath)
         const grandparentDir = dirname(parentDir)
         if (basename(parentDir) === item.primaryArtist) {
           root = grandparentDir
@@ -1809,7 +1902,7 @@ export function registerLibraryIpc(): void {
       let newPath: string | null = null
 
       if (artistChanged || seriesChanged) {
-        const fileName = basename(item.filePath)
+        const fileName = basename(itemPath)
         const targetArtistDir = join(root!, newPrimaryArtist!)
 
         let targetDir: string
@@ -1828,17 +1921,17 @@ export function registerLibraryIpc(): void {
 
         newPath = join(targetDir, fileName)
 
-        if (item.filePath !== newPath) {
+        if (itemPath !== newPath) {
           try {
-            renameSync(item.filePath, newPath)
+            renameSync(itemPath, newPath)
           } catch {
             // Cross-device fallback
             const { copyFileSync, unlinkSync: ul } =
               await import('fs')
             try {
-              copyFileSync(item.filePath, newPath)
+              copyFileSync(itemPath, newPath)
               try {
-                ul(item.filePath)
+                ul(itemPath)
               } catch {
                 /* best-effort */
               }
@@ -1850,7 +1943,7 @@ export function registerLibraryIpc(): void {
 
           if (newPath) {
             try {
-              const oldParentDir = dirname(item.filePath)
+              const oldParentDir = dirname(itemPath)
               const remaining = readdirSync(oldParentDir)
               if (remaining.length === 0) {
                 const { rmdirSync } = await import('fs')
@@ -1862,9 +1955,9 @@ export function registerLibraryIpc(): void {
           }
         }
 
-        if (newPath && newPath !== item.filePath) {
+        if (newPath && newPath !== itemPath) {
           libraryRepo.update(id, {
-            filePath: newPath
+            filePath: relativizeLibraryPath(newPath, resolvedRoot)
           } as Record<string, unknown>)
         }
       }
@@ -2003,11 +2096,12 @@ export function registerLibraryIpc(): void {
               stop()
               return
             }
+            const libraryRoot = (settingsRepo.get('libraryPath') || '').trim()
             worker.postMessage({
               type: 'convert',
               item: {
                 id: currentItem.id,
-                filePath: currentItem.filePath,
+                filePath: resolveLibraryPath(currentItem.filePath, libraryRoot),
                 format: currentItem.format || 'pdf',
                 metadata: buildMetadata(currentItem)
               }
@@ -2037,10 +2131,11 @@ export function registerLibraryIpc(): void {
                       currentItem.filePath
                   ) {
                     try {
+                      const libraryRoot = (settingsRepo.get('libraryPath') || '').trim()
                       libraryRepo.update(
                         currentItem.id,
                         {
-                          filePath: msg.newPath
+                          filePath: relativizeLibraryPath(msg.newPath, libraryRoot)
                         } as Record<
                           string,
                           unknown
@@ -2375,10 +2470,11 @@ export function registerLibraryIpc(): void {
         }
 
       syncingItems.add(itemId)
+      const syncLibraryRoot = (settingsRepo.get('libraryPath') || '').trim()
       const result = await spawnSyncWorker(
         itemId,
         item.galleryId,
-        item.filePath,
+        resolveLibraryPath(item.filePath, syncLibraryRoot),
         item.format || 'pdf',
         item.seriesName,
         item.seriesIndex
@@ -2511,10 +2607,11 @@ export function registerLibraryIpc(): void {
         }
 
         syncingItems.add(itemId)
+        const batchLibRoot = (settingsRepo.get('libraryPath') || '').trim()
         const result = await spawnSyncWorker(
           itemId,
           item.galleryId,
-          item.filePath,
+          resolveLibraryPath(item.filePath, batchLibRoot),
           item.format || 'pdf',
           item.seriesName,
           item.seriesIndex
@@ -3027,6 +3124,7 @@ export function registerLibraryIpc(): void {
             cbzConverting.add(currentId)
             currentCover =
               item.customCoverPath ?? null
+            const cbzLibraryRoot = (settingsRepo.get('libraryPath') || '').trim()
             sendProgress()
 
             let uploadDate: number | null = null
@@ -3047,7 +3145,7 @@ export function registerLibraryIpc(): void {
               type: 'convert',
               item: {
                 id: item.id,
-                filePath: item.filePath,
+                filePath: resolveLibraryPath(item.filePath, cbzLibraryRoot),
                 metadata: {
                   customTitle:
                     item.customTitle,
@@ -3119,11 +3217,12 @@ export function registerLibraryIpc(): void {
                   // The file was just rewritten, so its page count is new.
                   const convertedPages = await countPages(msg.newPath, 'cbz')
                   try {
+                    const cbzLibRoot = (settingsRepo.get('libraryPath') || '').trim()
                     libraryRepo.update(
                       currentId,
                       {
                         filePath:
-                          msg.newPath,
+                          relativizeLibraryPath(msg.newPath, cbzLibRoot),
                         format: 'cbz',
                         pageCount: convertedPages,
                         fileSize:
@@ -3138,9 +3237,9 @@ export function registerLibraryIpc(): void {
                         ...(movedCover
                           ? {
                               customCoverPath:
-                                movedCover,
+                                coverFilename(movedCover),
                               thumbnailPath:
-                                movedCover
+                                coverFilename(movedCover)
                             }
                           : {}),
                         updatedAt:
@@ -3541,7 +3640,7 @@ export function registerLibraryIpc(): void {
           continue
         }
 
-        const row = libraryRepo.findByFilePath(targetCbz)
+        const row = libraryRepo.findByFilePath(relativizeLibraryPath(targetCbz, libraryRoot))
 
         if (existsSync(targetCbz)) {
           try {
@@ -3561,11 +3660,11 @@ export function registerLibraryIpc(): void {
             /* keep now() */
           }
           libraryRepo.update(row.id, {
-            filePath: targetPdf,
+            filePath: relativizeLibraryPath(targetPdf, libraryRoot),
             format: 'pdf',
             fileSize: size,
             fileMtime: mtime,
-            ...(movedCover ? { customCoverPath: movedCover, thumbnailPath: movedCover } : {}),
+            ...(movedCover ? { customCoverPath: coverFilename(movedCover), thumbnailPath: coverFilename(movedCover) } : {}),
             updatedAt: Date.now()
           } as Parameters<typeof libraryRepo.update>[1])
         }

@@ -23,7 +23,7 @@
  */
 import { createRequire } from 'node:module'
 import { existsSync, mkdirSync, renameSync, statSync, unlinkSync } from 'node:fs'
-import { join, dirname } from 'node:path'
+import { join, dirname, basename, isAbsolute, normalize, relative } from 'node:path'
 import { homedir } from 'node:os'
 import { createHash } from 'node:crypto'
 import { execFile } from 'node:child_process'
@@ -61,7 +61,8 @@ const options = {
   concurrency: Math.max(1, Number(value('concurrency', 4)) || 4),
   limit: Number(value('limit', 0)) || 0,
   dbPath: value('db', join(APP_DIR, 'db.sqlite')),
-  outDir: value('out', null)
+  outDir: value('out', null),
+  libraryRoot: value('library-root', null)
 }
 
 if (flag('help') || flag('h')) {
@@ -74,7 +75,8 @@ if (flag('help') || flag('h')) {
       '  --limit=N         stop after N items',
       '  --dry-run         report only, write nothing',
       '  --db=PATH         database location',
-      '  --out=PATH        thumbnail directory'
+      '  --out=PATH        thumbnail directory',
+      '  --library-root=P  library root for resolving relative file_path'
     ].join('\n')
   )
   process.exit(0)
@@ -100,6 +102,17 @@ const setting = (key) => {
   }
 }
 
+// Library root: CLI arg wins, then the app setting.
+const libraryRoot =
+  options.libraryRoot || (setting('libraryPath') || '').trim() || ''
+
+/** Resolve a stored relative (or pre-migration absolute) path to absolute. */
+function resolveItemPath(storedPath) {
+  if (!storedPath) return ''
+  if (isAbsolute(storedPath)) return storedPath
+  return normalize(join(libraryRoot, storedPath))
+}
+
 // Same precedence the app uses: the setting wins, then the default location.
 const outDir =
   options.outDir || (setting('thumbnailPath') || '').trim() || join(APP_DIR, 'thumbnails')
@@ -123,6 +136,7 @@ const rows = db
 const items = options.limit ? rows.slice(0, options.limit) : rows
 
 console.log(`database   ${options.dbPath}`)
+console.log(`library    ${libraryRoot || '(not set - file_path must be absolute)'}`)
 console.log(`thumbnails ${outDir}`)
 console.log(`size       ${THUMB_WIDTH}x${THUMB_HEIGHT} JPEG q${THUMB_QUALITY}`)
 console.log(`items      ${items.length}${options.limit ? ` (limited from ${rows.length})` : ''}`)
@@ -187,19 +201,20 @@ function pdftoppm(pdfPath, destNoExt) {
  * leaves a truncated JPEG that later looks like a valid cached cover.
  */
 async function buildThumbnail(item) {
-  const dest = thumbPathFor(item.file_path)
+  const absPath = resolveItemPath(item.file_path)
+  const dest = thumbPathFor(absPath)
 
   if (options.skipExisting && existsSync(dest)) return { status: 'skipped', dest }
-  if (!existsSync(item.file_path)) return { status: 'missing-source' }
+  if (!absPath || !existsSync(absPath)) return { status: 'missing-source' }
   if (options.dryRun) return { status: 'would-build', dest }
 
   const tmp = `${dest}.${process.pid}.tmp`
   const isCbz =
-    (item.format || '').toLowerCase() === 'cbz' || item.file_path.toLowerCase().endsWith('.cbz')
+    (item.format || '').toLowerCase() === 'cbz' || absPath.toLowerCase().endsWith('.cbz')
 
   try {
     if (isCbz) {
-      const buf = await firstCbzImage(item.file_path)
+      const buf = await firstCbzImage(absPath)
       if (!buf) return { status: 'no-pages' }
       await sharp(buf)
         .resize(THUMB_WIDTH, THUMB_HEIGHT, { fit: 'inside' })
@@ -208,7 +223,7 @@ async function buildThumbnail(item) {
     } else {
       // pdftoppm appends its own .jpg, so hand it the stem.
       const stem = tmp.replace(/\.jpg\.\d+\.tmp$/, `.${process.pid}.pdftmp`)
-      await pdftoppm(item.file_path, stem)
+      await pdftoppm(absPath, stem)
       const produced = [`${stem}.jpg`, `${stem}-1.jpg`].find((p) => existsSync(p))
       if (!produced) return { status: 'failed', error: 'pdftoppm produced nothing' }
       renameSync(produced, tmp)
@@ -281,7 +296,7 @@ async function runPool() {
         case 'built':
           counts.built++
           bytes += result.bytes ?? 0
-          if (!options.dryRun) updateRow.run(result.dest, result.dest, item.id)
+          if (!options.dryRun) updateRow.run(basename(result.dest), basename(result.dest), item.id)
           break
         case 'would-build':
           counts.built++
