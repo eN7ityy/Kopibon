@@ -147,6 +147,17 @@ jobs:
     needs: [version, build-linux, build-windows]
     runs-on: [self-hosted, linux, doujin-builder]
     steps:
+      # This job deliberately does not check out — softprops works entirely
+      # through the API. But that means nothing cleans the workspace, and on a
+      # self-hosted runner the workspace is shared with every other job that
+      # ran there. build-linux's dist/ is still sitting in it, and if the other
+      # release workflow interleaved (the two use different concurrency
+      # groups, so they can), those could be a *different* version's files.
+      # download-artifact merges into the directory rather than replacing it,
+      # so stale artifacts would be attached to this release without a word.
+      - name: Start from an empty dist/
+        run: rm -rf dist
+
       # merge-multiple flattens both artifacts into one dist/ rather than
       # nesting them under per-artifact directories.
       - uses: actions/download-artifact@v4
