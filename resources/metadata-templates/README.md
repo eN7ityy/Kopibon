@@ -18,8 +18,8 @@ There are two copies:
 - **The shipped defaults**: next to the application, never written to.
 - **Your copy**: under the app's user data directory, in `metadata-templates/`.
   This is the one the app reads and the one to edit.
-  - Linux: `~/.config/doujin-downloader/metadata-templates/`
-  - Windows: `%APPDATA%\doujin-downloader\metadata-templates\`
+  - Linux: `~/.config/kopibon/metadata-templates/`
+  - Windows: `%APPDATA%\kopibon\metadata-templates\`
 
 Your copy is created from the defaults the first time the app starts, and is
 never overwritten afterwards. **To restore a default, delete your copy of that

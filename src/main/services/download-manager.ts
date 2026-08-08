@@ -96,13 +96,13 @@ interface ActiveDownload {
  * on Windows, previously sending everything to C:\tmp).
  */
 function imageDownloadRoot(): string {
-  const base = app?.getPath ? app.getPath('userData') : join(process.cwd(), '.doujin-downloader')
+  const base = app?.getPath ? app.getPath('userData') : join(process.cwd(), '.kopibon')
   return join(base, 'download-tmp')
 }
 
 /** Persistent thumbnail cache — must outlive reboots, so not in os.tmpdir(). */
 function thumbnailRoot(): string {
-  const base = app?.getPath ? app.getPath('userData') : join(process.cwd(), '.doujin-downloader')
+  const base = app?.getPath ? app.getPath('userData') : join(process.cwd(), '.kopibon')
   return join(base, 'thumbnails')
 }
 

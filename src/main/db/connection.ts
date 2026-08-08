@@ -11,12 +11,12 @@ let _dbPath: string | null = null
 function resolveDbDir(): string {
   if (_dbDir) return _dbDir
 
-  // The main process sets DOUJIN_DATA_DIR to app.getPath('userData') at
+  // The main process sets KOPIBON_DATA_DIR to app.getPath('userData') at
   // startup, and worker threads inherit it. This keeps every thread reading
   // the same database. The homedir fallback below would diverge from
   // Electron's userData on Windows (AppData vs .config) and silently give
   // each worker its own empty database, which is why it is last resort only.
-  const fromEnv = process.env.DOUJIN_DATA_DIR
+  const fromEnv = process.env.KOPIBON_DATA_DIR
   if (fromEnv) {
     _dbDir = fromEnv
     _dbPath = join(fromEnv, 'db.sqlite')
@@ -38,7 +38,7 @@ function resolveDbDir(): string {
   } catch {
     /* not in Electron context */
   }
-  _dbDir = join(homedir(), '.config', 'doujin-downloader')
+  _dbDir = join(homedir(), '.config', 'kopibon')
   _dbPath = join(_dbDir, 'db.sqlite')
   return _dbDir
 }

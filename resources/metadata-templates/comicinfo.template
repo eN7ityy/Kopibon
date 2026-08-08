@@ -12,7 +12,7 @@
   <Tags>{{tags?}}</Tags>
   <Characters>{{characters?}}</Characters>
   <Web>https://nhentai.net/g/{{galleryId?}}</Web>
-  <Notes>Tagged by Doujin Downloader — nhentai gallery {{galleryId?}}</Notes>
+  <Notes>Tagged by Kopibon — nhentai gallery {{galleryId?}}</Notes>
   <PageCount>{{pageCount}}</PageCount>
   <LanguageISO>{{languageIso?}}</LanguageISO>
   <Year>{{year?}}</Year>

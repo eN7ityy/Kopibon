@@ -126,8 +126,8 @@ or `<` cannot break the file.
 ## Editing the templates
 
 The templates are shipped to your user data directory on first start
-(`~/.config/doujin-downloader/metadata-templates/` on Linux,
-`%APPDATA%\doujin-downloader\metadata-templates\` on Windows). Edits take
+(`~/.config/kopibon/metadata-templates/` on Linux,
+`%APPDATA%\kopibon\metadata-templates\` on Windows). Edits take
 effect on the next file written. No restart needed. To restore the default,
 delete your copy of the file.
 

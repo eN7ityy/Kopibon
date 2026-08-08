@@ -1,5 +1,5 @@
-appId: com.en7ity.doujin-downloader
-productName: Doujin Downloader
+appId: com.en7ity.kopibon
+productName: Kopibon
 directories:
   buildResources: build
 # Chromium's own UI strings (spellcheck menus, native dialogs) — not this
@@ -85,7 +85,7 @@ extraResources:
   - from: THIRD-PARTY-NOTICES.md
     to: THIRD-PARTY-NOTICES.md
 win:
-  executableName: doujin-downloader
+  executableName: kopibon
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}
@@ -110,8 +110,8 @@ linux:
   category: Utility;Graphics;Viewer;
   # Names the installed .desktop file after `desktopName` in package.json
   # rather than the executable, so the filename, StartupWMClass and Electron's
-  # own app_id all agree. Without it StartupWMClass falls back to productName
-  # ("Doujin Downloader"), which never matches the WM_CLASS Electron actually
+  #   own app_id all agree. Without it StartupWMClass falls back to productName
+  #   ("Kopibon"), which never matches the WM_CLASS Electron actually
   # sets — the window then floats free of its launcher icon in GNOME/KDE.
   syncDesktopName: true
 appImage:
@@ -139,4 +139,4 @@ npmRebuild: false
 publish:
   provider: github
   owner: eN7ityy
-  repo: Doujinshi-Downloader
+  repo: Kopibon

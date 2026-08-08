@@ -27,7 +27,7 @@ function createWindow(): void {
     minHeight: 600,
     show: false,
     autoHideMenuBar: true,
-    title: 'Doujin Downloader',
+    title: 'Kopibon',
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -87,7 +87,7 @@ function createWindow(): void {
 }
 
 app.whenReady().then(async () => {
-  electronApp.setAppUserModelId('com.en7ity.doujin-downloader')
+  electronApp.setAppUserModelId('com.en7ity.kopibon')
 
   // ─── Data directory ──────────────────────────────────────────────────
   //
@@ -98,7 +98,7 @@ app.whenReady().then(async () => {
   // .config) — giving every worker its own separate, empty database. Must run
   // before initDatabase() and before any worker is spawned.
 
-  process.env.DOUJIN_DATA_DIR = app.getPath('userData')
+  process.env.KOPIBON_DATA_DIR = app.getPath('userData')
 
   // ─── Logger ──────────────────────────────────────────────────────────
 

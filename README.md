@@ -1,4 +1,4 @@
-# Doujin Downloader
+# Kopibon
 
 A desktop app for downloading galleries from nhentai and organising them as a
 local library. It writes metadata into every file, so Kavita can treat the

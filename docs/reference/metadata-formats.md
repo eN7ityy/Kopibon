@@ -27,7 +27,7 @@ notes:
 | `Tags` | nhentai `tag`-type tags | Separate from Genre |
 | `Characters` | Characters | |
 | `Web` | nhentai gallery URL | `https://nhentai.net/g/{id}` |
-| `Notes` | "Tagged by Doujin Downloader" | Carries the gallery ID |
+| `Notes` | "Tagged by Kopibon" | Carries the gallery ID |
 | `PageCount` | Pages in the file | Derived from the archive, never trusted from the caller |
 | `LanguageISO` | Resolved language | ISO 639-1 code |
 | `Year` / `Month` / `Day` | Release date | All three written together, or none |

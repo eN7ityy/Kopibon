@@ -47,7 +47,7 @@ const limit = limitArg ? Number(limitArg.slice(8)) || 0 : 0
 // Honour the same env var the app sets, so the tool reads the same database
 // when run on a machine that does not match the homedir convention (e.g.
 // Windows, where the app lives under %APPDATA%).
-const appDataDir = process.env.DOUJIN_DATA_DIR || join(homedir(), '.config', 'doujin-downloader')
+const appDataDir = process.env.KOPIBON_DATA_DIR || join(homedir(), '.config', 'kopibon')
 const dbArg = argv.find((a) => a.startsWith('--db='))
 const dbPath = dbArg ? dbArg.slice(5) : join(appDataDir, 'db.sqlite')
 

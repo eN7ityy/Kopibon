@@ -1,6 +1,6 @@
 # Installation
 
-Doujin Downloader is an Electron desktop app for Linux and Windows. It is not
+Kopibon is an Electron desktop app for Linux and Windows. It is not
 distributed as a compiled download; you build it from source with `npm`, which
 takes a couple of minutes and produces a native installer for your platform.
 This page covers the requirements, how to install and run it, how to build the

@@ -53,8 +53,8 @@ registry is involved anywhere.
 
 ```bash
 ssh <your-ubuntu-host>
-git clone git@github.com:eN7ityy/Doujinshi-Downloader.git
-cd Doujinshi-Downloader
+git clone git@github.com:eN7ityy/Kopibon.git
+cd Kopibon
 docker build -t doujin-ci-runner:1 ci/runner
 ```
 

@@ -1,5 +1,5 @@
 /**
- * Core logger for the Doujin Downloader app.
+ * Core logger for the Kopibon app.
  *
  * Design (§1):
  * - Levels: error, warn, info, debug. Configurable, default 'info'.

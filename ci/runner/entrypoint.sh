@@ -11,7 +11,7 @@ set -euo pipefail
 # Where the official base image installs the runner (its WORKDIR).
 cd /home/runner
 
-: "${GITHUB_REPO:?set GITHUB_REPO, e.g. eN7ityy/Doujinshi-Downloader}"
+: "${GITHUB_REPO:?set GITHUB_REPO, e.g. eN7ityy/Kopibon}"
 : "${GITHUB_PAT:?set GITHUB_PAT (needs permission to manage self-hosted runners)}"
 
 echo "Requesting a registration token for ${GITHUB_REPO}..."

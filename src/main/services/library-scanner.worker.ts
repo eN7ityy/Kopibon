@@ -68,10 +68,10 @@ interface PdfMetadata {
 const NHENTAI_ID_REGEX = /nhentai:(\d+)/i
 const FILENAME_ID_REGEX = /\[nhentai-(\d+)\]/
 const PROGRESS_INTERVAL = 1
-// The main process sets DOUJIN_DATA_DIR to app.getPath('userData') and workers
+// The main process sets KOPIBON_DATA_DIR to app.getPath('userData') and workers
 // inherit it; without it the homedir fallback would diverge from Electron's
 // userData on Windows (AppData vs .config).
-const DATA_DIR = process.env.DOUJIN_DATA_DIR || join(homedir(), '.config', 'doujin-downloader')
+const DATA_DIR = process.env.KOPIBON_DATA_DIR || join(homedir(), '.config', 'kopibon')
 const LOG_DIR = join(DATA_DIR, 'logs')
 
 // ─── State ───────────────────────────────────────────────────────────────────

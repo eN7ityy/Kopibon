@@ -21,7 +21,7 @@ services:
     restart: unless-stopped
 
     environment:
-      GITHUB_REPO: eN7ityy/Doujinshi-Downloader
+      GITHUB_REPO: eN7ityy/Kopibon
       RUNNER_NAME: doujin-builder-01
 
       # Must match `runs-on: [self-hosted, linux, doujin-builder]` in the
