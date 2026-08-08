@@ -143,7 +143,7 @@ if (copyleft.length === 0) {
 } else {
   for (const n of copyleft) {
     const info = collected.get(n)
-    out.push(`- **${n}** ${info.version} — ${info.license}`)
+    out.push(`- **${n}** ${info.version} - ${info.license}`)
   }
   out.push('')
   out.push('These are compatible with GPL-3.0: LGPL-3.0 is GPL-3.0 plus additional')

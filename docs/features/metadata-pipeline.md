@@ -1,11 +1,11 @@
 # Metadata pipeline
 
-Every file the app produces — and every file it edits — carries real metadata:
+Every file the app produces and every file it edits carries real metadata:
 title, artist, group, series and volume, language, tags, release date and age
 rating. This is what makes the result a working collection in Kavita or
 calibre rather than a folder of loose files. This page explains how that
 metadata is decided and written. The exact byte layout lives in two plain-text
-templates you can edit yourself; see
+templates you can edit yourself. See
 [`resources/metadata-templates/README.md`](../../resources/metadata-templates/README.md).
 
 ## Pipeline overview
@@ -17,8 +17,8 @@ input shape  ──adapter──▶  FileMetadata  ──mapper──▶  templa
 ```
 
 - **Adapters** ([`file-metadata.ts`](../../src/main/services/metadata/file-metadata.ts))
-  pull facts out of whatever the caller has — an nhentai API gallery, a library
-  row, or a hand-edited field — and make no decisions.
+  pull facts out of whatever the caller has: an nhentai API gallery, a library
+  row, or a hand-edited field, and make no decisions.
 - **`FileMetadata`** is the one shape everything is written from.
 - **Mappers** ([`mappers.ts`](../../src/main/services/metadata/mappers.ts)) make
   every decision: which series a file belongs to, who to credit, which language
@@ -73,7 +73,7 @@ up under both `doujinshi` and its parody.
 Whether a file gets a `<Number>` is a deliberate rule:
 
 - A file is part of a series **only if it has a series name**. The name is the
-  whole test — it is not inferred from the title, because series are commonly
+  whole test. It is not inferred from the title, because series are commonly
   named after their first instalment.
 - The position (`seriesIndex`) is written **only for a real series member**,
   and only when it is a positive number. A one-shot gets no number.
@@ -83,7 +83,7 @@ Whether a file gets a `<Number>` is a deliberate rule:
 ## SeriesGroup and collections
 
 The **first parody** is written as `SeriesGroup`, which Kavita turns into a
-Collection — a grouping above series, so every doujinshi parodying the same
+Collection. This is a grouping above series, so every doujinshi parodying the same
 work sits together regardless of which series each belongs to. Only the first
 parody is used: a comma-joined value would be read as one nonsense collection.
 
@@ -92,26 +92,26 @@ parody is used: a comma-joined value would be read as one nonsense collection.
 The Japanese title is written as `LocalizedSeries` **only for a one-shot**,
 where the series is the title and the Japanese title names the same work. For a
 series member the Japanese title names that volume, not the series, so it is
-left out — writing it would give the whole series a name taken from whichever
+left out. Writing it would give the whole series a name taken from whichever
 volume Kavita scanned first.
 
 ## StoryArc
 
 `StoryArc` and `StoryArcNumber` mirror the series and its number. Kavita turns
-these into a Reading List — a second way to walk a series alongside the Series
+these into a Reading List. This is a second way to walk a series alongside the Series
 grouping itself.
 
 ## Language resolution
 
 Language is resolved from the gallery's `language`-type tags by priority rather
-than by order, because the first of them is usually `translated` — which is not
+than by order, because the first of them is usually `translated`, which is not
 a language. A language already stored on the library row wins. The resolved
 value is written twice: human-readable (`English`) and as an ISO 639-1 code
 (`en`), the latter being what Kavita reads from `LanguageISO` / `dc:language`.
 
 ## Template syntax quick reference
 
-Templates support four constructs; everything else is copied through verbatim.
+Templates support four constructs. Everything else is copied through verbatim.
 
 | Syntax | Meaning |
 | --- | --- |
@@ -128,7 +128,7 @@ or `<` cannot break the file.
 The templates are shipped to your user data directory on first start
 (`~/.config/doujin-downloader/metadata-templates/` on Linux,
 `%APPDATA%\doujin-downloader\metadata-templates\` on Windows). Edits take
-effect on the next file written — no restart needed. To restore the default,
+effect on the next file written. No restart needed. To restore the default,
 delete your copy of the file.
 
 How to change a value (in the mappers) versus where it is written (in a
@@ -137,7 +137,7 @@ template) is documented in
 
 ## See also
 
-- [Metadata formats](../reference/metadata-formats.md) — the full ComicInfo and XMP field tables
-- [Downloading](downloading.md) — where the metadata is first written
-- [Sync](sync.md) — re-fetching metadata and re-writing it into a file
-- [Conversion](conversion.md) — why CBZ's ComicInfo is preferable in Kavita
+- [Metadata formats](../reference/metadata-formats.md): the full ComicInfo and XMP field tables
+- [Downloading](downloading.md): where the metadata is first written
+- [Sync](sync.md): re-fetching metadata and re-writing it into a file
+- [Conversion](conversion.md): why CBZ's ComicInfo is preferable in Kavita

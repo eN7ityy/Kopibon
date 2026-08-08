@@ -1,7 +1,7 @@
 # Installation
 
 Doujin Downloader is an Electron desktop app for Linux and Windows. It is not
-distributed as a compiled download — you build it from source with `npm`, which
+distributed as a compiled download; you build it from source with `npm`, which
 takes a couple of minutes and produces a native installer for your platform.
 This page covers the requirements, how to install and run it, how to build the
 packaged app, and what the internals look like.
@@ -9,8 +9,8 @@ packaged app, and what the internals look like.
 ## Requirements
 
 Two external tools are **not** bundled with the app. They are only needed for
-PDF features — see [External tools](../reference/external-tools.md) for the
-full detail — so you can skip them, but it is worth installing both.
+PDF features. See [External tools](../reference/external-tools.md) for the
+full detail. So you can skip them, but it is worth installing both.
 
 | Tool | Needed for |
 | --- | --- |
@@ -114,6 +114,6 @@ Scratch space for downloads and conversions goes there too rather than in
 
 ## See also
 
-- [External tools](../reference/external-tools.md) — the two non-bundled tools in detail
-- [nhentai API key](nhentai-api-key.md) — your next step after installing
-- [Downloading](../features/downloading.md) — how the app turns a gallery into a file
+- [External tools](../reference/external-tools.md): the two non-bundled tools in detail
+- [nhentai API key](nhentai-api-key.md): your next step after installing
+- [Downloading](../features/downloading.md): how the app turns a gallery into a file

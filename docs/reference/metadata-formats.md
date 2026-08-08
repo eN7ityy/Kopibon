@@ -17,7 +17,7 @@ notes:
 | --- | --- | --- |
 | `Title` | File title | Always present |
 | `Series` | Series name | Falls back to the title so it is never empty |
-| `LocalizedSeries` | Japanese title | **One-shots only**; see pipeline docs |
+| `LocalizedSeries` | Japanese title | **One-shots only**. See pipeline docs |
 | `Number` | Position in series | Only for real series members with `seriesIndex > 0` |
 | `Summary` | Description | |
 | `Writer` | Writers | Artists, else circles, else `Unknown` |
@@ -111,6 +111,6 @@ list. See [`../features/conversion.md`](../features/conversion.md).
 
 ## See also
 
-- [Metadata pipeline](../features/metadata-pipeline.md) — how the values are decided
-- [Library layout](library-layout.md) — how the scanner reads these fields back
-- [External tools](external-tools.md) — pikepdf's role in writing the PDF side
+- [Metadata pipeline](../features/metadata-pipeline.md): how the values are decided
+- [Library layout](library-layout.md): how the scanner reads these fields back
+- [External tools](external-tools.md): pikepdf's role in writing the PDF side

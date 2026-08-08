@@ -3,7 +3,7 @@
 Downloading is the app's core function: you find a gallery in Search or
 Favorites, add it to the queue, and the app fetches every page, assembles it
 into a PDF or CBZ, embeds metadata, and drops the finished file into your
-library. It is built to be patient and resumable — a queue can be paused,
+library. It is built to be patient and resumable. A queue can be paused,
 cancelled, restarted after a crash, and it never loses the metadata you have
 already set on a series.
 
@@ -21,7 +21,7 @@ from the download dialog.
 | **CBZ** | `ComicInfo.xml` v2.1 as the first archive entry | None | Kavita, Komga, ComicRack |
 
 CBZ is the better choice if you use Kavita, because its `ComicInfo.xml`
-separates genres and tags into distinct fields; in a PDF everything lands in
+separates genres and tags into distinct fields. In a PDF everything lands in
 genres. See [`metadata-pipeline.md`](metadata-pipeline.md) for what actually
 gets written.
 
@@ -30,13 +30,13 @@ gets written.
 When downloading a PDF, Settings → Downloads → **PDF Compression** lets you
 trade file size against quality:
 
-- **Enable Image Compression** — re-encodes pages as JPEG (on by default).
-- **Quality (1–95)** — higher is larger. Default 80.
+- **Enable Image Compression**: re-encodes pages as JPEG (on by default).
+- **Quality (1–95)**: higher is larger. Default 80.
 - **Page Size**:
-  - **Dynamic** — 1800px wide, height auto (default).
-  - **Fit to Image** — keeps the original page dimensions.
-  - **Letter** / **A4** — fixed paper sizes.
-- **Black Background** — used for Letter/A4 so letterboxed pages blend in.
+  - **Dynamic**: 1800px wide, height auto (default).
+  - **Fit to Image**: keeps the original page dimensions.
+  - **Letter** / **A4**: fixed paper sizes.
+- **Black Background**: used for Letter/A4 so letterboxed pages blend in.
 
 ## Concurrency
 
@@ -49,18 +49,18 @@ regardless of this setting.
 
 A single download goes through these stages:
 
-1. **Queue** — the gallery is added to the download table with a `queued`
+1. **Queue**: the gallery is added to the download table with a `queued`
    status, ordered by priority then age.
-2. **Metadata fetch** — gallery info (title, tags, pages) is fetched from the
+2. **Metadata fetch**: gallery info (title, tags, pages) is fetched from the
    nhentai API and cached, unless a usable copy is already in the database.
-3. **Page fetch** — every page is downloaded from the nhentai CDN, rotating
+3. **Page fetch**: every page is downloaded from the nhentai CDN, rotating
    through servers on failure (see below).
-4. **Worker assembly** — the page images are handed to a worker thread
+4. **Worker assembly**: the page images are handed to a worker thread
    (`download-pdf.worker.js` or `download-cbz.worker.js`) that builds the file
    and a thumbnail.
-5. **Metadata embed** — the worker writes XMP (PDF) or ComicInfo (CBZ) into the
+5. **Metadata embed**: the worker writes XMP (PDF) or ComicInfo (CBZ) into the
    file, using your stored series and volume.
-6. **Library insert** — the file is recorded in the library with its real page
+6. **Library insert**: the file is recorded in the library with its real page
    count and cover thumbnail.
 
 A placeholder library entry shows **Downloading** in the UI while the gallery
@@ -72,7 +72,7 @@ half-presented.
 Re-downloading a gallery you already own does not reset your metadata. The
 existing series name and volume are read from the library before the new file
 is built and carried into the new file's metadata. The previous file on disk is
-removed only once the new one is written and recorded — so a failed
+removed only once the new one is written and recorded. So a failed
 re-download leaves the old copy untouched.
 
 ## System notifications
@@ -96,7 +96,7 @@ startup, and scratch files from the failed attempt are discarded.
 
 ## See also
 
-- [Metadata pipeline](metadata-pipeline.md) — what is written into each file
-- [Library](library.md) — what happens to a finished download
-- [Conversion](conversion.md) — turning PDF downloads into CBZ
-- [nhentai integration](nhentai-integration.md) — finding galleries to download
+- [Metadata pipeline](metadata-pipeline.md): what is written into each file
+- [Library](library.md): what happens to a finished download
+- [Conversion](conversion.md): turning PDF downloads into CBZ
+- [nhentai integration](nhentai-integration.md): finding galleries to download

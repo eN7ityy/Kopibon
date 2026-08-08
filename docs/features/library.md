@@ -1,6 +1,6 @@
 # Library
 
-The Library is where everything you download — and everything you already own —
+The Library is where everything you download and everything you already own
 lives. Point it at a folder of PDFs or CBZs and the scanner reads the metadata
 back out, builds thumbnails, and matches items to galleries. From there you can
 browse three view modes, filter and search, group volumes into series, edit any
@@ -19,13 +19,13 @@ bar with a live item count.
 
 It is built to be safe with large libraries:
 
-- **Incremental** — files whose modification time and size are unchanged are
+- **Incremental**: files whose modification time and size are unchanged are
   skipped, so a rescan of a big library is fast.
 - **Recently written** files (modified in the last five seconds) are skipped, so
   a concurrent download is never read half-written.
-- **Retry** — a file that failed once is re-queued on the next scan rather than
+- **Retry**: a file that failed once is re-queued on the next scan rather than
   forgotten.
-- **Mass-delete guard** — the removal pass is skipped entirely if a directory
+- **Mass-delete guard**: the removal pass is skipped entirely if a directory
   could not be read, or if this scan discovered far fewer files than the last
   one (a likely sign a network mount disappeared). Otherwise a vanished share
   would delete the metadata for every file on it.
@@ -39,24 +39,24 @@ scanner expects from a file are covered in
 
 Three view modes, persisted across sessions:
 
-- **Grid** — cover cards.
-- **Compact** — smaller cards with more per row.
-- **List** — rows that support **inline editing** (see below).
+- **Grid**: cover cards.
+- **Compact**: smaller cards with more per row.
+- **List**: rows that support **inline editing** (see below).
 
 ## Searching and filtering
 
-- **Search** — full-text across title, artist, series, tags, filename, nhentai
+- **Search**: full-text across title, artist, series, tags, filename, nhentai
   ID and publisher.
-- **Filters** — **Artist**, **Series** and **Tag** are searchable
+- **Filters**: **Artist**, **Series** and **Tag** are searchable
   multi-select dropdowns; pick several at once.
-- **Unmatched only** — toggle to show only items with no nhentai ID.
-- **Sort** — by **added date**, **title**, or **artist**.
+- **Unmatched only**: toggle to show only items with no nhentai ID.
+- **Sort**: by **added date**, **title**, or **artist**.
 
 ## Inline editing (list mode)
 
 In List view, click any cell to edit it in place: **title, artist, series and
 volume**. Press **Enter** to save or **Escape** to cancel. Artist and series
-fields use autocomplete; the volume field is a number.
+fields use autocomplete. The volume field is a number.
 
 ## Series grouping
 
@@ -69,7 +69,7 @@ than one card per file. Clicking a series card opens the series detail.
 The series panel shows every volume, the languages and artists across the
 series, and any missing volumes in the numbering. From here you can:
 
-- **Rename the series** — moves the files into a renamed folder.
+- **Rename the series**: moves the files into a renamed folder.
 - **Dissolve** the series back into individual items.
 - **Set the cover** from any volume.
 - **Sync all members** with nhentai (only those with an nhentai ID).
@@ -79,16 +79,16 @@ series, and any missing volumes in the numbering. From here you can:
 
 Clicking an item opens its detail panel, where you can:
 
-- **Edit metadata** — title, series, volume, tags, language, publisher,
+- **Edit metadata**: title, series, volume, tags, language, publisher,
   description, with tag autocomplete.
-- **Sync from nhentai** — pull fresh metadata for the item (see [`sync.md`](sync.md)).
-- **Attach / detach an nhentai ID** — correct a wrong ID the scanner read from
+- **Sync from nhentai**: pull fresh metadata for the item (see [`sync.md`](sync.md)).
+- **Attach / detach an nhentai ID**: correct a wrong ID the scanner read from
   a filename, or add one to a file it could not match. Attaching syncs
   immediately.
-- **Delete / remove** — remove the row, or also delete the file on disk
+- **Delete / remove**: remove the row, or also delete the file on disk
   (optionally mirroring the deletion in Kavita).
-- **Convert to CBZ** — see [`conversion.md`](conversion.md).
-- **Open in Kavita** — link straight into the matching series, or the reader.
+- **Convert to CBZ**: see [`conversion.md`](conversion.md).
+- **Open in Kavita**: link straight into the matching series, or the reader.
 - **Read** the file with the built-in PDF or CBZ viewer (see [`readers.md`](readers.md)).
 
 ## Series assignment
@@ -106,7 +106,7 @@ In selection mode you can act on many items at once:
 - **Delete files** (with optional Kavita mirroring)
 - **Remove from library** (keep the files)
 - **Convert to CBZ**
-- **Select All** — selects across the whole library, not just the loaded page
+- **Select All**: selects across the whole library, not just the loaded page
 
 Batch **Sync** is also available from the selection.
 
@@ -122,13 +122,13 @@ files it in the library with no nhentai ID.
 
 The page count is stored per file and shown in the list and series views. It is
 populated at download and conversion time, and corrected when a download or
-conversion drops a page — the count always reflects what is actually in the
+conversion drops a page. The count always reflects what is actually in the
 file.
 
 ## See also
 
-- [Library layout](../reference/library-layout.md) — the folder structure and filename rules
-- [Downloading](downloading.md) — how new files arrive in the library
-- [Sync](sync.md) — keeping library metadata current
-- [Conversion](conversion.md) — turning PDFs in the library into CBZ
-- [Kavita integration](kavita-integration.md) — how the library relates to a Kavita server
+- [Library layout](../reference/library-layout.md): the folder structure and filename rules
+- [Downloading](downloading.md): how new files arrive in the library
+- [Sync](sync.md): keeping library metadata current
+- [Conversion](conversion.md): turning PDFs in the library into CBZ
+- [Kavita integration](kavita-integration.md): how the library relates to a Kavita server

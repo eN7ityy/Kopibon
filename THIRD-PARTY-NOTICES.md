@@ -26,9 +26,9 @@ Packages: 143
 
 ## Copyleft components
 
-- **@img/sharp-libvips-linux-x64** 1.3.2 — LGPL-3.0-or-later
-- **@img/sharp-libvips-linuxmusl-x64** 1.3.2 — LGPL-3.0-or-later
-- **@img/sharp-wasm32** 0.35.3 — Apache-2.0 AND LGPL-3.0-or-later AND MIT
+- **@img/sharp-libvips-linux-x64** 1.3.2 - LGPL-3.0-or-later
+- **@img/sharp-libvips-linuxmusl-x64** 1.3.2 - LGPL-3.0-or-later
+- **@img/sharp-wasm32** 0.35.3 - Apache-2.0 AND LGPL-3.0-or-later AND MIT
 
 These are compatible with GPL-3.0: LGPL-3.0 is GPL-3.0 plus additional
 permissions, so combining it with a GPL-3.0 application is expressly allowed.

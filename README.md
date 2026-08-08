@@ -1,16 +1,16 @@
 # Doujin Downloader
 
-A desktop app for downloading galleries from nhentai and keeping them organised
-as a local library. It writes proper metadata into every file, so the result
-works as a real collection in Kavita rather than a folder of loose files. Built
-with Electron, React and TypeScript for Linux and Windows.
+A desktop app for downloading galleries from nhentai and organising them as a
+local library. It writes metadata into every file, so Kavita can treat the
+result as a collection instead of a folder of loose files. The app uses Electron,
+React and TypeScript and runs on Linux and Windows.
 
 ## What it does
 
-- Browse and search nhentai — with favourites, gallery details and related work.
+- Browse and search nhentai, with favourites, gallery details and related work.
 - Download as **PDF or CBZ**, with compression controls and a concurrency slider.
-- Metadata that actually shows up — XMP for PDF, ComicInfo for CBZ.
-- Scan, organise and read a local library — series grouping, editing, PDF → CBZ
+- Embedded metadata: XMP for PDF, ComicInfo for CBZ.
+- Scan, organise and read a local library, including series grouping, editing, PDF → CBZ
   conversion, and built-in viewers.
 
 ## Requirements
@@ -31,10 +31,10 @@ nhentai API key if you want favourites, and pick an output format. See
 
 ## Documentation
 
-**Getting started** — [Installation](docs/getting-started/installation.md) ·
+**Getting started:** [Installation](docs/getting-started/installation.md) ·
 [nhentai API key](docs/getting-started/nhentai-api-key.md)
 
-**Features** — [Downloading](docs/features/downloading.md) ·
+**Features:** [Downloading](docs/features/downloading.md) ·
 [nhentai integration](docs/features/nhentai-integration.md) ·
 [Library](docs/features/library.md) ·
 [Metadata pipeline](docs/features/metadata-pipeline.md) ·
@@ -43,7 +43,7 @@ nhentai API key if you want favourites, and pick an output format. See
 [Search settings](docs/features/search-settings.md) ·
 [Readers](docs/features/readers.md) · [Sync](docs/features/sync.md)
 
-**Reference** — [Library layout](docs/reference/library-layout.md) ·
+**Reference:** [Library layout](docs/reference/library-layout.md) ·
 [Metadata formats](docs/reference/metadata-formats.md) ·
 [External tools](docs/reference/external-tools.md)
 

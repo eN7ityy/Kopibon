@@ -21,7 +21,7 @@ or removed at any time from Settings → nhentai.
 2. Go to **User Settings**.
 3. Open the **API Keys** section and create a new key.
 
-Copy the key — you will only see it once.
+Copy the key; you will only see it once.
 
 ## How to add it
 
@@ -38,7 +38,7 @@ every request. Press **Remove** to clear it and drop back to anonymous limits.
 The key is not kept in plaintext. It is encrypted with Electron's
 `safeStorage`, which on Linux and Windows is backed by the operating system's
 keychain, and only the encrypted value is written to the database. If the OS
-keychain is unavailable, the key is stored as-is rather than failing — but on a
+keychain is unavailable, the key is stored as-is rather than failing. But on a
 normal desktop install it is encrypted.
 
 The app re-validates a saved key at startup. If it has been revoked on nhentai's
@@ -47,7 +47,7 @@ side, the stored copy is cleared and the app falls back to anonymous mode.
 ## Rate limits
 
 The app rate limits requests per endpoint with a token bucket, using nhentai's
-documented limits (see [`nhentai-api-v2-reference.md`](../../nhentai-api-v2-reference.md)
+documented limits (see [`nhentai-api-v2-reference.md`](../other/nhentai-api-v2-reference.md)
 section C). Authenticating raises the allowances that nhentai makes conditional
 on being signed in:
 
@@ -76,6 +76,6 @@ unfilled.
 
 ## See also
 
-- [nhentai integration](../features/nhentai-integration.md) — what the search, browse and favourites tabs do
-- [Sync](../features/sync.md) — batch syncing uses the same authenticated limits
-- [External tools](../reference/external-tools.md) — the other thing worth setting up after install
+- [nhentai integration](../features/nhentai-integration.md): what the search, browse and favourites tabs do
+- [Sync](../features/sync.md): batch syncing uses the same authenticated limits
+- [External tools](../reference/external-tools.md): the other thing worth setting up after install

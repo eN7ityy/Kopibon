@@ -15,15 +15,15 @@ build.
 
 There are two copies:
 
-- **The shipped defaults** — next to the application, never written to.
-- **Your copy** — under the app's user data directory, in `metadata-templates/`.
+- **The shipped defaults**: next to the application, never written to.
+- **Your copy**: under the app's user data directory, in `metadata-templates/`.
   This is the one the app reads and the one to edit.
   - Linux: `~/.config/doujin-downloader/metadata-templates/`
   - Windows: `%APPDATA%\doujin-downloader\metadata-templates\`
 
 Your copy is created from the defaults the first time the app starts, and is
 never overwritten afterwards. **To restore a default, delete your copy of that
-file** — the app falls back to the shipped one and re-creates yours on the next
+file**. The app falls back to the shipped one and re-creates yours on the next
 start.
 
 Edits take effect on the next file written. No restart needed.
@@ -36,7 +36,7 @@ use. To point the app somewhere else entirely, set `DOUJIN_TEMPLATE_DIR`.
 Four constructs. Everything else in the file is copied through exactly as
 written, including whitespace.
 
-### `{{name}}` — substitute a value
+### `{{name}}`: substitute a value
 
 ```xml
 <Title>{{title}}</Title>
@@ -45,16 +45,16 @@ written, including whitespace.
 The line is always kept, even if the value is empty. Use this for elements that
 must always be present.
 
-A value that is a list is joined with `, ` — so `{{writers}}` becomes
+A value that is a list is joined with `, `. So `{{writers}}` becomes
 `Alice, Bob`.
 
-### `{{name?}}` — substitute, or drop the whole line
+### `{{name?}}`: substitute, or drop the whole line
 
 ```xml
 <Summary>{{summary?}}</Summary>
 ```
 
-If `summary` is empty, that entire line disappears — no empty `<Summary></Summary>`
+If `summary` is empty, that entire line disappears. No empty `<Summary></Summary>`
 element and no blank line left behind. This is how optional elements work.
 
 If a line has several `?` placeholders, the line is dropped when **any** of them
@@ -64,7 +64,7 @@ neighbours are all-or-nothing.
 Note that `0` counts as a value, not as empty. `<PageCount>0</PageCount>` is a
 real answer for an empty archive.
 
-### `{{#name}} … {{/name}}` — a section
+### `{{#name}} … {{/name}}`: a section
 
 Kept when the value is non-empty, removed entirely otherwise.
 
@@ -88,7 +88,7 @@ Or inline, within a line:
 
 Sections can be nested.
 
-### `{{#each name}} … {{/each}}` — repeat per list item
+### `{{#each name}} … {{/each}}`: repeat per list item
 
 `{{.}}` is the current item.
 
@@ -106,11 +106,11 @@ An empty list produces nothing at all.
 
 Values are XML-escaped before they reach the template, so a title containing
 `&` or `<` cannot break the file. Do not escape them again yourself. Markup you
-write in the template is passed through untouched — that is the whole point.
+write in the template is passed through untouched. That is the whole point.
 
 ## Available values
 
-Both templates get all of these. Most are not used by the shipped templates;
+Both templates get all of these. Most are not used by the shipped templates,
 they are there so you can add them without a code change.
 
 | Placeholder | What it is |
@@ -120,7 +120,7 @@ they are there so you can add them without a code change.
 | `mediaId` | nhentai's media id, which its image URLs are built from |
 | `favorites` | How many people favourited the gallery |
 | `coverUrl`, `thumbnailUrl` | nhentai's own image URLs |
-| `scanlator` | Always empty — nhentai does not populate it |
+| `scanlator` | Always empty; nhentai does not populate it |
 | `galleryId` | nhentai gallery number. Empty for anything added by hand |
 | `seriesName` | The series, or empty |
 | `partOfSeries` | True when a series name was given. Useful as a section |
@@ -128,8 +128,8 @@ they are there so you can add them without a code change.
 | `groups` | Circle names |
 | `writers` | Who to credit: artists, else circles, else `Unknown` |
 | `characters`, `parodies` | From the gallery's tags |
-| `categories` | nhentai `category` tags — `doujinshi`, `manga` |
-| `genres` | **`categories` + `parodies`** — what goes in `<Genre>`. Kavita splits this on commas into separate genres, and links works sharing one under "Related". Use `{{categories?}}` instead if you want the category alone |
+| `categories` | nhentai `category` tags; `doujinshi`, `manga` |
+| `genres` | **`categories` + `parodies`**; what goes in `<Genre>`. Kavita splits this on commas into separate genres, and links works sharing one under "Related". Use `{{categories?}}` instead if you want the category alone |
 | `tags` | nhentai `tag` tags only |
 | `allTags` | Every tag, whatever its type |
 | `publisher` | The circle if there is one, else whatever was supplied |
@@ -162,7 +162,7 @@ PDF XMP also gets:
 | --- | --- |
 | `bom` | The U+FEFF byte-order mark the packet header needs (see below) |
 | `creators` | Same as `writers` |
-| `tags` | **Overridden** to `allTags` — dc:subject carries every tag |
+| `tags` | **Overridden** to `allTags`; dc:subject carries every tag |
 | `date` | Release date, or the moment of writing if unknown |
 | `metadataDate` | When the file was written |
 | `seriesIndex` | Formatted to two decimals, as calibre writes it |
@@ -183,8 +183,8 @@ input shape  ──adapter──▶  FileMetadata  ──mapper──▶  values
   payload. They make no decisions.
 - **`FileMetadata`** is the one shape everything is written from. It carries more
   than the templates use, on purpose.
-- **Mappers** (`src/main/services/metadata/mappers.ts`) make every decision —
-  which series a file belongs to, who to credit, which language wins — and
+- **Mappers** (`src/main/services/metadata/mappers.ts`) make every decision.
+  which series a file belongs to, who to credit and which language wins. They
   produce the values above. There is exactly one mapper per format.
 - **Templates** decide where those values go.
 

@@ -1,6 +1,6 @@
 # Conversion (PDF → CBZ)
 
-Conversion takes PDFs in your library and rebuilds them as CBZ archives — page
+Conversion takes PDFs in your library and rebuilds them as CBZ archives. It extracts page
 images copied out of the PDF and packed with a fresh `ComicInfo.xml`. It is
 designed to be lossless when possible, safe (the source is never touched until
 the result is verified), and resumable if you quit halfway through a long
@@ -10,7 +10,7 @@ and the archive builder is [`cbz-generator.ts`](../../src/main/services/cbz-gene
 ## Lossless extraction
 
 Pages are copied out of the PDF with **`pdfimages -all`**, which copies JPEG
-streams byte-for-byte and converts everything else to PNG — no re-compression,
+streams byte-for-byte and converts everything else to PNG. No re-compression,
 so the CBZ keeps the original image quality and is usually smaller than the
 PDF. When `pdfimages` cannot produce a verified page-for-page match, the app
 falls back to **`pdftoppm -jpeg -r 150`**, which re-rasterises every page at
@@ -31,13 +31,13 @@ When you keep the originals, the source PDFs are moved into an **`_originals/`**
 folder rather than deleted:
 
 - The path is **configurable** (Settings → Downloads → Originals archive) and
-  can point at different storage — originals are usually far larger than the
+  can point at different storage. Originals are usually far larger than the
   CBZs that replace them.
 - Files converted via the **lossy fallback** go into `_originals/_lossy/` and
   are **never** removed by the ordinary sweep, because for those the PDF is the
   higher-quality copy.
 - **Settings → Downloads → Originals cleanup** reports the on-disk total, can
-  **purge** the archive, and can **restore** originals back into the library —
+  **purge** the archive, and can **restore** originals back into the library.
   which moves the PDFs back and removes the CBZs that replaced them.
 
 ## Keep-original toggle
@@ -68,7 +68,7 @@ can be paused and cancelled between files.
 
 ## Why CBZ is better for Kavita
 
-Kavita reads `ComicInfo.xml` with **Genre** and **Tags** as separate fields —
+Kavita reads `ComicInfo.xml` with **Genre** and **Tags** as separate fields.
 and this app writes `Genre` (categories + parodies) and `Tags` (nhentai
 `tag`-type tags) as distinct values. A PDF has no such separation: everything
 lands in `dc:subject`, and Kavita flattens it into genres. Converting a PDF
@@ -77,7 +77,7 @@ download to CBZ therefore gives Kavita both dimensions to filter on. See
 
 ## See also
 
-- [Metadata pipeline](metadata-pipeline.md) — the ComicInfo.xml written into each CBZ
-- [Kavita integration](kavita-integration.md) — why the format matters there
-- [Library](library.md) — starting conversions from the library
-- [External tools](../reference/external-tools.md) — poppler's role in conversion
+- [Metadata pipeline](metadata-pipeline.md): the ComicInfo.xml written into each CBZ
+- [Kavita integration](kavita-integration.md): why the format matters there
+- [Library](library.md): starting conversions from the library
+- [External tools](../reference/external-tools.md): poppler's role in conversion
