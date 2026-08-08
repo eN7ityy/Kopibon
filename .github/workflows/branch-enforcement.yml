@@ -11,7 +11,10 @@ name: Enforce Branch Pipeline
 # merged even with an override.
 on:
   pull_request:
-    types: [opened, synchronize, reopened, baseBranchChanged]
+    # `edited` is the activity type that fires when a PR's base branch (or
+    # title/body) changes — there is no `baseBranchChanged` in GitHub's list,
+    # so retargeting a PR used to slip past this check entirely.
+    types: [opened, synchronize, reopened, edited]
 
 jobs:
   check-source-branch:
