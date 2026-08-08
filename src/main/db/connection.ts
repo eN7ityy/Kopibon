@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { mkdirSync, existsSync } from 'fs'
-import { join, relative, isAbsolute } from 'path'
+import { join, relative, isAbsolute, basename } from 'path'
 import { homedir } from 'os'
 import * as schema from './schema'
 

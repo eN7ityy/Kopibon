@@ -1743,6 +1743,10 @@ export function registerLibraryIpc(): void {
         }
       }
 
+      // ── Resolve file path for filesystem operations ────────────────
+      const resolvedRoot = (libraryRoot || (settingsRepo.get('libraryPath') || '')).trim()
+      const itemPath = resolveLibraryPath(item.filePath, resolvedRoot)
+
       // ── Merge metadata for DB update ──────────────────────────────
       const newTitle =
         'customTitle' in metadata
@@ -1874,10 +1878,6 @@ export function registerLibraryIpc(): void {
         // Non-fatal: metadata embedding failure shouldn't block the update
         log.error('Failed to re-embed metadata', { err: embedErr })
       }
-
-      // ── Resolve file path for filesystem operations ────────────────
-      const resolvedRoot = (libraryRoot || (settingsRepo.get('libraryPath') || '')).trim()
-      const itemPath = resolveLibraryPath(item.filePath, resolvedRoot)
 
       // ── Determine library root ────────────────────────────────────
       let root = libraryRoot
