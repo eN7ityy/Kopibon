@@ -56,15 +56,22 @@ files:
   # block replaces this whole top-level array for that platform rather than
   # extending it (verified: adding one here made every other exclusion stop
   # applying, including .git and this project's own dist/ output, ballooning
-  # the package by 4x). If a Windows or macOS build is ever produced from
-  # this config, remove these six lines first or add back their own prebuild.
+  # the package by 4x).
+  #
+  # Because of that replacement behaviour these cannot be split per platform,
+  # so the list is "every arch we never ship" rather than "every arch this
+  # build does not need". linux-x64 and win32-x64 are therefore BOTH kept, and
+  # the Linux packages carry a redundant 1.9 MB win32-x64.node. That is the
+  # price of one shared list; excluding it broke the Windows build outright,
+  # because the app cannot open its database without that binary.
+  #
+  # Add the matching prebuild back here before ever targeting macOS or arm64.
   - '!node_modules/better-sqlite3/prebuilds/darwin-arm64.node'
   - '!node_modules/better-sqlite3/prebuilds/darwin-x64.node'
   - '!node_modules/better-sqlite3/prebuilds/linux-arm64.node'
   - '!node_modules/better-sqlite3/prebuilds/linuxmusl-arm64.node'
   - '!node_modules/better-sqlite3/prebuilds/linuxmusl-x64.node'
   - '!node_modules/better-sqlite3/prebuilds/win32-arm64.node'
-  - '!node_modules/better-sqlite3/prebuilds/win32-x64.node'
 asarUnpack:
   - resources/**
   # Native addons (.node files) and their shared libraries must live outside the

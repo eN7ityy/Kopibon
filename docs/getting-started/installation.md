@@ -70,9 +70,56 @@ npm run build:unpack  # unpacked directory, useful for testing a packaged build
 
 ### Windows
 
-`npm run build:win` produces an NSIS installer. Windows users must install the
-external tools themselves: `pip install pikepdf`, and poppler for Windows with
-its `bin\` folder on PATH.
+`npm run build:win` produces an NSIS installer (`kopibon-<version>-setup.exe`)
+alongside `latest.yml`, the update feed the installed app reads.
+
+**Build this on Windows.** It is not a preference — two dependencies resolve
+their native binaries by platform at install time, and neither fails loudly if
+the wrong one is packaged:
+
+- **sharp** installs through CPU/OS-gated optional dependencies. On Linux,
+  `npm ci` fetches only `@img/sharp-linux-*`; a Windows package built there
+  would contain no usable sharp at all, and sharp failing means thumbnails
+  silently never generate rather than raising an error.
+- **better-sqlite3** needs `prebuilds/win32-x64.node`. Without it the app
+  cannot open its database and will not start.
+
+Running `npm ci` on Windows resolves both correctly with no extra steps. This
+is why CI builds Windows on a `windows-latest` runner rather than
+cross-compiling from the self-hosted Linux one — cross-compiling additionally
+needs Wine, and produces a binary that cannot be smoke-tested on the machine
+that built it.
+
+#### Build requirements
+
+| Requirement | Notes |
+| --- | --- |
+| Node.js 22 | Matches the version CI builds with |
+| Visual Studio Build Tools (C++ workload) | Only if npm falls back to compiling a native module from source; the shipped prebuilds normally avoid this |
+| Python 3 | Same fallback case — `node-gyp` needs it |
+
+Neither poppler nor pikepdf is needed **to build** — they are runtime
+dependencies of the finished app, not build-time ones.
+
+#### Runtime tools on Windows
+
+There is no package manager to declare dependencies to, as the RPM and deb do,
+so Windows users install the external tools by hand:
+
+```powershell
+pip install pikepdf
+```
+
+Then download poppler for Windows and add its `bin\` folder to PATH. The app
+checks for both at startup — **Settings → Advanced → Required Tools** reports
+what is missing.
+
+#### Code signing
+
+The installer is unsigned. Windows SmartScreen will warn on first run, and the
+user has to choose *More info → Run anyway*. Signing needs a paid code-signing
+certificate and is deliberately out of scope, the same reasoning applied to the
+macOS target below.
 
 ### macOS
 
