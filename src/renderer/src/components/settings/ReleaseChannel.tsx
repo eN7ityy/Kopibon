@@ -3,14 +3,22 @@ import type { ReleaseChannel as ReleaseChannelValue } from '../../stores/setting
 import Notice from '../shared/Notice'
 
 /**
- * Like every other field on this page, the choice is staged here and only
- * takes effect in main once the page's Save button is pressed — see
- * settings.ipc.ts's LIVE_SETTINGS, which re-applies it and re-checks for
- * updates immediately after the save.
+ * Persisted immediately, not via the page's Save button. This control lives on
+ * the Advanced pane, which deliberately has no Save button (see SettingsPage's
+ * `savable` flags), so staging the value in the store alone meant the choice
+ * was never written to the DB — and so `allowPrerelease` never changed and a
+ * newer beta was never offered. Saving here triggers settings.ipc.ts's
+ * LIVE_SETTINGS for `releaseChannel`, which re-applies the channel in the
+ * updater and immediately re-checks for updates.
  */
 export default function ReleaseChannel(): React.JSX.Element {
   const releaseChannel = useSettingsStore((s) => s.releaseChannel)
   const setReleaseChannel = useSettingsStore((s) => s.setReleaseChannel)
+
+  const handleChange = async (channel: ReleaseChannelValue): Promise<void> => {
+    setReleaseChannel(channel)
+    await window.api.settings.set('releaseChannel', channel)
+  }
 
   return (
     <div className="space-y-2">
@@ -21,7 +29,7 @@ export default function ReleaseChannel(): React.JSX.Element {
         <select
           id="release-channel"
           value={releaseChannel}
-          onChange={(e) => setReleaseChannel(e.target.value as ReleaseChannelValue)}
+          onChange={(e) => void handleChange(e.target.value as ReleaseChannelValue)}
           className="px-2 py-1.5 rounded-lg text-sm bg-raised border border-line text-fg"
         >
           <option value="stable">Stable</option>

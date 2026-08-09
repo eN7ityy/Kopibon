@@ -308,6 +308,86 @@ img,
   font-variant-numeric: tabular-nums;
 }
 
+/* Rich-HTML release notes rendered via dangerouslySetInnerHTML. GitHub sends
+   notes as HTML; this keeps links, lists and code legible inside the box. */
+.note {
+  line-height: 1.5;
+}
+.note a {
+  color: var(--c-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.note a:hover {
+  text-decoration: none;
+}
+.note p {
+  margin: 0.25em 0;
+}
+.note ul,
+.note ol {
+  margin: 0.25em 0;
+  padding-left: 1.25em;
+}
+.note li {
+  margin: 0.1em 0;
+}
+.note code,
+.note tt {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.9em;
+  padding: 0.1em 0.3em;
+  border-radius: 4px;
+  background: var(--c-raised);
+}
+.note pre {
+  margin: 0.4em 0;
+  padding: 0.5em 0.75em;
+  border-radius: 6px;
+  background: var(--c-raised);
+  overflow-x: auto;
+}
+.note pre code {
+  padding: 0;
+  background: none;
+}
+.note h1,
+.note h2,
+.note h3,
+.note h4,
+.note h5,
+.note h6 {
+  font-weight: 600;
+  margin: 0.5em 0 0.25em;
+  color: var(--c-text);
+}
+.note blockquote {
+  margin: 0.4em 0;
+  padding-left: 0.75em;
+  border-left: 2px solid var(--c-line);
+  color: var(--c-text-muted);
+}
+.note hr {
+  border: none;
+  border-top: 1px solid var(--c-line);
+  margin: 0.5em 0;
+}
+.note img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+}
+.note table {
+  border-collapse: collapse;
+  margin: 0.4em 0;
+}
+.note th,
+.note td {
+  border: 1px solid var(--c-line);
+  padding: 0.25em 0.5em;
+  text-align: left;
+}
+
 /* Custom scrollbar — tracks the theme rather than being hardcoded dark. */
 ::-webkit-scrollbar {
   width: 8px;

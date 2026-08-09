@@ -8,6 +8,32 @@ const logger = getLogger('updater')
 
 type ReleaseChannel = 'stable' | 'beta'
 
+type UpdateState = 'available' | 'current' | 'downloading' | 'ready' | 'error' | 'checking'
+
+interface UpdateStatusPayload {
+  state: UpdateState
+  version?: string
+  percent?: number
+  message?: string
+  releaseNotes?: string | null
+}
+
+/**
+ * Normalise electron-updater's `releaseNotes` field — `string |
+ * ReleaseNoteInfo[] | null` — to a plain `string | null` for display.
+ */
+function releaseNotesText(notes: unknown): string | null {
+  if (typeof notes === 'string') return notes
+  if (Array.isArray(notes)) {
+    const text = notes
+      .map((n) => (n && typeof n === 'object' && 'note' in n ? String((n as { note: unknown }).note) : ''))
+      .filter((line) => line.length > 0)
+      .join('\n')
+    return text.length > 0 ? text : null
+  }
+  return null
+}
+
 /**
  * Before this setting existed, a beta build opted itself into prerelease
  * updates purely by matching "beta" in its own version string — there was no
@@ -40,7 +66,13 @@ export function refreshReleaseChannel(): void {
   })
 }
 
-function sendUpdateStatus(payload: Record<string, unknown>): void {
+// Last status broadcast to the renderer. Kept so components that mount after an
+// event has already fired (e.g. Settings, which renders only when navigated to)
+// can read the current state instead of waiting for — and missing — the next one.
+let lastUpdateStatus: UpdateStatusPayload | null = null
+
+function sendUpdateStatus(payload: UpdateStatusPayload): void {
+  lastUpdateStatus = payload
   for (const win of BrowserWindow.getAllWindows()) {
     win.webContents.send('app:updateStatus', payload)
   }
@@ -48,6 +80,11 @@ function sendUpdateStatus(payload: Record<string, unknown>): void {
 
 export function registerUpdaterIpc(): void {
   applyReleaseChannel()
+
+  // Updates are surfaced in the UI and only ever applied on explicit user
+  // action. Nothing downloads or installs in the background at boot.
+  autoUpdater.autoDownload = false
+  autoUpdater.autoInstallOnAppQuit = false
 
   autoUpdater.on('checking-for-update', () => {
     sendUpdateStatus({ state: 'checking' })
@@ -65,7 +102,8 @@ export function registerUpdaterIpc(): void {
     logger.info('Update available', { version: info?.version })
     sendUpdateStatus({
       state: 'available',
-      version: info?.version
+      version: info?.version,
+      releaseNotes: releaseNotesText(info?.releaseNotes)
     })
   })
   autoUpdater.on('update-not-available', () => {
@@ -99,6 +137,15 @@ export function registerUpdaterIpc(): void {
     autoUpdater.quitAndInstall(false, true)
     return { success: true }
   })
+
+  /** Begin downloading a staged update the user explicitly asked for. */
+  handle('app:downloadUpdate', async () => {
+    await autoUpdater.downloadUpdate()
+    return { success: true }
+  })
+
+  /** The latest updater status, or null before the first event has fired. */
+  handle('app:getUpdateStatus', async () => ({ success: true, data: lastUpdateStatus }))
 
   // Startup check. Rejections are handled by the 'error' listener above; this
   // catch only stops an unhandled rejection when no feed exists yet.

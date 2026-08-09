@@ -77,6 +77,10 @@ export default function SettingsPage(): React.JSX.Element {
 
   // Save feedback
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle')
+  // True while an update is available/downloading/ready, so the Advanced entry
+  // carries a dot mirroring the one on the Settings nav item. Mirrors the boot
+  // status too, since this page mounts only after navigation.
+  const [updatePending, setUpdatePending] = useState(false)
 
   const handleSaveSettings = async (): Promise<void> => {
     setSaveState('saving')
@@ -93,6 +97,26 @@ export default function SettingsPage(): React.JSX.Element {
       setValidation({ status: 'valid', username: auth.username })
     }
   }, [auth.loggedIn, auth.username])
+
+  // Update indicator on the Advanced entry. Subscribes live and also reads the
+  // cached status so a boot check that finished before navigation still shows.
+  useEffect(() => {
+    let disposed = false
+    const off = window.api.onUpdateStatus((s) => {
+      if (s.state === 'available' || s.state === 'downloading' || s.state === 'ready') {
+        setUpdatePending(true)
+      } else if (s.state === 'current' || s.state === 'error') {
+        setUpdatePending(false)
+      }
+    })
+    void window.api.app.getUpdateStatus().then((r) => {
+      if (disposed || !r?.success || !r.data) return
+      if (r.data.state === 'available' || r.data.state === 'downloading' || r.data.state === 'ready') {
+        setUpdatePending(true)
+      }
+    })
+    return () => { disposed = true; off() }
+  }, [])
 
   const handleValidateAndSave = async (): Promise<void> => {
     if (!keyInput.trim()) return
@@ -177,6 +201,9 @@ export default function SettingsPage(): React.JSX.Element {
                 )}
                 <item.Icon size={16} className="shrink-0" aria-hidden="true" />
                 <span className="truncate">{item.label}</span>
+                {item.key === 'advanced' && updatePending && (
+                  <span className="ml-auto h-2 w-2 shrink-0 rounded-full bg-accent" aria-label="Update available" />
+                )}
               </button>
             )
           })}
