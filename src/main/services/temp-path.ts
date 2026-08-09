@@ -24,6 +24,15 @@ import { basename, dirname, join } from 'path'
  *
  * ext4, btrfs, xfs, NTFS and APFS all sit at 255. It is the *name* that is
  * limited here, not the path, which is why only the basename is measured.
+ *
+ * The 255 means different units per filesystem: bytes on ext4 and friends,
+ * UTF-16 code units on NTFS. Measuring bytes is the conservative reading,
+ * because a string's UTF-8 length is never less than its UTF-16 length —
+ * ASCII is 1:1, CJK is 3 bytes to 1 unit, astral planes 4 bytes to 2. So a
+ * name that passes this check always fits NTFS too; the cost is that Windows
+ * sometimes gets a hashed name where the plain one would have fitted. Do not
+ * "fix" this by measuring characters: that would be unsafe on Linux, which is
+ * where the ENAMETOOLONG above actually came from.
  */
 const MAX_NAME_BYTES = 255
 
