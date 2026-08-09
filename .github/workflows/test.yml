@@ -24,7 +24,45 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build:
+  # Resolved once and passed to both builds, so Linux and Windows can never
+  # disagree about what they are building. Computing it independently in each
+  # job would happen to agree today (same run_number, same package.json) but
+  # would silently diverge the moment either input stopped being identical.
+  #
+  # Runs on the self-hosted runner rather than ubuntu-latest purely to avoid
+  # spending billable minutes on a job that takes seconds.
+  version:
+    runs-on: [self-hosted, linux, doujin-builder]
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+      tag: ${{ steps.ver.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # The version comes from the run number, not from `npm version
+      # prerelease`. That command writes to package.json in the workspace, and
+      # nothing commits it — checkout wipes the tree each run, so every build
+      # recomputed the *same* version and silently overwrote the previous
+      # pre-release instead of publishing a new one.
+      #
+      # The patch is incremented first so the beta sorts *above* the last
+      # stable: with package.json at 1.0.0, `1.0.0-beta.N` is semver-older than
+      # the released 1.0.0 and testers would never be offered it. 1.0.1-beta.N
+      # is newer than 1.0.0 and older than 1.0.1, which is what we want.
+      - name: Resolve prerelease version
+        id: ver
+        run: |
+          NEXT=$(node -p 'const v=require("./package.json").version.split("-")[0].split(".").map(Number); v[0]+"."+v[1]+"."+(v[2]+1)')
+          VERSION="${NEXT}-beta.${{ github.run_number }}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
+  build-linux:
+    needs: version
     runs-on: [self-hosted, linux, doujin-builder]
     steps:
       - uses: actions/checkout@v4
@@ -45,25 +83,87 @@ jobs:
       - run: npm run typecheck
       - run: npm test
 
-      # The version comes from the run number, not from `npm version
-      # prerelease`. That command writes to package.json in the workspace, and
-      # nothing commits it — checkout wipes the tree each run, so every build
-      # recomputed the *same* version and silently overwrote the previous
-      # pre-release instead of publishing a new one.
-      #
-      # The patch is incremented first so the beta sorts *above* the last
-      # stable: with package.json at 1.0.0, `1.0.0-beta.N` is semver-older than
-      # the released 1.0.0 and testers would never be offered it. 1.0.1-beta.N
-      # is newer than 1.0.0 and older than 1.0.1, which is what we want.
-      - name: Resolve prerelease version
-        id: ver
-        run: |
-          NEXT=$(node -p 'const v=require("./package.json").version.split("-")[0].split(".").map(Number); v[0]+"."+v[1]+"."+(v[2]+1)')
-          VERSION="${NEXT}-beta.${{ github.run_number }}"
-          npm version "$VERSION" --no-git-tag-version --allow-same-version
-          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+      - run: npm version "${{ needs.version.outputs.version }}" --no-git-tag-version --allow-same-version
 
       - run: npm run build:linux
+
+      # if-no-files-found: error matters more than it looks. softprops does not
+      # fail on an unmatched glob by default, so without this a missing
+      # latest-linux.yml would publish a green release that silently cannot
+      # auto-update.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-artifacts
+          if-no-files-found: error
+          retention-days: 1
+          path: |
+            dist/*.AppImage
+            dist/*.rpm
+            dist/*.deb
+            dist/latest-linux.yml
+
+  # GitHub-hosted, because cross-compiling Windows from the Linux runner would
+  # need Wine plus hand-installed win32 binaries for sharp and better-sqlite3,
+  # and both of those fail *silently* (sharp degrades to no thumbnails rather
+  # than erroring). A native runner resolves the correct platform binaries
+  # through plain `npm ci`, which removes the failure mode instead of
+  # working around it.
+  build-windows:
+    needs: version
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - run: npm ci
+
+      # Kept as a gate here too: this is the only place the suite runs on
+      # Windows, so it is the only thing that would catch a path-handling
+      # assumption that holds on Linux and not here. `build:win` already
+      # runs typecheck internally via `npm run build`.
+      - run: npm test
+
+      - run: npm version "${{ needs.version.outputs.version }}" --no-git-tag-version --allow-same-version
+        shell: bash
+
+      - run: npm run build:win
+
+      # latest.yml (no suffix) is the Windows update feed, the counterpart to
+      # latest-linux.yml. electron-updater looks for exactly this name.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-artifacts
+          if-no-files-found: error
+          retention-days: 1
+          path: |
+            dist/*.exe
+            dist/*.exe.blockmap
+            dist/latest.yml
+
+  release:
+    needs: [version, build-linux, build-windows]
+    runs-on: [self-hosted, linux, doujin-builder]
+    steps:
+      # This job deliberately does not check out — softprops works entirely
+      # through the API. But that means nothing cleans the workspace, and on a
+      # self-hosted runner the workspace is shared with every other job that
+      # ran there. build-linux's dist/ is still sitting in it, and if the other
+      # release workflow interleaved (the two use different concurrency
+      # groups, so they can), those could be a *different* version's files.
+      # download-artifact merges into the directory rather than replacing it,
+      # so stale artifacts would be attached to this release without a word.
+      - name: Start from an empty dist/
+        run: rm -rf dist
+
+      # merge-multiple flattens both artifacts into one dist/ rather than
+      # nesting them under per-artifact directories.
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
 
       # tag_name must be an expression: `with:` values are passed to the action
       # as environment variables and are never run through a shell, so the
@@ -72,13 +172,18 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           prerelease: true
-          tag_name: ${{ steps.ver.outputs.tag }}
-          name: ${{ steps.ver.outputs.tag }}
+          tag_name: ${{ needs.version.outputs.tag }}
+          name: ${{ needs.version.outputs.tag }}
           generate_release_notes: true
+          # Turns the silent case loud: an unmatched glob here fails the run
+          # rather than quietly publishing an incomplete release.
+          fail_on_unmatched_files: true
           files: |
             dist/*.AppImage
             dist/*.rpm
             dist/*.deb
             dist/latest-linux.yml
+            dist/*.exe
+            dist/latest.yml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

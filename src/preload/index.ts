@@ -388,6 +388,7 @@ const api = {
       version?: string
       percent?: number
       message?: string
+      releaseNotes?: string | null
     }) => void
   ) => {
     const handler = (
@@ -446,8 +447,12 @@ const api = {
   // App
   app: {
     checkForUpdates: () => ipcRenderer.invoke('app:checkForUpdates'),
+    /** Download an available update the user explicitly requested. */
+    downloadUpdate: () => ipcRenderer.invoke('app:downloadUpdate'),
     /** Apply a staged update and relaunch. No-op until one has downloaded. */
     installUpdate: () => ipcRenderer.invoke('app:installUpdate'),
+    /** The latest updater status; null before the first event has fired. */
+    getUpdateStatus: () => ipcRenderer.invoke('app:getUpdateStatus'),
     getVersion: () => ipcRenderer.invoke('app:getVersion'),
     /** Probe Python/pikepdf and poppler. `force` re-checks after installing. */
     checkToolchain: (force?: boolean) => ipcRenderer.invoke('app:checkToolchain', force)

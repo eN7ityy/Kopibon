@@ -2,7 +2,7 @@ name: Release
 
 # Stable build. Tag main and this publishes a GitHub *draft* release for you
 # to add notes to and publish by hand. Note that electron-updater cannot see
-# draft releases, so AppImage users are only offered the update once you press
+# draft releases, so users are only offered the update once you press
 # Publish — which is the intended gate, not a bug.
 on:
   push:
@@ -14,8 +14,14 @@ on:
 permissions:
   contents: write
 
+# One self-hosted runner, and a draft release is assembled from two jobs.
+# Serialising avoids two tags racing to attach files to each other's release.
+concurrency:
+  group: stable-release
+  cancel-in-progress: false
+
 jobs:
-  build:
+  build-linux:
     runs-on: [self-hosted, linux, doujin-builder]
     steps:
       - uses: actions/checkout@v4
@@ -36,18 +42,88 @@ jobs:
       # because package.json usually already matches the tag, and npm version
       # errors rather than no-opping in that case.
       - run: npm version "${GITHUB_REF_NAME#v}" --no-git-tag-version --allow-same-version
+        shell: bash
 
       - run: npm run build:linux
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-artifacts
+          if-no-files-found: error
+          retention-days: 1
+          path: |
+            dist/*.AppImage
+            dist/*.rpm
+            dist/*.deb
+            dist/latest-linux.yml
+
+  # GitHub-hosted rather than cross-compiled from the Linux runner — see the
+  # longer note in test.yml. Native `npm ci` is what makes sharp and
+  # better-sqlite3 resolve their win32 binaries correctly.
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - run: npm ci
+
+      # The only place the suite runs on Windows. `build:win` runs typecheck
+      # internally via `npm run build`.
+      - run: npm test
+
+      # ${VAR#v} is a bash parameter expansion; the default shell on
+      # windows-latest is PowerShell, which would take it literally.
+      - run: npm version "${GITHUB_REF_NAME#v}" --no-git-tag-version --allow-same-version
+        shell: bash
+
+      - run: npm run build:win
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-artifacts
+          if-no-files-found: error
+          retention-days: 1
+          path: |
+            dist/*.exe
+            dist/*.exe.blockmap
+            dist/latest.yml
+
+  release:
+    needs: [build-linux, build-windows]
+    runs-on: [self-hosted, linux, doujin-builder]
+    steps:
+      # No checkout here (softprops works through the API), so nothing cleans
+      # the shared self-hosted workspace. build-linux's dist/ is still in it,
+      # and test.yml runs under a different concurrency group so it can
+      # interleave and leave a *different* version's files behind.
+      # download-artifact merges rather than replaces, so those would be
+      # attached to this release silently.
+      - name: Start from an empty dist/
+        run: rm -rf dist
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
 
       - uses: softprops/action-gh-release@v2
         with:
           draft: true
           tag_name: ${{ github.ref_name }}
           generate_release_notes: true
+          # An unmatched glob fails the run rather than quietly publishing a
+          # release that is missing a platform or its update manifest.
+          fail_on_unmatched_files: true
           files: |
             dist/*.AppImage
             dist/*.rpm
             dist/*.deb
             dist/latest-linux.yml
+            dist/*.exe
+            dist/latest.yml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

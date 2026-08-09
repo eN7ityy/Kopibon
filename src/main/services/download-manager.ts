@@ -188,7 +188,7 @@ export class DownloadManager {
         const active: ActiveDownload = {
           queueId: nextItem.id,
           galleryId: nextItem.galleryId,
-          outputFormat: nextItem.outputFormat || 'pdf',
+          outputFormat: nextItem.outputFormat || 'cbz',
           cancelRequested: false,
           paused: false
         }
@@ -220,7 +220,7 @@ export class DownloadManager {
       startedAt: Date.now()
     } as Parameters<typeof downloadRepo.update>[1])
 
-    return { id: next.id, galleryId: next.galleryId, outputFormat: (next as any).outputFormat || 'pdf' }
+    return { id: next.id, galleryId: next.galleryId, outputFormat: (next as any).outputFormat || 'cbz' }
   }
 
   private emitProgress(
@@ -404,7 +404,7 @@ export class DownloadManager {
           customCoverPath: null,
           filePath: '', // placeholder, will be set on completion
           fileSize: 0,
-          format: active.outputFormat || 'pdf',
+          format: active.outputFormat || 'cbz',
           primaryArtist,
           seriesName: null,
           publisher: gallery.tags.find((t) => t.type === 'group')?.name || null,
@@ -696,7 +696,7 @@ export class DownloadManager {
 
         // Counted from the file just written, not from gallery.num_pages: a
         // download that dropped a page should report what is actually there.
-        const downloadedPages = await countPages(outputPath, active.outputFormat || 'pdf')
+        const downloadedPages = await countPages(outputPath, active.outputFormat || 'cbz')
 
         libraryRepo.update(libItem.id, {
           isCustom: 0,

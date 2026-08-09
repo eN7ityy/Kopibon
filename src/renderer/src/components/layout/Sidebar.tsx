@@ -40,6 +40,10 @@ export default function Sidebar(): React.JSX.Element {
   const auth = useAuthStore()
   const location = useLocation()
   const [downloadCount, setDownloadCount] = useState(0)
+  // True while an update is available, downloading, or ready to apply — the
+  // Settings entry carries a tiny accent dot to draw the user in. It does not
+  // auto-download, so nothing happens until they visit Settings and act.
+  const [updatePending, setUpdatePending] = useState(false)
 
   useEffect(() => {
     setActiveRoute(location.pathname)
@@ -65,6 +69,20 @@ export default function Sidebar(): React.JSX.Element {
     poll()
     const interval = setInterval(poll, 2000)
     return () => clearInterval(interval)
+  }, [])
+
+  // Flip the update indicator on the Settings entry as the updater moves
+  // through its states. 'current' and 'error' clear it; 'idle'/'checking' leave
+  // it untouched so a fresh check doesn't flash it off mid-flight.
+  useEffect(() => {
+    const off = window.api.onUpdateStatus((s) => {
+      if (s.state === 'available' || s.state === 'downloading' || s.state === 'ready') {
+        setUpdatePending(true)
+      } else if (s.state === 'current' || s.state === 'error') {
+        setUpdatePending(false)
+      }
+    })
+    return () => { off() }
   }, [])
 
   const cycleTheme = (): void => {
@@ -146,6 +164,15 @@ export default function Sidebar(): React.JSX.Element {
                     <span className="tnum absolute top-0.5 right-0.5 inline-flex items-center justify-center min-w-[16px] h-[16px] px-0.5 text-label font-bold rounded-full bg-accent-fill text-white">
                       {downloadCount}
                     </span>
+                  )}
+                  {item.to === '/settings' && updatePending && (
+                    // `ml-auto` pins the dot to the right edge of the row in
+                    // both collapsed and expanded modes — a small accent dot,
+                    // not a popup or banner, to draw the eye to Settings.
+                    <span
+                      className="ml-auto h-2 w-2 shrink-0 rounded-full bg-accent"
+                      aria-label="Update available"
+                    />
                   )}
                 </>
               )}
