@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { basename, dirname } from 'path'
+import { basename, dirname, join } from 'path'
 import { tempSiblingPath, truncateToBytes } from './temp-path'
 
 /**
@@ -48,11 +48,22 @@ describe('truncateToBytes', () => {
 })
 
 describe('tempSiblingPath — the reported case', () => {
-  const dir = '/mnt/bragi/Kavita/Doujins/a/長い名前'
+  /*
+   * Built with join() rather than written as a literal, and every path below
+   * is assembled the same way.
+   *
+   * tempSiblingPath returns path.join(dir, name), which is separator-native:
+   * backslashes on Windows. That is correct behaviour there — the bug is an
+   * expectation hardcoded to POSIX, which can only ever match on POSIX. Three
+   * assertions here failed the first time the suite ran on Windows in CI,
+   * comparing '\mnt\...' against '/mnt/...'. Routing the expected values
+   * through the same module the implementation uses makes them agree on both.
+   */
+  const dir = join('/mnt', 'bragi', 'Kavita', 'Doujins', 'a', '長い名前')
 
   it('appends plainly when there is room', () => {
-    const finalPath = `${dir}/short.cbz`
-    expect(tempSiblingPath(finalPath)).toBe(`${dir}/short.cbz.part`)
+    const finalPath = join(dir, 'short.cbz')
+    expect(tempSiblingPath(finalPath)).toBe(join(dir, 'short.cbz.part'))
   })
 
   it('fits a name that is one byte over, as the real file was', () => {
@@ -61,43 +72,43 @@ describe('tempSiblingPath — the reported case', () => {
     expect(bytes(name)).toBe(251)
     expect(bytes(name + '.part')).toBe(256)
 
-    const temp = tempSiblingPath(`${dir}/${name}`)
+    const temp = tempSiblingPath(join(dir, name))
     expect(bytes(basename(temp))).toBeLessThanOrEqual(255)
   })
 
   it('always stays within the limit, at every length around the boundary', () => {
     for (let n = 240; n <= 255; n++) {
-      const temp = tempSiblingPath(`${dir}/${nameOfBytes(n)}`)
+      const temp = tempSiblingPath(join(dir, nameOfBytes(n)))
       expect(bytes(basename(temp))).toBeLessThanOrEqual(255)
     }
   })
 
   it('keeps the temp file in the same directory, so the rename stays atomic', () => {
-    const finalPath = `${dir}/${nameOfBytes(254)}`
+    const finalPath = join(dir, nameOfBytes(254))
     expect(dirname(tempSiblingPath(finalPath))).toBe(dir)
   })
 
   it('still ends with the suffix when shortened', () => {
-    const temp = tempSiblingPath(`${dir}/${nameOfBytes(254)}`)
+    const temp = tempSiblingPath(join(dir, nameOfBytes(254)))
     expect(temp.endsWith('.part')).toBe(true)
   })
 
   it('gives two different long names two different temp paths', () => {
     // They truncate to the same prefix, so only the hash separates them. A
     // collision would have one conversion overwrite another's part file.
-    const a = `${dir}/${nameOfBytes(250)}aaa.cbz`
-    const b = `${dir}/${nameOfBytes(250)}bbb.cbz`
+    const a = join(dir, `${nameOfBytes(250)}aaa.cbz`)
+    const b = join(dir, `${nameOfBytes(250)}bbb.cbz`)
     expect(tempSiblingPath(a)).not.toBe(tempSiblingPath(b))
   })
 
   it('is stable for the same input', () => {
-    const finalPath = `${dir}/${nameOfBytes(254)}`
+    const finalPath = join(dir, nameOfBytes(254))
     expect(tempSiblingPath(finalPath)).toBe(tempSiblingPath(finalPath))
   })
 
   it('honours a different suffix', () => {
-    expect(tempSiblingPath('/x/y.pdf', '.tmp')).toBe('/x/y.pdf.tmp')
-    const long = tempSiblingPath(`/x/${nameOfBytes(254)}`, '.tmp')
+    expect(tempSiblingPath(join('/x', 'y.pdf'), '.tmp')).toBe(join('/x', 'y.pdf.tmp'))
+    const long = tempSiblingPath(join('/x', nameOfBytes(254)), '.tmp')
     expect(long.endsWith('.tmp')).toBe(true)
     expect(bytes(basename(long))).toBeLessThanOrEqual(255)
   })
