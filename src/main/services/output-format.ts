@@ -13,7 +13,7 @@ export const SUPPORTED_OUTPUT_FORMATS = ['pdf', 'cbz'] as const
 
 export type OutputFormat = (typeof SUPPORTED_OUTPUT_FORMATS)[number]
 
-export const DEFAULT_OUTPUT_FORMAT: OutputFormat = 'pdf'
+export const DEFAULT_OUTPUT_FORMAT: OutputFormat = 'cbz'
 
 function isSupported(value: string | null | undefined): value is OutputFormat {
   return !!value && (SUPPORTED_OUTPUT_FORMATS as readonly string[]).includes(value)

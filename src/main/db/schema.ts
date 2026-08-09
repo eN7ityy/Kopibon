@@ -97,7 +97,7 @@ export const downloadQueue = sqliteTable('download_queue', {
   retryCount: integer('retry_count').notNull().default(0),
   maxRetries: integer('max_retries').notNull().default(3),
   errorMessage: text('error_message'),
-  outputFormat: text('output_format').notNull().default('pdf'),
+  outputFormat: text('output_format').notNull().default('cbz'),
   outputDirectory: text('output_directory'),
   queuedAt: integer('queued_at').notNull().default(Date.now()),
   startedAt: integer('started_at'),

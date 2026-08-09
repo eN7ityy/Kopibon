@@ -127,7 +127,7 @@ function seedDefaults(sqlite: Database.Database): void {
     // they do.
     libraryPath: '',
     downloadConcurrency: '3',
-    outputFormat: 'pdf',
+    outputFormat: 'cbz',
     compressPdf: 'true',
     compressionQuality: '80',
     pageSize: 'Dynamic',

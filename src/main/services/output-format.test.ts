@@ -17,10 +17,10 @@ describe('resolveOutputFormat', () => {
     expect(resolveOutputFormat('cbz', 'pdf')).toBe('cbz')
   })
 
-  it('falls back to PDF when neither is provided', () => {
+  it('falls back to CBZ when neither is provided', () => {
     expect(resolveOutputFormat()).toBe(DEFAULT_OUTPUT_FORMAT)
-    expect(resolveOutputFormat(undefined, undefined)).toBe('pdf')
-    expect(resolveOutputFormat(null, null)).toBe('pdf')
+    expect(resolveOutputFormat(undefined, undefined)).toBe('cbz')
+    expect(resolveOutputFormat(null, null)).toBe('cbz')
   })
 
   it('ignores unsupported values rather than passing them downstream', () => {
@@ -28,9 +28,9 @@ describe('resolveOutputFormat', () => {
     // silently routed it to the PDF worker — a mismatch between the database
     // and the file on disk.
     expect(resolveOutputFormat('epub', 'cbz')).toBe('cbz')
-    expect(resolveOutputFormat(undefined, 'epub')).toBe('pdf')
-    expect(resolveOutputFormat('', '')).toBe('pdf')
-    expect(resolveOutputFormat('PDF', undefined)).toBe('pdf') // case-sensitive by design
+    expect(resolveOutputFormat(undefined, 'epub')).toBe('cbz')
+    expect(resolveOutputFormat('', '')).toBe('cbz')
+    expect(resolveOutputFormat('PDF', undefined)).toBe('cbz') // case-sensitive by design
   })
 
   it('only ever returns a format the pipeline can produce', () => {
