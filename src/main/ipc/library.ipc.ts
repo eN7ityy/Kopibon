@@ -1167,6 +1167,14 @@ export function registerLibraryIpc(): void {
             : null
 
         try {
+          // Resolve the stored path once, for both the metadata embed and the
+          // move below. The DB stores file_path relative to the library root;
+          // applyMetadata opens the file directly, so passing the raw stored
+          // value used to silently fail — the error was swallowed, yet the move
+          // and DB update still happened, leaving the file without its Series.
+          const libraryRoot = (settingsRepo.get('libraryPath') || '').trim()
+          const itemPath = resolveLibraryPath(item.filePath, libraryRoot)
+
           // 1. Embed series + volume using format-aware dispatcher
           try {
             const { applyMetadata } = await import(
@@ -1174,7 +1182,7 @@ export function registerLibraryIpc(): void {
             )
             const format = item.format || 'pdf'
             await applyMetadata(
-              item.filePath,
+              itemPath,
               format,
               metaForItem(item, {
                 seriesName,
@@ -1188,8 +1196,6 @@ export function registerLibraryIpc(): void {
           }
 
           // 2. Move file into series subdirectory
-          const libraryRoot = (settingsRepo.get('libraryPath') || '').trim()
-          const itemPath = resolveLibraryPath(item.filePath, libraryRoot)
           const currentDir = dirname(itemPath)
           const fileName = basename(itemPath)
           const parentDirName = basename(currentDir)
