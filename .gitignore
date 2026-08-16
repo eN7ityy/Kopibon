@@ -12,6 +12,7 @@ config.json
 plans/
 .eslintcache
 .DS_Store
+*.tsbuildinfo
 
 # Keep old Python project files as reference, don't track in new project
 .venv/
