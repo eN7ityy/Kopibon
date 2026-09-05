@@ -37,6 +37,7 @@ export * from '${ROOT}/src/main/db/repositories/sync.repo'
 export * from '${ROOT}/src/main/services/startup-maintenance'
 export * from '${ROOT}/src/main/services/series-grouping'
 export * from '${ROOT}/src/main/db/connection'
+export * from '${ROOT}/src/main/services/search-query'
 `
 
 let mod = null
@@ -110,6 +111,14 @@ function run(op, input) {
         coverItemId: input.coverItemId ?? null,
         coverPath: input.coverPath ?? null,
       })
+    case 'negationTerm':
+      return m.negationTerm(input.entry)
+    case 'queryHasField':
+      return m.queryHasField(input.query, input.field)
+    case 'buildSearchQuery':
+      return m.buildSearchQuery(input.userQuery ?? '', input.defaults ?? {}, input.blocked ?? [])
+    case 'matchDimEntries':
+      return m.matchDimEntries(input.facts ?? {}, input.blocked ?? [])
     case 'isGroupableSeriesName':
       return m.isGroupableSeriesName(input.name ?? null)
     case 'normaliseSeriesName':

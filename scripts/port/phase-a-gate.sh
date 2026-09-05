@@ -72,6 +72,10 @@ run_cargo_test db_differential "exit-4 db_differential (DB-01/DB-02)"
 run_cargo_test db_grouped_differential "exit-4 db_grouped_differential (DB-03/DB-04/DB-05)"
 run_cargo_test series_grouping_differential "exit-4 series_grouping_differential (DB-06 collator/series-grouping parity)"
 
+# ── Exit 4b: nhentai client (query/limiter/endpoints/tags) ───────────────────
+run_cargo_test nhentai_query "exit-4 nhentai_query (NC-01)"
+run_cargo_test nhentai_client "exit-4 nhentai_client (NC-02/03/04)"
+
 # ── Exit 5: pumps (download/conversion/sync) incl. crash recovery ───────────
 run_cargo_test download_differential "exit-5 download_differential (DL-01)"
 run_cargo_test conversion "exit-5 conversion (CV-01)"
