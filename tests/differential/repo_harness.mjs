@@ -139,7 +139,15 @@ function run(op, input) {
         completedRetentionDays: input.completedRetentionDays,
       })
 
-    // ─── inspection ─────────────────────────────────────────────────────────
+    // ─── inspection / fixture seeding ─────────────────────────────────────
+    case 'execSql': {
+      // Test-fixture seeding: run the same statements the Rust test runs.
+      const db = m.getRawDatabase()
+      for (const stmt of input.statements ?? []) {
+        db.prepare(stmt.sql).run(...(stmt.params ?? []))
+      }
+      return true
+    }
     case 'dumpTables': {
       const db = m.getRawDatabase()
       const out = {}

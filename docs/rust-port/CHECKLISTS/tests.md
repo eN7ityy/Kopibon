@@ -23,8 +23,8 @@ Phases: A = [../09-migration-phases.md](../09-migration-phases.md) Phase A exits
 
 ## Scanner / DB / pumps (Phase A)
 
-- [ ] **SC-01** | Scanner row-for-row vs live 1.x scan | semantic (excl. timestamps) | golden + LEGACY | `cargo test --test scanner_differential`
-- [ ] **SC-02** | Removal triple guard (3× zero deletions + happy path) | invariant | synth tree + disposable clone | `cargo test --test removal_guard`
+- [x] **SC-01** | Scanner row-for-row vs the REAL worker (worker_thread via scan_harness.mjs): walk rules (dotfiles/reserved/noise), extraction parity (docinfo+Keywords, XMP nested+flat incl. the bag-regex cross-element capture, ComicInfo entities/Series==Title/legacy Volume), queue lifecycle, thumbnail sha1 scheme, removal happy path, second-scan incremental (0 new items, no churn) | semantic (excl. timestamps; PDF thumbnails at the plan §6 poppler-less baseline pending Q-S4) | synth tree (scanner_fixture.rs) | `cargo test --test scanner_differential`
+- [x] **SC-02** | Removal triple guard vs the REAL worker: guard 1 (chmod-000 dir, unseen row survives), guard 2 (log 100 → discovered 3), guard 3 (3 ghosts of 6 rows) — each zero deletions, reason strings equal; happy path (1 of 10 deleted, artists included) in SC-01 scan 3 | invariant | synth tree | `cargo test --test removal_guard`
 - [x] **DB-01** | Migration zero-surprise on production copy | invariant | prod-DB byte copy | `cargo test --test db_differential migration`
 - [x] **DB-02** | Read parity over filter × sort matrix | semantic | prod-DB byte copy | `cargo test --test db_differential read`
 - [x] **DB-03** | Grouped view parity (findPaginatedGrouped/hydrateRows/seriesFacts/matchingMemberIds) against the REAL repos, filter × sort × minMembers on the 5261-item copy | semantic | prod-DB byte copy | `cargo test --test db_grouped_differential db03`

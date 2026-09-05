@@ -161,7 +161,7 @@ majors. Sources: 08-subsystem-plans 01–08 as cited.
 | `icu_collator` + ICU4X support crates (05) | Unicode-3.0 | Notice preservation + Unicode licence terms in notices | Generated notices file. Chosen because V8's `Intl.Collator` runs ICU on the same CLDR tables; numeric + primary-strength parity proven by the DB-06 fuzz. Pulls icu_normalizer/icu_locale_* crates (Unicode-3.0) |
 | `walkdir` (02) | MIT OR Apache-2.0 (some files Unlicense/MIT) | Notice preservation | Generated notices file |
 | `tokio` (+ `tokio-util`/`tokio-stream` if adopted) (02–05) | MIT | Notice preservation | Generated notices file |
-| `image` (02, 03) | MIT OR Apache-2.0 | Notice preservation | Generated notices file |
+| `image` (02, 03) | MIT OR Apache-2.0 | Notice preservation | Generated notices file. Adopted in Phase A for scanner CBZ thumbnails (jpeg/png features only); JPEG bytes are cache artefacts, not parity-critical (02 §6) |
 | `reqwest` with `rustls-tls` (04, 07) | MIT OR Apache-2.0 | Notice preservation | Generated notices file |
 | `rustls` (+ `ring` or `aws-lc-rs` backend) (04) | MIT OR Apache-2.0 OR ISC; backend `ring` carries an **OpenSSL-derived** component with extra attribution terms — verify the exact notices text; `aws-lc-rs` is Apache-2.0 **verify at adoption** | Notice preservation + OpenSSL attribution if `ring` | Generated notices file; TLS backend choice recorded here when made |
 | `serde`, `serde_json` (04, 07) | MIT OR Apache-2.0 | Notice preservation | Generated notices file |
