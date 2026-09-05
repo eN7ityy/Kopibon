@@ -156,6 +156,8 @@ majors. Sources: 08-subsystem-plans 01–08 as cited.
 | `jiff` (01, 05) | MIT OR Apache-2.0 | Notice preservation | Generated notices file |
 | `zip` — read side only (02, 04) | MIT | Notice preservation | Generated notices file |
 | `rusqlite` + `libsqlite3-sys`, `bundled` feature (02, 05) | MIT / Apache-2.0 (crates); bundled SQLite C amalgamation is **public domain** (no notice obligation, note kept anyway) | Notice preservation | Generated notices file; SQLite's public-domain status recorded, not relied on |
+| `serde` + `serde_json` (01 harness/ops, 05) | MIT OR Apache-2.0 | Notice preservation | Generated notices file. `float_roundtrip` feature is required (serde_json's default f64 writing is not round-trip; found by the number fuzz) |
+| `ryu-js` (01) | MIT OR Apache-2.0 | Notice preservation | Generated notices file. Implements ECMA-262 Number::toString exactly; Rust's `{:e}` tie-breaking diverges from V8 on adversarial floats (fuzz-found) |
 | `walkdir` (02) | MIT OR Apache-2.0 (some files Unlicense/MIT) | Notice preservation | Generated notices file |
 | `tokio` (+ `tokio-util`/`tokio-stream` if adopted) (02–05) | MIT | Notice preservation | Generated notices file |
 | `image` (02, 03) | MIT OR Apache-2.0 | Notice preservation | Generated notices file |

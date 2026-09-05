@@ -30,3 +30,6 @@ scripts/
 !scripts/
 scripts/*
 !scripts/port/
+
+# Rust build output
+target/

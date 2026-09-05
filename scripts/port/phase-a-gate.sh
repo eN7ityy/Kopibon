@@ -44,8 +44,14 @@ run_cargo_test differential_matrix "exit-1 differential_matrix (WR-01)"
 # runs the 10k CI-scale suite and reports the soak as an operator check.
 FUZZ_N="${FUZZ_N:-10000}"
 if [ -f kopibon-core/tests/template_fuzz.rs ]; then
-  run_cargo_test template_fuzz "exit-2 template fuzz (TA-02, n=$FUZZ_N)" -- --ignored --fuzz-cases "$FUZZ_N" 2>/dev/null \
-    || run_cargo_test template_fuzz "exit-2 template fuzz (TA-02, default n)" -- --ignored
+  if FUZZ_CASES="$FUZZ_N" cargo test -p kopibon-core --test template_fuzz -- --ignored; then
+    note "PASS [exit-2 template fuzz (TA-02, n=$FUZZ_N)]"
+  else
+    fail "exit-2 template fuzz (TA-02, n=$FUZZ_N)"
+  fi
+  # Operator check: the 1M nightly soak must have been clean three consecutive
+  # runs before the gate is FIRST declared (09 exit 2). Re-run with:
+  #   FUZZ_CASES=1000000 cargo test -p kopibon-core --test template_fuzz -- --ignored
 else
   note "NOT-BUILT [exit-2]: kopibon-core/tests/template_fuzz.rs"
   FAIL=1

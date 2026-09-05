@@ -9,12 +9,16 @@ description = "Kopibon 2.x headless core: metadata engine, library, pumps"
 # Per-WP additions land here as the work packages build; the workspace
 # Cargo.toml owns the versions (08/01 §2).
 regex = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
 crc32fast = { workspace = true }
 sha1 = { workspace = true }
 jiff = { workspace = true }
 lopdf = { workspace = true }
+ryu-js = "1.0.3"
 
 [dev-dependencies]
+ryu = "1.0.23"
 
 [lib]
 name = "kopibon_core"
