@@ -334,6 +334,17 @@ impl<T: Transport> ApiClient<T> {
         format!("https://t.nhentai.net/{cover_path}")
     }
 
+    /// The cached config for a cache-hit read (no request); None when the
+    /// cache is cold or expired.
+    pub fn cdn_cached(&self) -> Option<CdnConfig> {
+        self.cdn_config.clone()
+    }
+
+    /// Whether the /cdn cache is valid at `now` (1h window, :242).
+    pub fn cdn_cache_valid(&self, now: i64) -> bool {
+        self.cdn_config.is_some() && now - self.cdn_config_fetched_at < CDN_CACHE_MS
+    }
+
     fn cached_cdn_config(&mut self, clock: &dyn Clock) -> Result<CdnConfig, String> {
         let now = clock.now_ms();
         if self.cdn_config.is_some() && now - self.cdn_config_fetched_at < CDN_CACHE_MS {

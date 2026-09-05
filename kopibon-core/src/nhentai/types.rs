@@ -31,10 +31,13 @@ pub struct SearchResponse {
     pub total: Option<i64>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct CoverInfo {
+    #[serde(default)]
     pub path: String,
+    #[serde(default)]
     pub width: i64,
+    #[serde(default)]
     pub height: i64,
 }
 
@@ -49,14 +52,20 @@ pub struct PageInfo {
     pub thumbnail_height: i64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct TagResponse {
     pub id: i64,
-    #[serde(rename = "type")]
+    #[serde(rename = "type", default)]
     pub tag_type: String,
+    #[serde(default)]
     pub name: String,
+    // TS reads these as `undefined` when absent — lenient defaults mirror
+    // that rather than inventing a parse failure the source never has.
+    #[serde(default)]
     pub slug: String,
+    #[serde(default)]
     pub url: String,
+    #[serde(default)]
     pub count: i64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
@@ -66,26 +75,34 @@ pub struct TagResponse {
     pub pending_describe_id: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct GalleryTitle {
+    #[serde(default)]
     pub english: String,
     #[serde(default)]
     pub japanese: Option<String>,
+    #[serde(default)]
     pub pretty: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct GalleryDetail {
     pub id: i64,
+    #[serde(default)]
     pub media_id: String,
     pub title: GalleryTitle,
+    #[serde(default)]
     pub cover: CoverInfo,
+    #[serde(default)]
     pub thumbnail: CoverInfo,
     #[serde(default)]
     pub scanlator: String,
+    #[serde(default)]
     pub upload_date: i64,
+    #[serde(default)]
     pub tags: Vec<TagResponse>,
     pub num_pages: i64,
+    #[serde(default)]
     pub num_favorites: i64,
     /// Only present when ?include=favorite is passed (requires API key).
     #[serde(default, skip_serializing_if = "Option::is_none")]

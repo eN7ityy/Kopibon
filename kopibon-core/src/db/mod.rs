@@ -17,6 +17,8 @@
 
 pub mod connection;
 pub mod conversion;
+pub mod download;
+pub mod gallery;
 pub mod library;
 pub mod maintenance;
 pub mod migrator;
