@@ -145,7 +145,7 @@ had drifted, the verified number is used. Dispositions:
 
 - **Doc:** `docs/reference/library-layout.md:43` lists `_migration_staging/` as
   "Internal migration scratch space" among folders with reserved names.
-- **Source:** the scanner does skip it (`src/main/workers/library-scanner.worker.ts:606-607`),
+- **Source:** the scanner does skip it (`src/main/services/library-scanner.worker.ts:606-607`),
   but the only migration tooling in the repo, `tools/migrate-paths.mjs`, never
   creates such a directory; no code writes into it.
 - **2.x:** **Investigate, then fix doc** — confirm whether it is a leftover from an
