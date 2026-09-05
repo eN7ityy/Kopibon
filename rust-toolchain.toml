@@ -1,0 +1,6 @@
+# The single version authority for the Rust port (11-ci-release-plan §2.1).
+# Dev shells, CI (actions-rust-lang/setup-rust-toolchain) and the runner image
+# all resolve through this file; bumps are ordinary reviewed PRs.
+[toolchain]
+channel = "1.97"
+components = ["clippy", "rustfmt"]

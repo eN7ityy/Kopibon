@@ -1,0 +1,27 @@
+# PR CI for the Rust port (11-ci-release-plan §4 `pr.yml`).
+# Gates from the first commit (§3): fmt check, clippy -D warnings,
+# cargo test --workspace. cargo deny + notices freshness land with the
+# licence work package; the Phase A gate joins from Phase A completion.
+name: pr
+
+on:
+  pull_request:
+    branches: [dev]
+
+concurrency:
+  group: pr-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Reads the pinned channel/components from rust-toolchain.toml (11 §2.1).
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - name: Format
+        run: cargo fmt --all -- --check
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Tests
+        run: cargo test --workspace

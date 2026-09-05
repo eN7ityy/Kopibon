@@ -1,0 +1,19 @@
+[workspace]
+resolver = "2"
+members = ["kopibon-core"]
+
+# Warning lints are denied here so local behaviour and the CI gate (clippy
+# -D warnings, 11 §3.1) agree; there is no pre-commit enforcement.
+[workspace.lints.rust]
+warnings = "deny"
+
+[workspace.lints.clippy]
+all = "deny"
+
+[workspace.dependencies]
+lopdf = "0.36"
+regex = "1"
+crc32fast = "1"
+sha1 = "0.10"
+jiff = "0.2"
+rusqlite = { version = "0.37", features = ["bundled"] }

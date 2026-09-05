@@ -24,3 +24,9 @@ scripts/
 .idea/
 *.swp
 *.swo
+
+# Port tooling under scripts/port is tracked (phase gates, corpus scripts);
+# everything else in scripts/ stays untracked per the legacy rule above.
+!scripts/
+scripts/*
+!scripts/port/
