@@ -206,15 +206,13 @@ struct IndexEntry {
 /// The grouped union (library.repo.ts:501-538). `filter_sql` is the bare
 /// predicate (empty string → the TS `?? sql`1`` fallback); it references
 /// `library_item` unaliased so it resolves inside each branch (:509-512).
-fn grouped_union_sql(filter_sql: &str, min: i64, limit: usize, offset: usize, order_by: &str) -> (String, String) {
+fn grouped_union_sql(filter_sql: &str, limit: usize, offset: usize, order_by: &str) -> (String, String) {
     let filter = if filter_sql.is_empty() { "1" } else { filter_sql };
-    let grouped = format!(
-        "SELECT series_id, COUNT(*) AS total
+    let grouped = "SELECT series_id, COUNT(*) AS total
            FROM library_item
           WHERE series_id IS NOT NULL
           GROUP BY series_id
-         HAVING COUNT(*) >= {min}"
-    );
+         HAVING COUNT(*) >= ?";
     // min is an internal constant (DEFAULT_MIN_SERIES_MEMBERS), never user
     // input — inlined exactly as the TS template does.
     let unioned = format!(
@@ -411,8 +409,10 @@ fn hydrate_rows(
                       WHERE series_id IN ({placeholders})"
                 ))
                 .map_err(|e| e.to_string())?;
-            let mut bind = series_bind.clone();
-            bind.extend(filter_params.iter().cloned());
+            // Text order: the CASE filter in the select list binds before
+            // the WHERE's series ids.
+            let mut bind = filter_params.to_vec();
+            bind.extend(series_bind.iter().cloned());
             let rows = stmt
                 .query_map(rusqlite::params_from_iter(bind.iter()), |r| {
                     let mut m = member_from_row(r)?;
@@ -524,7 +524,7 @@ pub fn find_paginated_grouped(
         };
 
         let (index_sql, totals_sql) =
-            grouped_union_sql(&filter_sql, min, limit, offset, grouped_order_by(sort_field));
+            grouped_union_sql(&filter_sql, limit, offset, grouped_order_by(sort_field));
         let bind = grouped_params(&filter_params, min);
 
         let index: Vec<IndexEntry> = {

@@ -213,6 +213,7 @@ pub fn scrub_timestamps(v: &mut Value, columns: &[&str]) {
                     o.insert((*c).to_string(), Value::String("<ts>".into()));
                 }
             }
+            o.values_mut().for_each(|x| scrub_timestamps(x, columns));
         }
         _ => {}
     }

@@ -27,6 +27,10 @@ Phases: A = [../09-migration-phases.md](../09-migration-phases.md) Phase A exits
 - [ ] **SC-02** | Removal triple guard (3× zero deletions + happy path) | invariant | synth tree + disposable clone | `cargo test --test removal_guard`
 - [x] **DB-01** | Migration zero-surprise on production copy | invariant | prod-DB byte copy | `cargo test --test db_differential migration`
 - [x] **DB-02** | Read parity over filter × sort matrix | semantic | prod-DB byte copy | `cargo test --test db_differential read`
+- [x] **DB-03** | Grouped view parity (findPaginatedGrouped/hydrateRows/seriesFacts/matchingMemberIds) against the REAL repos, filter × sort × minMembers on the 5261-item copy | semantic | prod-DB byte copy | `cargo test --test db_grouped_differential db03`
+- [x] **DB-04** | Group lifecycle (backfillAll/resolveFor): case-variant spellings, ungroupable names, dissolved/manual groups, wrong-link repair; row-for-row post-state | semantic | synthetic lifecycle fixture ×2 | `cargo test --test db_grouped_differential db04`
+- [x] **DB-05** | Startup-maintenance sweep, counters + post-state row-for-row (grouping on/off × retention branch) | semantic | synthetic debris fixture ×2 | `cargo test --test db_grouped_differential db05`
+- [x] **DB-06** | `Intl.Collator(numeric, base)` sign parity (ICU4X vs V8) — 3000 seeded pairs + fixed corners; helper parity (gaps/facts/cover/sort) | semantic | seeded fuzz vs live module | `cargo test --test series_grouping_differential`
 - [ ] **DL-01** | Download pipeline vs 1.x, scripted CDN/failure ladder | semantic + byte artefacts | fixture server | `cargo test --test download_differential`
 - [ ] **CV-01** | Golden PDF→CBZ conversion + verify gate both ways | byte | fixture 3 | `cargo test --test conversion`
 - [ ] **SY-01** | Sync retry/pacing/cancel vs 1.x on scripted gallery | semantic | fixture server | `cargo test --test sync_differential`

@@ -158,6 +158,7 @@ majors. Sources: 08-subsystem-plans 01–08 as cited.
 | `rusqlite` + `libsqlite3-sys`, `bundled` feature (02, 05) | MIT / Apache-2.0 (crates); bundled SQLite C amalgamation is **public domain** (no notice obligation, note kept anyway) | Notice preservation | Generated notices file; SQLite's public-domain status recorded, not relied on |
 | `serde` + `serde_json` (01 harness/ops, 05) | MIT OR Apache-2.0 | Notice preservation | Generated notices file. `float_roundtrip` feature is required (serde_json's default f64 writing is not round-trip; found by the number fuzz) |
 | `ryu-js` (01) | MIT OR Apache-2.0 | Notice preservation | Generated notices file. Implements ECMA-262 Number::toString exactly; Rust's `{:e}` tie-breaking diverges from V8 on adversarial floats (fuzz-found) |
+| `icu_collator` + ICU4X support crates (05) | Unicode-3.0 | Notice preservation + Unicode licence terms in notices | Generated notices file. Chosen because V8's `Intl.Collator` runs ICU on the same CLDR tables; numeric + primary-strength parity proven by the DB-06 fuzz. Pulls icu_normalizer/icu_locale_* crates (Unicode-3.0) |
 | `walkdir` (02) | MIT OR Apache-2.0 (some files Unlicense/MIT) | Notice preservation | Generated notices file |
 | `tokio` (+ `tokio-util`/`tokio-stream` if adopted) (02–05) | MIT | Notice preservation | Generated notices file |
 | `image` (02, 03) | MIT OR Apache-2.0 | Notice preservation | Generated notices file |
