@@ -239,23 +239,27 @@ async function run(op, input) {
     case 'countCbzPages':
       return m.countCbzPages(input.file)
     case 'renderTemplateBatch':
-      return input.cases.map((c) => {
-        try {
-          return { ok: true, value: m.renderTemplate(c.template, fromJson(c.context ?? {})) }
-        } catch (e) {
-          return { ok: false, error: e instanceof Error ? e.message : String(e) }
-        }
-      })
+      return Promise.all(
+        input.cases.map(async (c) => {
+          try {
+            return { ok: true, value: m.renderTemplate(c.template, fromJson(c.context ?? {})) }
+          } catch (e) {
+            return { ok: false, error: e instanceof Error ? e.message : String(e) }
+          }
+        })
+      )
     // Generic batch: run any list of ops in one process. Each item carries
     // {op, input}; errors travel in-band per item.
     case 'batch':
-      return input.items.map((item) => {
-        try {
-          return { ok: true, value: run(item.op, item.input) }
-        } catch (e) {
-          return { ok: false, error: e instanceof Error ? e.message : String(e) }
-        }
-      })
+      return Promise.all(
+        input.items.map(async (item) => {
+          try {
+            return { ok: true, value: await run(item.op, item.input) }
+          } catch (e) {
+            return { ok: false, error: e instanceof Error ? e.message : String(e) }
+          }
+        })
+      )
     default:
       throw new Error(`harness: unknown op "${op}"`)
   }

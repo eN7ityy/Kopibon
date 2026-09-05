@@ -19,8 +19,8 @@ fail() { FAIL=1; SUMMARY+=("FAIL: $1"); printf '%s\n' "FAIL: $1"; }
 
 run_cargo_test() { # test-file label [extra args...]
   local testfile="$1" label="$2"; shift 2
-  if [ ! -f "kopibon-core/tests/$testfile" ]; then
-    note "NOT-BUILT [$label]: kopibon-core/tests/$testfile does not exist yet"
+  if [ ! -f "kopibon-core/tests/$testfile.rs" ]; then
+    note "NOT-BUILT [$label]: kopibon-core/tests/$testfile.rs does not exist yet"
     FAIL=1
     return
   fi
