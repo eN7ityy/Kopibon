@@ -25,8 +25,8 @@ Phases: A = [../09-migration-phases.md](../09-migration-phases.md) Phase A exits
 
 - [ ] **SC-01** | Scanner row-for-row vs live 1.x scan | semantic (excl. timestamps) | golden + LEGACY | `cargo test --test scanner_differential`
 - [ ] **SC-02** | Removal triple guard (3× zero deletions + happy path) | invariant | synth tree + disposable clone | `cargo test --test removal_guard`
-- [ ] **DB-01** | Migration zero-surprise on production copy | invariant | prod-DB byte copy | `cargo test --test db_differential migration`
-- [ ] **DB-02** | Read parity over filter × sort matrix | semantic | prod-DB byte copy | `cargo test --test db_differential read`
+- [x] **DB-01** | Migration zero-surprise on production copy | invariant | prod-DB byte copy | `cargo test --test db_differential migration`
+- [x] **DB-02** | Read parity over filter × sort matrix | semantic | prod-DB byte copy | `cargo test --test db_differential read`
 - [ ] **DL-01** | Download pipeline vs 1.x, scripted CDN/failure ladder | semantic + byte artefacts | fixture server | `cargo test --test download_differential`
 - [ ] **CV-01** | Golden PDF→CBZ conversion + verify gate both ways | byte | fixture 3 | `cargo test --test conversion`
 - [ ] **SY-01** | Sync retry/pacing/cancel vs 1.x on scripted gallery | semantic | fixture server | `cargo test --test sync_differential`

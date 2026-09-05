@@ -18,6 +18,7 @@ lopdf = { workspace = true }
 ryu-js = "1.0.3"
 zip = { version = "8.6.0", default-features = false, features = ["deflate"] }
 base64 = "0.23.1"
+rusqlite.workspace = true
 
 [dev-dependencies]
 ryu = "1.0.23"

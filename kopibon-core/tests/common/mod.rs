@@ -74,6 +74,25 @@ pub fn js_op(op: &str, input: &Value) -> Result<Value, String> {
     }
 }
 
+/// Run one op on the JS DB side (better-sqlite3 on the production byte
+/// copy, readonly). 05-DB §8.
+pub fn js_db_op(op: &str, input: &Value) -> Result<Value, String> {
+    let mut cmd = Command::new("node");
+    cmd.arg("tests/differential/db_harness.mjs")
+        .current_dir(env_repo_root());
+    match envelope(cmd, op, input)? {
+        (true, v) => Ok(v
+            .get("value")
+            .cloned()
+            .ok_or("JS db harness envelope missing value")?),
+        (false, v) => Err(v
+            .get("error")
+            .and_then(|e| e.as_str())
+            .unwrap_or("unknown JS db error")
+            .to_string()),
+    }
+}
+
 /// Run one op on the Rust side (the kopibon CLI). CARGO_BIN_EXE_ is set by
 /// cargo for integration tests.
 pub fn rust_op(op: &str, input: &Value) -> Result<Value, String> {
