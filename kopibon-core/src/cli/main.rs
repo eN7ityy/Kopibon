@@ -252,6 +252,137 @@ fn run(op: &str, input: &Value) -> Result<Value, String> {
             }
             Ok(json!({ "values": values }))
         }
+        "applyGalleryIdToFilename" => {
+            use kopibon_core::metadata::filenames::apply_gallery_id_to_filename;
+            let file_name = input
+                .get("fileName")
+                .and_then(|v| v.as_str())
+                .ok_or("missing input.fileName")?;
+            let gallery_id = match input.get("galleryId") {
+                None | Some(Value::Null) => None,
+                Some(v) => Some(v.as_f64().ok_or("bad galleryId")? as u32),
+            };
+            Ok(json!(apply_gallery_id_to_filename(file_name, gallery_id)))
+        }
+        "truncateToBytes" => {
+            use kopibon_core::metadata::filenames::truncate_to_bytes;
+            let value = input
+                .get("value")
+                .and_then(|v| v.as_str())
+                .ok_or("missing input.value")?;
+            let max = input
+                .get("maxBytes")
+                .and_then(|v| v.as_u64())
+                .ok_or("missing input.maxBytes")? as usize;
+            Ok(json!(truncate_to_bytes(value, max)))
+        }
+        "tempSiblingPath" => {
+            use kopibon_core::metadata::filenames::temp_sibling_path_suffix;
+            let path = input
+                .get("finalPath")
+                .and_then(|v| v.as_str())
+                .ok_or("missing input.finalPath")?;
+            let suffix = input
+                .get("suffix")
+                .and_then(|v| v.as_str())
+                .unwrap_or(".part");
+            Ok(json!(temp_sibling_path_suffix(
+                std::path::Path::new(path),
+                suffix
+            )
+            .display()
+            .to_string()))
+        }
+        "generateCbz" => {
+            use base64::Engine as _;
+            let pages: Vec<Vec<u8>> = input
+                .get("pages")
+                .and_then(|v| v.as_array())
+                .ok_or("missing input.pages")?
+                .iter()
+                .map(|v| {
+                    v.as_str()
+                        .and_then(|s| base64::engine::general_purpose::STANDARD.decode(s).ok())
+                        .ok_or("bad page base64")
+                })
+                .collect::<Result<_, _>>()?;
+            let m = meta(input)?;
+            let mtime = input.get("mtime").and_then(|v| v.as_u64()).unwrap_or(0);
+            let out = std::env::temp_dir().join(format!("cli-gen-{}.cbz", std::process::id()));
+            kopibon_core::metadata::writers::comicinfo::generate_cbz(
+                &pages, &out, &m, mtime, "jpg",
+            )?;
+            let bytes = std::fs::read(&out).map_err(|e| e.to_string())?;
+            let _ = std::fs::remove_file(&out);
+            Ok(json!(
+                base64::engine::general_purpose::STANDARD.encode(bytes)
+            ))
+        }
+        "applyMetadata" => {
+            use base64::Engine as _;
+            let file = input
+                .get("file")
+                .and_then(|v| v.as_str())
+                .ok_or("missing input.file")?;
+            let format = kopibon_core::metadata::context::Format::parse_format(
+                input
+                    .get("format")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("pdf"),
+            );
+            let m = meta(input)?;
+            let now = input.get("now").and_then(|v| v.as_i64()).unwrap_or(0);
+            let mtime = input.get("mtime").and_then(|v| v.as_u64()).unwrap_or(0);
+            let dir = std::env::temp_dir().join(format!("cli-apply-{}", std::process::id()));
+            std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+            let ext = if format == kopibon_core::metadata::context::Format::Cbz {
+                "cbz"
+            } else {
+                "pdf"
+            };
+            let target = dir.join(format!("target.{ext}"));
+            std::fs::copy(file, &target).map_err(|e| e.to_string())?;
+            let r = match format {
+                kopibon_core::metadata::context::Format::Cbz => {
+                    kopibon_core::metadata::writers::apply_metadata(
+                        &target,
+                        kopibon_core::metadata::context::Format::Cbz,
+                        &m,
+                        &FixedClock(now),
+                        mtime,
+                    )
+                }
+                kopibon_core::metadata::context::Format::Pdf => {
+                    kopibon_core::metadata::writers::apply_metadata(
+                        &target,
+                        kopibon_core::metadata::context::Format::Pdf,
+                        &m,
+                        &FixedClock(now),
+                        mtime,
+                    )
+                }
+            };
+            let bytes = std::fs::read(&target).map_err(|e| e.to_string())?;
+            let _ = std::fs::remove_dir_all(&dir);
+            match r {
+                Ok(()) => Ok(json!({
+                    "apply": {"success": true},
+                    "bytes": base64::engine::general_purpose::STANDARD.encode(bytes)
+                })),
+                Err(e) => Ok(json!({"apply": {"success": false, "error": e}})),
+            }
+        }
+        "countCbzPages" => {
+            let file = input
+                .get("file")
+                .and_then(|v| v.as_str())
+                .ok_or("missing input.file")?;
+            Ok(json!(
+                kopibon_core::metadata::writers::comicinfo::count_cbz_pages(std::path::Path::new(
+                    file
+                ))?
+            ))
+        }
         "batch" => {
             let items = input
                 .get("items")

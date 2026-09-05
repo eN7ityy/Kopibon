@@ -19,7 +19,7 @@
  */
 
 import { buildSync } from 'esbuild'
-import { mkdtempSync, readFileSync, rmSync } from 'fs'
+import { mkdtempSync, readFileSync, mkdirSync, rmSync } from 'fs'
 import { tmpdir } from 'os'
 import { join, dirname, resolve } from 'path'
 import { fileURLToPath } from 'url'
@@ -39,14 +39,28 @@ export * from '${ROOT}/src/main/services/metadata/file-metadata'
 export * from '${ROOT}/src/main/services/xml-utils'
 export * from '${ROOT}/src/main/services/gallery-filename'
 export * from '${ROOT}/src/main/services/temp-path'
+export * from '${ROOT}/src/main/services/cbz-generator'
+export * from '${ROOT}/src/main/services/apply-metadata'
+export * from '${ROOT}/src/main/services/xmp-inject'
 `
 
 let mod = null
 
 function bundle() {
   if (mod) return mod
-  const outdir = mkdtempSync(join(tmpdir(), 'kopibon-harness-'))
-  const outfile = join(outdir, 'bundle.cjs')
+  // Bundle INSIDE the repo so `require('yazl')` etc. resolve to the repo's
+  // own node_modules (external modules stay unbundled).
+  const outdir = join(ROOT, 'tests/differential/.harness-cache')
+  mkdirSync(outdir, { recursive: true })
+  // Per-process file: parallel differential tests bundle concurrently.
+  const outfile = join(outdir, `bundle-${process.pid}.cjs`)
+  process.on('exit', () => {
+    try {
+      rmSync(outfile, { force: true })
+    } catch {
+      /* best effort */
+    }
+  })
   buildSync({
     stdin: { contents: ENTRY, resolveDir: ROOT, loader: 'ts' },
     bundle: true,
@@ -55,14 +69,28 @@ function bundle() {
     target: 'node22',
     outfile,
     logLevel: 'silent',
+    external: ['sharp', 'yazl', 'yauzl', 'electron'],
   })
   mod = require(outfile)
-  rmSync(outdir, { recursive: true, force: true })
   return mod
 }
 
-/** Run `fn` with `new Date()` / `Date.now()` frozen at `now` (epoch ms). */
+/**
+ * Freeze `new Date()` / `Date.now()` at `now` (epoch ms).
+ *
+ * The patch is process-permanent: each harness invocation is a one-shot
+ * node process, and the async writer paths (applyMetadata's promise
+ * executor) land *after* the synchronous call returns, so a scoped
+ * freeze would miss them (and 1.x's addBuffer default stamps `new Date()`).
+ */
 function withFrozenNow(now, fn) {
+  installFrozenNow(now)
+  return fn()
+}
+let _frozen = false
+function installFrozenNow(now) {
+  if (_frozen) return
+  _frozen = true
   const RealDate = Date
   class FrozenDate extends RealDate {
     constructor(...args) {
@@ -74,11 +102,6 @@ function withFrozenNow(now, fn) {
     }
   }
   globalThis.Date = FrozenDate
-  try {
-    return fn()
-  } finally {
-    globalThis.Date = RealDate
-  }
 }
 
 /** JSON values a template context can carry. Absent key = undefined. */
@@ -97,7 +120,7 @@ function asMeta(raw) {
   return meta
 }
 
-function run(op, input) {
+async function run(op, input) {
   const m = bundle()
   switch (op) {
     case 'renderTemplate':
@@ -150,6 +173,71 @@ function run(op, input) {
       return String(input.n)
     case 'jsToFixed':
       return input.n.toFixed(input.f)
+    case 'generateCbz': {
+      // 1.x generateCbz on synthetic pages: pages arrive as base64; they are
+      // written to a scratch dir with the injected mtime so the ZIP DOS/UT
+      // stamps are deterministic (07-metadata-spec §9).
+      const { mkdtempSync, writeFileSync, utimesSync, chmodSync, readFileSync, rmSync } = await import('fs')
+      const dir = mkdtempSync(join(tmpdir(), 'kopibon-cbz-'))
+      try {
+        const paths = (input.pages ?? []).map((b64, i) => {
+          const p = join(dir, `page-${i}.jpg`)
+          writeFileSync(p, Buffer.from(b64, 'base64'))
+          // addFile stats the source file; pin the mode so the cell is
+          // umask-independent (0644, the S3 observed shape).
+          chmodSync(p, 0o644)
+          const t = new Date(input.mtime * 1000)
+          utimesSync(p, t, t)
+          return p
+        })
+        const out = join(dir, 'out.cbz')
+        // yazl's addBuffer stamps `new Date()` when no mtime is given, so
+        // freeze the clock for the whole write (07-metadata-spec §9).
+        const bytes = withFrozenNow(input.mtime * 1000, () =>
+          m.generateCbz(
+            paths,
+            out,
+            m.makeFileMetadata(asMeta(input.meta)),
+            { quality: null, maxDimension: null }
+          )
+        )
+        await bytes
+        return readFileSync(out).toString('base64')
+      } finally {
+        rmSync(dir, { recursive: true, force: true })
+      }
+    }
+    case 'applyMetadata': {
+      // The 1.x dispatcher: cbz → ComicInfo rewrite, pdf → pikepdf.
+      const { mkdtempSync, copyFileSync, rmSync, readFileSync, utimesSync } = await import('fs')
+      const dir = mkdtempSync(join(tmpdir(), 'kopibon-apply-'))
+      try {
+        const target = join(dir, 'target' + (input.format === 'cbz' ? '.cbz' : '.pdf'))
+        copyFileSync(input.file, target)
+        // Fix the copied file's mtime so the rewritten entries' DOS/UT stamps
+        // are deterministic; the rewrite itself stamps addBuffer with
+        // `new Date()`, so freeze the clock for the cbz path too.
+        const t = new Date(input.mtime * 1000)
+        utimesSync(target, t, t)
+        let result
+        if (input.format === 'cbz') {
+          result = await withFrozenNow(input.mtime * 1000, () =>
+            m.applyMetadata(target, input.format, m.makeFileMetadata(asMeta(input.meta)))
+          )
+        } else {
+          // The PDF path renders the XMP synchronously (before the pikepdf
+          // spawn), so freezing the clock covers MetadataDate / dc:date.
+          result = await withFrozenNow(input.now ?? input.mtime * 1000, () =>
+            m.applyMetadata(target, input.format, m.makeFileMetadata(asMeta(input.meta)))
+          )
+        }
+        return { apply: result, bytes: readFileSync(target).toString('base64') }
+      } finally {
+        rmSync(dir, { recursive: true, force: true })
+      }
+    }
+    case 'countCbzPages':
+      return m.countCbzPages(input.file)
     case 'renderTemplateBatch':
       return input.cases.map((c) => {
         try {
@@ -173,7 +261,7 @@ function run(op, input) {
   }
 }
 
-function main() {
+async function main() {
   const [op, inputFile] = process.argv.slice(2)
   if (!op) {
     console.error('usage: node harness.mjs <op> <input.json|->')
@@ -186,7 +274,7 @@ function main() {
     input = JSON.parse(readFileSync(0, 'utf-8'))
   }
   try {
-    const value = run(op, input)
+    const value = await run(op, input)
     process.stdout.write(JSON.stringify({ ok: true, value }) + '\n')
   } catch (e) {
     process.stdout.write(

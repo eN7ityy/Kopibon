@@ -219,26 +219,29 @@ pub fn resolve_language_name(candidates: &[Option<String>]) -> Option<String> {
     None
 }
 
+/// The JS `\s` set (WhiteSpace + LineTerminator) — differs from Rust's
+/// `char::is_whitespace` in that it also drops U+FEFF and excludes U+0085.
+pub fn is_js_whitespace(c: char) -> bool {
+    matches!(
+        c,
+        '\u{0009}'..='\u{000D}'
+            | '\u{0020}'
+            | '\u{00A0}'
+            | '\u{1680}'
+            | '\u{2000}'..='\u{200A}'
+            | '\u{2028}'
+            | '\u{2029}'
+            | '\u{202F}'
+            | '\u{205F}'
+            | '\u{3000}'
+            | '\u{FEFF}'
+    )
+}
+
 /// JS `String.prototype.trim()` — trims the JS WhiteSpace + LineTerminator
-/// set, which differs from Rust's `char::is_whitespace` in that it also drops
-/// U+FEFF (and Rust's set is otherwise the same for practical input).
+/// set.
 pub fn js_trim(s: &str) -> &str {
-    s.trim_matches(|c: char| {
-        matches!(
-            c,
-            '\u{0009}'..='\u{000D}'
-                | '\u{0020}'
-                | '\u{00A0}'
-                | '\u{1680}'
-                | '\u{2000}'..='\u{200A}'
-                | '\u{2028}'
-                | '\u{2029}'
-                | '\u{202F}'
-                | '\u{205F}'
-                | '\u{3000}'
-                | '\u{FEFF}'
-        )
-    })
+    s.trim_matches(is_js_whitespace)
 }
 
 #[cfg(test)]

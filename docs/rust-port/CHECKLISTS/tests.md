@@ -16,10 +16,10 @@ Phases: A = [../09-migration-phases.md](../09-migration-phases.md) Phase A exits
 - [x] **TA-01** | Template differential (26 seeds) | byte + error strings | inline seeds | `cargo test --test template_differential`
 - [x] **TA-02** | Template fuzz (10k/run; nightly 1M soak clean ×3 before gate) | byte | generated | `cargo test --test template_fuzz -- --ignored`
 - [x] **MA-01** | Mapper differential (58 cases, real templates) | byte | CURRENT-BUILD contexts | `cargo test --test mapper_differential`
-- [ ] **WR-01** | Field × mutation matrix (12 write paths × 4 artefacts) | per §2 (ComicInfo byte w/ Notes excluded per Q11; XMP packet byte; Info+`/Keywords` semantic; ZIP structural byte; DCTDecode pages byte) | golden 1–3 + CURRENT-BUILD | `cargo test --test differential_matrix`
-- [ ] **WR-02** | XMP packet round-trip (S1, 1782 B) | byte | fixture 3 | `cargo test --test pdf_writer -- xmp`
-- [ ] **WR-03** | ZIP structural checklist (S3) + Python zipfile CRC | byte | fixture 1 rebuild | `cargo test --test zip_writer` && `python3 tests/zip/validate.py out.cbz`
-- [ ] **FN-01** | Sanitiser triplet + 251–255-byte Japanese boundary | byte | filename vectors | `cargo test --test filenames`
+- [x] **WR-01** | Field × mutation matrix (12 write paths × 4 artefacts) | per §2 (ComicInfo byte w/ Notes excluded per Q11; XMP packet byte; Info+`/Keywords` semantic; ZIP structural byte; DCTDecode pages byte) | golden 1–3 + CURRENT-BUILD | `cargo test --test differential_matrix`
+- [x] **WR-02** | XMP packet round-trip (S1, 1782 B) | byte | fixture 3 | `cargo test --test pdf_writer -- xmp`
+- [x] **WR-03** | ZIP structural checklist (S3) + Python zipfile CRC | byte | fixture 1 rebuild | `cargo test --test zip_writer` && `python3 tests/zip/validate.py out.cbz`
+- [x] **FN-01** | Sanitiser triplet + 251–255-byte Japanese boundary | byte | filename vectors | `cargo test --test filenames`
 
 ## Scanner / DB / pumps (Phase A)
 

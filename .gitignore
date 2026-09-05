@@ -33,3 +33,4 @@ scripts/*
 
 # Rust build output
 target/
+.harness-cache/

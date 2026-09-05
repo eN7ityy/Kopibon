@@ -8,6 +8,23 @@ use serde::{Deserialize, Serialize};
 /// Reading direction, as ComicInfo spells it (file-metadata.ts:27).
 pub const MANGA_DIRECTIONS: [&str; 3] = ["Yes", "YesAndRightToLeft", "No"];
 
+/// The two output formats (dispatch target of apply-metadata).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Format {
+    Pdf,
+    Cbz,
+}
+
+impl Format {
+    pub fn parse_format(s: &str) -> Format {
+        if s.eq_ignore_ascii_case("cbz") {
+            Format::Cbz
+        } else {
+            Format::Pdf // default, as the dispatcher falls through to PDF
+        }
+    }
+}
+
 /// A JS `Date` reduced to what the mappers need: epoch milliseconds, with
 /// local-timezone Y/M/D (ComicInfo Year/Month/Day use `getFullYear` et al.,
 /// i.e. **local** time) and UTC ISO formatting (`toISOString`, always 3-digit
