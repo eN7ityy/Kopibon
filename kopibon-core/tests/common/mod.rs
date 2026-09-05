@@ -171,3 +171,49 @@ fn env_repo_root() -> String {
         .to_string_lossy()
         .to_string()
 }
+
+/// Run one op on the JS REPO side (the real library.repo/series.repo/
+/// startup-maintenance modules, KOPIBON_DATA_DIR pointing at a scratch copy).
+/// `scratch_dir` is the directory that holds (or will hold) `db.sqlite`.
+pub fn js_repo_op(op: &str, input: &Value, scratch_dir: &std::path::Path) -> Result<Value, String> {
+    let mut cmd = Command::new("node");
+    cmd.arg("tests/differential/repo_harness.mjs")
+        .current_dir(env_repo_root())
+        .env("KOPIBON_DATA_DIR", scratch_dir);
+    match envelope(cmd, op, input)? {
+        (true, v) => Ok(v
+            .get("value")
+            .cloned()
+            .ok_or("JS repo harness envelope missing value")?),
+        (false, v) => Err(v
+            .get("error")
+            .and_then(|e| e.as_str())
+            .unwrap_or("unknown JS repo error")
+            .to_string()),
+    }
+}
+
+/// A fresh scratch dir with `db.sqlite` copied from `src`. Returns the dir.
+pub fn scratch_from(src: &std::path::Path, name: &str) -> std::path::PathBuf {
+    let dir = std::env::temp_dir().join(format!("repo-harness-{name}-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("mkdir scratch");
+    std::fs::copy(src, dir.join("db.sqlite")).expect("copy fixture db");
+    dir
+}
+
+/// Zero out wall-clock columns so JS (ms stamps) and Rust (s stamps) dumps
+/// are comparable; the columns' presence, not their instant, is under test.
+pub fn scrub_timestamps(v: &mut Value, columns: &[&str]) {
+    match v {
+        Value::Array(a) => a.iter_mut().for_each(|x| scrub_timestamps(x, columns)),
+        Value::Object(o) => {
+            for c in columns {
+                if o.contains_key(*c) {
+                    o.insert((*c).to_string(), Value::String("<ts>".into()));
+                }
+            }
+        }
+        _ => {}
+    }
+}

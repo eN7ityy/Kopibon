@@ -18,9 +18,11 @@
 pub mod connection;
 pub mod conversion;
 pub mod library;
+pub mod maintenance;
 pub mod migrator;
 pub mod search;
 pub mod seed;
+pub mod series;
 pub mod settings;
 pub mod sync;
 

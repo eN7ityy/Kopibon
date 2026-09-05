@@ -12,4 +12,5 @@ pub mod kavita;
 pub mod metadata;
 pub mod nhentai;
 pub mod scanner;
+pub mod series_grouping;
 pub mod sync;
