@@ -5,6 +5,10 @@ edition = "2021"
 license = "GPL-3.0-or-later"
 description = "Kopibon 2.x Tauri shell: existing React renderer against kopibon-core (Phase B)"
 
+[lints]
+rust.warnings = "deny"
+clippy.all = "deny"
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
@@ -12,5 +16,7 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = [] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+getrandom = "0.2"
+rusqlite = { version = "0.37" }
 # Phase A core. B1 only needs it to link; B2's command layer calls it.
 kopibon-core = { path = "../kopibon-core" }

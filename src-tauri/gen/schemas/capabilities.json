@@ -1,0 +1,1 @@
+{"default":{"identifier":"default","description":"B1 baseline: core command/event plumbing only. B3 adds plugin permissions (opener, dialog, updater, notification) and the scoped asset protocol.","local":true,"windows":["main"],"permissions":["core:default"]}}

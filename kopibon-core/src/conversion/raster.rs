@@ -179,6 +179,14 @@ fn render_page(page: &PdfPage) -> Result<image::DynamicImage, String> {
     bitmap.as_image().map_err(|e| format!("pdfium bitmap failed: {e}"))
 }
 
+/// Probe that the rasteriser binds (toolchain report). Returns a detail
+/// string for the report; initializes the process-global binding on success
+/// (harmless — the first conversion would do it anyway).
+pub fn probe_library(lib_override: Option<&Path>) -> Result<String, String> {
+    pdfium(lib_override)?;
+    Ok("bundled libpdfium.so (non-V8)".to_string())
+}
+
 /// Render page 1 at 150 DPI — the thumbnail source (the caller downsamples
 /// fit-inside 600×800 q82 through the shared CBZ-scheme encoder).
 pub fn render_first_page(
