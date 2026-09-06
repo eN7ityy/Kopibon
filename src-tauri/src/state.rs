@@ -16,6 +16,7 @@ use std::sync::Mutex;
 
 use crate::api::ApiState;
 use crate::auth::AuthState;
+use crate::commands::updater::UpdaterState;
 use crate::kavita::KavitaState;
 use crate::log::Logger;
 
@@ -47,6 +48,9 @@ pub struct AppState {
     /// Shared `api:*` caches: gallery details + tag autocomplete
     /// (`api.ipc.ts` + `search-settings.ipc.ts` module scope).
     pub api: ApiState,
+    /// Updater status cache + staged update (`updater.ipc.ts`
+    /// `lastUpdateStatus` + electron-updater's staging).
+    pub updater: UpdaterState,
 }
 
 impl AppState {
@@ -64,6 +68,7 @@ impl AppState {
             auth: Mutex::new(auth),
             kavita: Mutex::new(KavitaState::new()),
             api: ApiState::new(),
+            updater: UpdaterState::new(),
         })
     }
 }

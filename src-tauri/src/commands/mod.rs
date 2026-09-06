@@ -29,6 +29,7 @@ pub mod log;
 pub mod search;
 pub mod settings;
 pub mod shell;
+pub mod updater;
 
 use serde_json::Value;
 

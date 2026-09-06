@@ -40,6 +40,7 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             let data_dir = resolve_data_dir(app);
             let state = AppState::open(data_dir).map_err(|e| e.to_string())?;
@@ -65,6 +66,9 @@ fn main() {
                     logger.info("Restored saved API session", None);
                 }
             });
+            // Updater startup check (`registerUpdaterIpc`, :152-154):
+            // fire-and-forget, failures surface via the status event.
+            commands::updater::startup_check(app.handle());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -94,6 +98,10 @@ fn main() {
             commands::search::tags_cache_stats,
             commands::app::app_get_version,
             commands::app::app_check_toolchain,
+            commands::updater::app_check_for_updates,
+            commands::updater::app_download_update,
+            commands::updater::app_install_update,
+            commands::updater::app_get_update_status,
             commands::log::log_write,
             commands::log::log_get_records,
             commands::log::log_set_level,

@@ -41,10 +41,12 @@ fn encrypt_if_sensitive(key: &str, value: &str) -> String {
     }
 }
 
-/// `LIVE_SETTINGS` targets (`settings.ipc.ts:7-12`). No-ops until the
-/// download manager (`downloadConcurrency`) and updater (`releaseChannel`)
-/// land — 1.x `applyLiveSettings` swallows per-key errors, so the save
-/// contract (never fails on apply) already holds.
+/// `LIVE_SETTINGS` targets (`settings.ipc.ts:7-12`). `downloadConcurrency`
+/// stays a no-op until the download manager lands; `releaseChannel` is
+/// handled in the `set`/`setAll` wrappers (it needs the `AppHandle` for
+/// the re-check, which impl fns don't receive). 1.x `applyLiveSettings`
+/// swallows per-key errors, so the save contract (never fails on apply)
+/// already holds.
 fn apply_live_settings(_keys: &[String]) {}
 
 /// `settings:get` (`settings.ipc.ts:51-54`): `(key)` → `string|null`
@@ -156,15 +158,39 @@ pub(crate) fn settings_get_all(state: State<AppState>, args: Vec<Value>) -> Valu
 }
 
 #[tauri::command(rename = "settings:set")]
-pub(crate) fn settings_set(state: State<AppState>, args: Vec<Value>) -> Value {
+pub(crate) fn settings_set(
+    app: tauri::AppHandle,
+    state: State<AppState>,
+    args: Vec<Value>,
+) -> Value {
     let outcome = handle("settings:set", |log| set_impl(&state, &args, log));
+    if outcome.value.get("success").and_then(Value::as_bool) == Some(true)
+        && args.first().and_then(|v| v.as_str()) == Some("releaseChannel")
+    {
+        // `refreshReleaseChannel` (updater.ipc.ts:62-67): re-apply +
+        // immediate check, fire-and-forget.
+        super::updater::refresh_release_channel(&app);
+    }
     forward(&state, "settings:set", outcome.logs);
     outcome.value
 }
 
 #[tauri::command(rename = "settings:setAll")]
-pub(crate) fn settings_set_all(state: State<AppState>, args: Vec<Value>) -> Value {
+pub(crate) fn settings_set_all(
+    app: tauri::AppHandle,
+    state: State<AppState>,
+    args: Vec<Value>,
+) -> Value {
     let outcome = handle("settings:setAll", |log| set_all_impl(&state, &args, log));
+    if outcome.value.get("success").and_then(Value::as_bool) == Some(true)
+        && args
+            .first()
+            .and_then(|v| v.as_object())
+            .map(|obj| obj.contains_key("releaseChannel"))
+            == Some(true)
+    {
+        super::updater::refresh_release_channel(&app);
+    }
     forward(&state, "settings:setAll", outcome.logs);
     outcome.value
 }
