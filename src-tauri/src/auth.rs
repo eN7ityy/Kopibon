@@ -244,6 +244,19 @@ impl AuthState {
         self.client.set_api_key(Some(key), Self::now_ms());
     }
 
+    /// Shared-client access for the `api:*` channels (`api.ipc.ts:55` holds
+    /// the same singleton the auth handlers arm — one client, one limiter).
+    pub fn client_mut(&mut self) -> &mut ApiClient<UreqTransport> {
+        &mut self.client
+    }
+
+    /// `api:setApiKey` (`api.ipc.ts:108-111`): client tier only — no
+    /// persistence, no flags (unlike `auth:validateKey`). `None` drops to
+    /// anonymous limits, mirroring `setApiKey(null)`.
+    pub fn set_api_key_opt(&mut self, key: Option<&str>) {
+        self.client.set_api_key(key, Self::now_ms());
+    }
+
     /// `auth:clearKey` (`auth.ipc.ts:120-127`): anonymous limits, row
     /// deleted, flags dropped.
     pub fn clear_key(&mut self, db: &Db) -> Result<(), String> {

@@ -17,6 +17,7 @@
 
 pub mod connection;
 pub mod conversion;
+pub mod blocked;
 pub mod download;
 pub mod gallery;
 pub mod library;

@@ -21,10 +21,12 @@
 //! each command indexes its params and treats JSON null as absent, matching
 //! the preload's `?? default` idioms.
 
+pub mod api;
 pub mod app;
 pub mod auth;
 pub mod kavita;
 pub mod log;
+pub mod search;
 pub mod settings;
 pub mod shell;
 

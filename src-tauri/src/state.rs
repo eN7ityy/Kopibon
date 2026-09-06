@@ -14,6 +14,7 @@ use serde_json::Value;
 use std::path::PathBuf;
 use std::sync::Mutex;
 
+use crate::api::ApiState;
 use crate::auth::AuthState;
 use crate::kavita::KavitaState;
 use crate::log::Logger;
@@ -43,6 +44,9 @@ pub struct AppState {
     /// Kavita shell state: blocking transport + status-bar count cache
     /// (`kavita-client.ts` module scope: client singleton, `itemCountCache`).
     pub kavita: Mutex<KavitaState>,
+    /// Shared `api:*` caches: gallery details + tag autocomplete
+    /// (`api.ipc.ts` + `search-settings.ipc.ts` module scope).
+    pub api: ApiState,
 }
 
 impl AppState {
@@ -59,6 +63,7 @@ impl AppState {
             logger,
             auth: Mutex::new(auth),
             kavita: Mutex::new(KavitaState::new()),
+            api: ApiState::new(),
         })
     }
 }

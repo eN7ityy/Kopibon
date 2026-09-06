@@ -8,6 +8,7 @@
 //! (the `handle.ts` port) and `events.rs`; B3 adds the plugins, bootstrap
 //! parity and polls→push.
 
+mod api;
 mod auth;
 mod commands;
 mod envelope;
@@ -67,6 +68,29 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             ping,
+            commands::api::api_search,
+            commands::api::api_get_latest,
+            commands::api::api_get_popular,
+            commands::api::api_get_gallery,
+            commands::api::api_get_cdn_config,
+            commands::api::api_get_config,
+            commands::api::api_set_api_key,
+            commands::api::api_get_favorites,
+            commands::api::api_get_user,
+            commands::api::api_get_related_galleries,
+            commands::api::api_add_favorite,
+            commands::api::api_remove_favorite,
+            commands::api::tags_autocomplete,
+            commands::search::search_settings_get,
+            commands::search::search_settings_set,
+            commands::search::search_settings_build_query,
+            commands::search::tags_resolve_for_galleries,
+            commands::search::search_evaluate_results,
+            commands::search::blocked_list,
+            commands::search::blocked_add,
+            commands::search::blocked_set_mode,
+            commands::search::blocked_remove,
+            commands::search::tags_cache_stats,
             commands::app::app_get_version,
             commands::app::app_check_toolchain,
             commands::log::log_write,

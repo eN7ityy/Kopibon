@@ -73,6 +73,12 @@ impl TagCacheStore for SqliteTagCache<'_> {
     }
 }
 
+/// tag-cache row count (`tag-cache.repo.ts:61-66` `count()`).
+pub fn tag_cache_count(conn: &Connection) -> Result<i64, String> {
+    conn.query_row("SELECT COUNT(*) FROM tag_cache", [], |r| r.get(0))
+        .map_err(|e| e.to_string())
+}
+
 /// The client surface the resolver needs (getTagsByIds), so tests can fake it.
 pub trait TagsClient {
     /// 100 ids max, deduped, positive integers only — the caller batches.
