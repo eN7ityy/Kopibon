@@ -29,3 +29,11 @@ pub mod settings;
 pub mod sync;
 
 pub use connection::Db;
+
+/// `unixepoch()` equivalent for stamping new writes (03-data-model §10.5).
+pub fn now_s() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0)
+}
