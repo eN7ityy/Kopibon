@@ -20,6 +20,8 @@ mod freshness;
 mod kavita;
 mod library;
 mod log;
+#[cfg(test)]
+mod session;
 mod state;
 
 use state::AppState;

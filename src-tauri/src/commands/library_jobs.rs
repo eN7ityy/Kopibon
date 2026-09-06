@@ -576,7 +576,19 @@ pub(crate) fn convert_to_cbz_impl(
             let item = state
                 .db
                 .with_reader(|conn| kopibon_core::conversion::fetch_item(conn, &stored))
-                .map_err(CommandError::Thrown)?;
+                .map_err(CommandError::Thrown)?
+                .map(|mut fetched| {
+                    // The worker command carries the RESOLVED absolute path
+                    // (library.ipc.ts:3151) — same one-liner as the core
+                    // batch loop (conversion/mod.rs:299).
+                    fetched.file_path = kopibon_core::download::resolve_library_path(
+                        &stored,
+                        library_root_setting.trim(),
+                    )
+                    .to_string_lossy()
+                    .to_string();
+                    fetched
+                });
             let outcome = match item {
                 None => {
                     state
