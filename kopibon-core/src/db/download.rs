@@ -101,16 +101,19 @@ pub fn find_active_by_gallery_id(conn: &Connection, gallery_id: i64) -> Result<O
 }
 
 /// insert (download.repo.ts). `started_at_s`/`completed_at_s` are seconds
-/// (port rule) — pass None for the usual defaults.
+/// (port rule) — pass None for the usual defaults. `output_directory` is
+/// the per-download override (`addToQueue`), None → column default NULL
+/// (the pipeline falls back to the library root).
 pub fn insert(
     conn: &Connection,
     gallery_id: i64,
     output_format: &str,
     priority: Option<i64>,
+    output_directory: Option<&str>,
 ) -> Result<i64, String> {
     conn.execute(
-        "INSERT INTO download_queue (gallery_id, output_format, priority) VALUES (?, ?, ?)",
-        rusqlite::params![gallery_id, output_format, priority.unwrap_or(0)],
+        "INSERT INTO download_queue (gallery_id, output_format, priority, output_directory) VALUES (?, ?, ?, ?)",
+        rusqlite::params![gallery_id, output_format, priority.unwrap_or(0), output_directory],
     )
     .map_err(|e| e.to_string())?;
     Ok(conn.last_insert_rowid())
@@ -243,4 +246,24 @@ pub fn delete_pages(conn: &Connection, queue_id: i64) -> Result<(), String> {
     conn.execute("DELETE FROM download_page WHERE queue_id = ?", [queue_id])
         .map_err(|e| e.to_string())?;
     Ok(())
+}
+
+/// Sidebar badge counts (download.repo.ts:109-131): active =
+/// downloading/converting, queued = queued/paused.
+pub fn status_counts(conn: &Connection) -> Result<(i64, i64), String> {
+    let active: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM download_queue WHERE status IN ('downloading', 'converting')",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+    let queued: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM download_queue WHERE status IN ('queued', 'paused')",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+    Ok((active, queued))
 }

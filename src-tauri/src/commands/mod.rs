@@ -24,6 +24,7 @@
 pub mod api;
 pub mod app;
 pub mod auth;
+pub mod download;
 pub mod kavita;
 pub mod log;
 pub mod search;

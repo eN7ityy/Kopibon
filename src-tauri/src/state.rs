@@ -17,6 +17,7 @@ use std::sync::Mutex;
 use crate::api::ApiState;
 use crate::auth::AuthState;
 use crate::commands::updater::UpdaterState;
+use crate::download::DownloadManager;
 use crate::kavita::KavitaState;
 use crate::log::Logger;
 
@@ -51,6 +52,9 @@ pub struct AppState {
     /// Updater status cache + staged update (`updater.ipc.ts`
     /// `lastUpdateStatus` + electron-updater's staging).
     pub updater: UpdaterState,
+    /// Download pump state: in-flight flags, CDN health, concurrency
+    /// (`DownloadManager` singleton + module maps).
+    pub download: DownloadManager,
 }
 
 impl AppState {
@@ -69,6 +73,7 @@ impl AppState {
             kavita: Mutex::new(KavitaState::new()),
             api: ApiState::new(),
             updater: UpdaterState::new(),
+            download: DownloadManager::new(),
         })
     }
 }

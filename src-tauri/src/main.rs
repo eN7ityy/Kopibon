@@ -12,6 +12,7 @@ mod api;
 mod auth;
 mod commands;
 mod diagnostics;
+mod download;
 mod envelope;
 mod events;
 mod kavita;
@@ -41,6 +42,7 @@ fn main() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_notification::init())
         .setup(|app| {
             let data_dir = resolve_data_dir(app);
             let state = AppState::open(data_dir).map_err(|e| e.to_string())?;
@@ -69,6 +71,13 @@ fn main() {
             // Updater startup check (`registerUpdaterIpc`, :152-154):
             // fire-and-forget, failures surface via the status event.
             commands::updater::startup_check(app.handle());
+            // Download reconcile + resume (`index.ts` boot: reconcile
+            // interrupted rows, apply concurrency, process the queue).
+            {
+                use tauri::Manager;
+                let state: tauri::State<AppState> = app.state();
+                state.download.startup(app.handle(), &state);
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -96,6 +105,19 @@ fn main() {
             commands::search::blocked_set_mode,
             commands::search::blocked_remove,
             commands::search::tags_cache_stats,
+            commands::download::download_get_all,
+            commands::download::download_get_by_id,
+            commands::download::download_get_by_status,
+            commands::download::download_get_by_gallery_id,
+            commands::download::download_add_to_queue,
+            commands::download::download_remove,
+            commands::download::download_pause,
+            commands::download::download_resume,
+            commands::download::download_cancel,
+            commands::download::download_pause_all,
+            commands::download::download_resume_all,
+            commands::download::download_get_pages,
+            commands::download::download_get_status_counts,
             commands::app::app_get_version,
             commands::app::app_check_toolchain,
             commands::updater::app_check_for_updates,

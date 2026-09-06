@@ -69,11 +69,7 @@ pub fn entries(conn: &Connection) -> Result<Vec<BlockedEntry>, String> {
     for row in rows {
         let (type_, value, mode) = row.map_err(|e| e.to_string())?;
         if BLOCKED_TYPES.contains(&type_.as_str()) && is_valid_mode(&mode) {
-            out.push(BlockedEntry {
-                type_: type_,
-                value,
-                mode,
-            });
+            out.push(BlockedEntry { type_, value, mode });
         }
     }
     Ok(out)

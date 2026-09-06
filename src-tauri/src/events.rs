@@ -27,9 +27,8 @@ use serde_json::Value;
 use tauri::{AppHandle, Emitter};
 
 /// Broadcast an event channel with a JSON payload (all-windows default).
-/// First emitter lands with the download commands (B2); allow-listed until
-/// then (workspace deny-warnings discipline — see Cargo.toml `[lints]`).
-#[allow(dead_code)]
+/// First emitter is the download pump (`download:progress`); the per-event
+/// table above stays current as channels land.
 pub fn emit(app: &AppHandle, channel: &str, payload: Value) {
     let _ = app.emit(channel, payload);
 }

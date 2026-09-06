@@ -177,6 +177,7 @@ majors. Sources: 08-subsystem-plans 01–08 as cited.
 | `tauri-plugin-updater` 2.11.0 (08, B2-app) | **Apache-2.0 OR MIT (verified** against the crate `Cargo.toml` at adoption) | Notice preservation | Generated notices file. `app:checkForUpdates/downloadUpdate/installUpdate/getUpdateStatus` backend; feed endpoints + pubkey are release-plan wiring (until then checks error → `{state:'error'}`, same as 1.x without publish config) |
 | `semver` 1.0.28 (08, B2-app) | **MIT OR Apache-2.0 (verified** against the crate `Cargo.toml` at adoption) | Notice preservation | Generated notices file. Channel-aware update comparator (`allowPrerelease` semantics: stable skips prereleases) |
 | `notify-rust` (08) | MIT OR Apache-2.0 | Notice preservation | Generated notices file |
+| `tauri-plugin-notification` 2.4.0 (08, B2-download) | **Apache-2.0 OR MIT (verified** against the crate `Cargo.toml` at adoption) | Notice preservation | Generated notices file. Download-completion toast (`showNotifications !== 'false'`); Rust-side calls only |
 | `webview2-com` family (08, Windows) | MIT | Notice preservation + licence text of the loader DLL | Generated notices file; verify which crates land in the lockfile |
 
 Anything adopted later that is not in this table must be added to it and to the

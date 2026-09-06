@@ -41,12 +41,11 @@ fn encrypt_if_sensitive(key: &str, value: &str) -> String {
     }
 }
 
-/// `LIVE_SETTINGS` targets (`settings.ipc.ts:7-12`). `downloadConcurrency`
-/// stays a no-op until the download manager lands; `releaseChannel` is
-/// handled in the `set`/`setAll` wrappers (it needs the `AppHandle` for
-/// the re-check, which impl fns don't receive). 1.x `applyLiveSettings`
-/// swallows per-key errors, so the save contract (never fails on apply)
-/// already holds.
+/// `LIVE_SETTINGS` (`settings.ipc.ts:7-12`): both live targets
+/// (`downloadConcurrency` → manager, `releaseChannel` → updater re-check)
+/// are handled in the `set`/`setAll` wrappers — they need the `AppHandle`,
+/// which impl fns don't receive. 1.x `applyLiveSettings` swallows
+/// per-key errors, so the save contract (never fails on apply) holds.
 fn apply_live_settings(_keys: &[String]) {}
 
 /// `settings:get` (`settings.ipc.ts:51-54`): `(key)` → `string|null`
@@ -164,12 +163,18 @@ pub(crate) fn settings_set(
     args: Vec<Value>,
 ) -> Value {
     let outcome = handle("settings:set", |log| set_impl(&state, &args, log));
-    if outcome.value.get("success").and_then(Value::as_bool) == Some(true)
-        && args.first().and_then(|v| v.as_str()) == Some("releaseChannel")
-    {
+    if outcome.value.get("success").and_then(Value::as_bool) == Some(true) {
         // `refreshReleaseChannel` (updater.ipc.ts:62-67): re-apply +
         // immediate check, fire-and-forget.
-        super::updater::refresh_release_channel(&app);
+        if args.first().and_then(|v| v.as_str()) == Some("releaseChannel") {
+            super::updater::refresh_release_channel(&app);
+        }
+        // `downloadConcurrency → manager` (settings.ipc.ts:7-12).
+        if args.first().and_then(|v| v.as_str()) == Some("downloadConcurrency")
+            && state.download.apply_concurrency_from_settings(&state.db)
+        {
+            state.download.kick(&app);
+        }
     }
     forward(&state, "settings:set", outcome.logs);
     outcome.value
@@ -182,14 +187,21 @@ pub(crate) fn settings_set_all(
     args: Vec<Value>,
 ) -> Value {
     let outcome = handle("settings:setAll", |log| set_all_impl(&state, &args, log));
-    if outcome.value.get("success").and_then(Value::as_bool) == Some(true)
-        && args
-            .first()
-            .and_then(|v| v.as_object())
-            .map(|obj| obj.contains_key("releaseChannel"))
-            == Some(true)
-    {
-        super::updater::refresh_release_channel(&app);
+    if outcome.value.get("success").and_then(Value::as_bool) == Some(true) {
+        let touches = |key: &str| {
+            args.first()
+                .and_then(|v| v.as_object())
+                .map(|obj| obj.contains_key(key))
+                == Some(true)
+        };
+        if touches("releaseChannel") {
+            super::updater::refresh_release_channel(&app);
+        }
+        if touches("downloadConcurrency")
+            && state.download.apply_concurrency_from_settings(&state.db)
+        {
+            state.download.kick(&app);
+        }
     }
     forward(&state, "settings:setAll", outcome.logs);
     outcome.value
