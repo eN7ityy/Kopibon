@@ -323,6 +323,164 @@ impl<'a, T: Transport> KavitaClient<'a, T> {
         }
         deleted
     }
+
+    /// getSeries (:456-492): one series' detail. Never throws; `None` when
+    /// unconfigured, unreachable, or gone.
+    pub fn get_series(&self, series_id: i64) -> Option<SeriesDetail> {
+        let s = self
+            .request("GET", &format!("/api/Series/{series_id}"), None, None, None)
+            .ok()??;
+        let str_or_empty = |key: &str| {
+            s.get(key)
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string()
+        };
+        Some(SeriesDetail {
+            id: s.get("id").and_then(Value::as_i64).unwrap_or(series_id),
+            name: str_or_empty("name"),
+            library_id: s.get("libraryId").and_then(Value::as_i64).unwrap_or(0),
+            library_name: str_or_empty("libraryName"),
+            page_count: s.get("pages").and_then(Value::as_i64).unwrap_or(0),
+            format: s
+                .get("format")
+                .and_then(Value::as_i64)
+                .map(manga_format_name)
+                .unwrap_or("Unknown")
+                .to_string(),
+            last_updated: s
+                .get("lastChapterAdded")
+                .and_then(Value::as_str)
+                .filter(|v| !v.is_empty())
+                .map(str::to_string),
+            pages_read: s.get("pagesRead").and_then(Value::as_i64),
+            total_reads: s.get("totalReads").and_then(Value::as_i64),
+            chapter_id: None,
+            chapter_title: None,
+            chapter_count: None,
+        })
+    }
+
+    /// findChapter (:544-589): the chapter owning a file. The file's
+    /// basename (either separator — Kavita reports Windows paths) matches
+    /// case-insensitively; the chapter count spans ALL volumes even after
+    /// the match is found (the count loop is not gated on `!match`).
+    pub fn find_chapter(&self, series_id: i64, file_path: &str) -> Option<ChapterRef> {
+        let needle = file_path
+            .rsplit(['/', '\\'])
+            .next()
+            .unwrap_or_default()
+            .to_lowercase();
+        let volumes = self
+            .request(
+                "GET",
+                &format!("/api/Series/volumes?seriesId={series_id}"),
+                None,
+                None,
+                None,
+            )
+            .ok()??;
+        let volumes = volumes.as_array()?;
+        let mut chapter_count = 0i64;
+        let mut found: Option<(i64, Option<String>)> = None;
+        for volume in volumes {
+            let chapters: &[Value] = volume
+                .get("chapters")
+                .and_then(Value::as_array)
+                .map(Vec::as_slice)
+                .unwrap_or(&[]);
+            chapter_count += chapters.len() as i64;
+            if found.is_none() {
+                for chapter in chapters {
+                    let files: &[Value] = chapter
+                        .get("files")
+                        .and_then(Value::as_array)
+                        .map(Vec::as_slice)
+                        .unwrap_or(&[]);
+                    for file in files {
+                        let candidate = file
+                            .get("filePath")
+                            .and_then(Value::as_str)
+                            .unwrap_or_default()
+                            .rsplit(['/', '\\'])
+                            .next()
+                            .unwrap_or_default()
+                            .to_lowercase();
+                        if !candidate.is_empty() && candidate == needle {
+                            found = Some((
+                                chapter.get("id").and_then(Value::as_i64).unwrap_or(0),
+                                chapter
+                                    .get("title")
+                                    .and_then(Value::as_str)
+                                    .filter(|t| !t.is_empty())
+                                    .map(str::to_string),
+                            ));
+                            break;
+                        }
+                    }
+                    if found.is_some() {
+                        break;
+                    }
+                }
+            }
+        }
+        found.map(|(id, title)| ChapterRef {
+            id,
+            title,
+            chapter_count,
+        })
+    }
+
+    /// findSeriesDetail (:500-535): series name first (a member is indexed
+    /// under the series name, not the chapter title), item title as
+    /// fallback; exact case-insensitive match preferred over first hit;
+    /// chapter resolution when a file path is given. Never throws.
+    pub fn find_series_detail(
+        &self,
+        series_name: &str,
+        title: &str,
+        file_path: Option<&str>,
+    ) -> Option<SeriesDetail> {
+        let name = series_name.trim();
+        let mut results = if name.is_empty() {
+            Vec::new()
+        } else {
+            self.search_series(name)
+        };
+        let fallback = title.trim();
+        if results.is_empty() && !fallback.is_empty() {
+            results = self.search_series(fallback);
+        }
+        if results.is_empty() {
+            return None;
+        }
+        let target = if !name.is_empty() { name } else { fallback }.to_lowercase();
+        let best = results
+            .iter()
+            .find(|r| {
+                r.get("name")
+                    .and_then(Value::as_str)
+                    .map(|n| n.to_lowercase() == target)
+                    .unwrap_or(false)
+            })
+            .or_else(|| results.first())?;
+        // The core's search_series returns the raw response items
+        // (`seriesId`, `name`) — 1.x maps to `{id, name}` first
+        // (:437-440); accept both shapes here.
+        let series_id = best
+            .get("seriesId")
+            .and_then(Value::as_i64)
+            .or_else(|| best.get("id").and_then(Value::as_i64))?;
+        let mut detail = self.get_series(series_id)?;
+        if let Some(path) = file_path {
+            if let Some(chapter) = self.find_chapter(series_id, path) {
+                detail.chapter_id = Some(chapter.id);
+                detail.chapter_title = chapter.title;
+                detail.chapter_count = Some(chapter.chapter_count);
+            }
+        }
+        Some(detail)
+    }
 }
 
 /// De-chunk a possibly chunked HTTP body: `hexlen CRLF bytes CRLF ... 0`.
@@ -367,6 +525,94 @@ pub fn dechunk(body: &str) -> String {
     } else {
         body.to_string()
     }
+}
+
+/// `LIBRARY_TYPE_NAMES` (kavita-client.ts:46-53): 0 Manga · 1 Comic · 2
+/// Book · 3 Image · 4 Light Novel · 5 Comic. Unknown codes → '' (the
+/// `?? ''` fallback in `getLibraries`).
+pub fn library_type_name(code: i64) -> &'static str {
+    match code {
+        0 => "Manga",
+        1 => "Comic",
+        2 => "Book",
+        3 => "Image",
+        4 => "Light Novel",
+        5 => "Comic",
+        _ => "",
+    }
+}
+
+/// `MANGA_FORMAT_NAMES` (kavita-client.ts:59-65): 0 Image · 1 Archive · 2
+/// Unknown · 3 EPUB · 4 PDF. Unknown codes → 'Unknown'.
+pub fn manga_format_name(code: i64) -> &'static str {
+    match code {
+        0 => "Image",
+        1 => "Archive",
+        2 => "Unknown",
+        3 => "EPUB",
+        4 => "PDF",
+        _ => "Unknown",
+    }
+}
+
+/// `KavitaSeriesDetail` (kavita-client.ts:67-97). Optional fields are
+/// `None` when absent — the IPC layer omits them (structured clone drops
+/// 1.x's `undefined` the same way).
+#[derive(Debug, Clone, PartialEq)]
+pub struct SeriesDetail {
+    pub id: i64,
+    pub name: String,
+    pub library_id: i64,
+    pub library_name: String,
+    pub page_count: i64,
+    pub format: String,
+    pub last_updated: Option<String>,
+    pub pages_read: Option<i64>,
+    pub total_reads: Option<i64>,
+    pub chapter_id: Option<i64>,
+    pub chapter_title: Option<String>,
+    pub chapter_count: Option<i64>,
+}
+
+impl SeriesDetail {
+    /// Envelope-ready JSON: `None` fields are omitted, never `null`
+    /// (1.x leaves them `undefined`, which does not survive the clone).
+    pub fn to_value(&self) -> Value {
+        let mut out = serde_json::Map::new();
+        out.insert("id".to_string(), json!(self.id));
+        out.insert("name".to_string(), json!(self.name));
+        out.insert("libraryId".to_string(), json!(self.library_id));
+        out.insert("libraryName".to_string(), json!(self.library_name));
+        out.insert("pageCount".to_string(), json!(self.page_count));
+        out.insert("format".to_string(), json!(self.format.clone()));
+        if let Some(v) = &self.last_updated {
+            out.insert("lastUpdated".to_string(), json!(v));
+        }
+        if let Some(v) = self.pages_read {
+            out.insert("pagesRead".to_string(), json!(v));
+        }
+        if let Some(v) = self.total_reads {
+            out.insert("totalReads".to_string(), json!(v));
+        }
+        if let Some(v) = self.chapter_id {
+            out.insert("chapterId".to_string(), json!(v));
+        }
+        if let Some(v) = &self.chapter_title {
+            out.insert("chapterTitle".to_string(), json!(v));
+        }
+        if let Some(v) = self.chapter_count {
+            out.insert("chapterCount".to_string(), json!(v));
+        }
+        Value::Object(out)
+    }
+}
+
+/// A chapter hit for the reader-link resolution.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ChapterRef {
+    pub id: i64,
+    pub title: Option<String>,
+    pub chapter_count: i64,
 }
 
 /// The library-id guard the acceptance harness uses: refuse the production

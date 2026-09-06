@@ -82,12 +82,12 @@ pub(crate) fn get_retention_impl(
     Ok(json!({ "success": true, "data": state.logger.retention_days() }))
 }
 
-#[tauri::command]
+#[tauri::command(rename = "log:write")]
 pub(crate) fn log_write(state: State<AppState>, args: Vec<Value>) {
     write_impl(&state, &args);
 }
 
-#[tauri::command]
+#[tauri::command(rename = "log:getRecords")]
 pub(crate) fn log_get_records(state: State<AppState>, args: Vec<Value>) -> Value {
     let outcome = handle("log:getRecords", |_log| {
         let _ = &args;
@@ -97,17 +97,17 @@ pub(crate) fn log_get_records(state: State<AppState>, args: Vec<Value>) -> Value
     outcome.value
 }
 
-#[tauri::command]
+#[tauri::command(rename = "log:setLevel")]
 pub(crate) fn log_set_level(state: State<AppState>, args: Vec<Value>) -> Value {
     set_level_impl(&state, &args)
 }
 
-#[tauri::command]
+#[tauri::command(rename = "log:getLevel")]
 pub(crate) fn log_get_level(state: State<AppState>, _args: Vec<Value>) -> Value {
     get_level_impl(&state)
 }
 
-#[tauri::command]
+#[tauri::command(rename = "log:setRetention")]
 pub(crate) fn log_set_retention(state: State<AppState>, args: Vec<Value>) -> Value {
     let outcome = handle("log:setRetention", |log| {
         set_retention_impl(&state, &args, log)
@@ -116,7 +116,7 @@ pub(crate) fn log_set_retention(state: State<AppState>, args: Vec<Value>) -> Val
     outcome.value
 }
 
-#[tauri::command]
+#[tauri::command(rename = "log:getRetention")]
 pub(crate) fn log_get_retention(state: State<AppState>, args: Vec<Value>) -> Value {
     let outcome = handle("log:getRetention", |log| {
         get_retention_impl(&state, &args, log)

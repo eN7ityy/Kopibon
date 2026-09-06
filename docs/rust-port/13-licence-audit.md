@@ -171,8 +171,8 @@ majors. Sources: 08-subsystem-plans 01–08 as cited.
 | `rustls` (+ `ring` or `aws-lc-rs` backend) (04) | MIT OR Apache-2.0 OR ISC; backend `ring` carries an **OpenSSL-derived** component with extra attribution terms — verify the exact notices text; `aws-lc-rs` is Apache-2.0 **verify at adoption** | Notice preservation + OpenSSL attribution if `ring` | Generated notices file; TLS backend choice recorded here when made |
 | `serde`, `serde_json` (04, 07) | MIT OR Apache-2.0 | Notice preservation | Generated notices file |
 | `tauri` (08) | MIT OR Apache-2.0 | Notice preservation | Generated notices file |
-| `tauri-plugin-opener` (08) | MIT OR Apache-2.0 | Notice preservation | Generated notices file |
-| `tauri-plugin-dialog` (08) | MIT OR Apache-2.0 | Notice preservation | Generated notices file |
+| `tauri-plugin-opener` 2.5.5 (08, B2-shell) | **Apache-2.0 OR MIT (verified** against the crate `Cargo.toml` at adoption) | Notice preservation | Generated notices file. `shell:*` backend (`open_url`/`open_path`/`reveal_item_in_dir`); registered via `.plugin()` in `main.rs`, Rust-side calls only (no capability entries needed — the renderer never touches plugin JS) |
+| `tauri-plugin-dialog` 2.7.3 (08, B2-shell) | **Apache-2.0 OR MIT (verified** against the crate `Cargo.toml` at adoption) | Notice preservation | Generated notices file. `dialog:*` backend (blocking picks — sync Tauri commands run off the main thread); pulls `tauri-plugin-fs` 2.5.2 (**Apache-2.0 OR MIT, verified**) for `FilePath` |
 | `tauri-plugin-updater` (08) | MIT OR Apache-2.0 | Notice preservation | Generated notices file |
 | `notify-rust` (08) | MIT OR Apache-2.0 | Notice preservation | Generated notices file |
 | `webview2-com` family (08, Windows) | MIT | Notice preservation + licence text of the loader DLL | Generated notices file; verify which crates land in the lockfile |

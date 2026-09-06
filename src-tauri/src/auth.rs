@@ -70,6 +70,13 @@ pub fn decrypt_key(account: &str, stored: &str) -> String {
     stored.to_string()
 }
 
+/// Raw `app_settings` read (no decryption) for non-credential keys.
+/// Small helper so the kavita/settings layers share one reader.
+pub fn stored_setting(db: &Db, key: &str) -> Option<String> {
+    db.with_reader(|conn| kopibon_core::db::settings::get(conn, key))
+        .ok()?
+}
+
 /// Currently stored (decrypted) nhentai API key, if any
 /// (`getStoredApiKey`, `auth.ipc.ts:39-47`). Decryption failure degrades to
 /// `None` via the caller's catch — a marker that no longer resolves yields
@@ -100,6 +107,19 @@ impl UreqTransport {
         UreqTransport {
             agent: ureq::Agent::config_builder()
                 .http_status_as_error(false)
+                .build()
+                .into(),
+        }
+    }
+
+    /// Transport with a global per-call timeout (`REQUEST_TIMEOUT_MS`,
+    /// kavita-client.ts:116 — the Kavita shell calls give up after 10 s).
+    /// The nhentai auth transport keeps no timeout (1.x fetch has none).
+    pub fn with_global_timeout(timeout: std::time::Duration) -> Self {
+        UreqTransport {
+            agent: ureq::Agent::config_builder()
+                .http_status_as_error(false)
+                .timeout_global(Some(timeout))
                 .build()
                 .into(),
         }

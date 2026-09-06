@@ -105,7 +105,7 @@ pub(crate) fn rate_limits_impl(
     Ok(json!({ "success": true, "data": { "authenticated": authenticated, "buckets": buckets } }))
 }
 
-#[tauri::command]
+#[tauri::command(rename = "auth:validateKey")]
 pub(crate) fn auth_validate_key(state: State<AppState>, args: Vec<Value>) -> Value {
     let outcome = handle("auth:validateKey", |log| {
         validate_key_impl(&state, &args, log)
@@ -114,7 +114,7 @@ pub(crate) fn auth_validate_key(state: State<AppState>, args: Vec<Value>) -> Val
     outcome.value
 }
 
-#[tauri::command]
+#[tauri::command(rename = "auth:getAuthStatus")]
 pub(crate) fn auth_get_auth_status(state: State<AppState>, args: Vec<Value>) -> Value {
     let _ = &args;
     let outcome = handle("auth:getAuthStatus", |_log| auth_status_impl(&state));
@@ -122,21 +122,21 @@ pub(crate) fn auth_get_auth_status(state: State<AppState>, args: Vec<Value>) -> 
     outcome.value
 }
 
-#[tauri::command]
+#[tauri::command(rename = "auth:setKey")]
 pub(crate) fn auth_set_key(state: State<AppState>, args: Vec<Value>) -> Value {
     let outcome = handle("auth:setKey", |log| set_key_impl(&state, &args, log));
     forward(&state, "auth:setKey", outcome.logs);
     outcome.value
 }
 
-#[tauri::command]
+#[tauri::command(rename = "auth:clearKey")]
 pub(crate) fn auth_clear_key(state: State<AppState>, args: Vec<Value>) -> Value {
     let outcome = handle("auth:clearKey", |log| clear_key_impl(&state, &args, log));
     forward(&state, "auth:clearKey", outcome.logs);
     outcome.value
 }
 
-#[tauri::command]
+#[tauri::command(rename = "auth:getRateLimits")]
 pub(crate) fn auth_get_rate_limits(state: State<AppState>, args: Vec<Value>) -> Value {
     let outcome = handle("auth:getRateLimits", |log| {
         rate_limits_impl(&state, &args, log)

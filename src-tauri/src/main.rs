@@ -12,6 +12,7 @@ mod auth;
 mod commands;
 mod envelope;
 mod events;
+mod kavita;
 mod log;
 mod state;
 
@@ -35,6 +36,8 @@ fn resolve_data_dir(app: &tauri::App) -> std::path::PathBuf {
 
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let data_dir = resolve_data_dir(app);
             let state = AppState::open(data_dir).map_err(|e| e.to_string())?;
@@ -82,6 +85,15 @@ fn main() {
             commands::settings::settings_set,
             commands::settings::settings_set_all,
             commands::settings::settings_delete,
+            commands::shell::shell_open_external,
+            commands::shell::shell_open_path,
+            commands::shell::shell_show_item_in_folder,
+            commands::shell::dialog_open_file,
+            commands::shell::dialog_open_directory,
+            commands::kavita::kavita_test_connection,
+            commands::kavita::kavita_get_libraries,
+            commands::kavita::kavita_get_item_count,
+            commands::kavita::kavita_get_series_detail,
         ])
         .run(tauri::generate_context!())
         .expect("failed to run kopibon");

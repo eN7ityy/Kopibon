@@ -76,7 +76,7 @@ fn build_report() -> Value {
     json!({ "ok": ok, "tools": tools, "installHint": "" })
 }
 
-#[tauri::command]
+#[tauri::command(rename = "app:getVersion")]
 pub(crate) fn app_get_version(_args: Vec<Value>) -> Value {
     let outcome = handle("app:getVersion", |_log| get_version_impl());
     // No state: nothing to forward to (a fast infallible command logs nothing).
@@ -84,7 +84,7 @@ pub(crate) fn app_get_version(_args: Vec<Value>) -> Value {
     outcome.value
 }
 
-#[tauri::command]
+#[tauri::command(rename = "app:checkToolchain")]
 pub(crate) fn app_check_toolchain(state: State<AppState>, args: Vec<Value>) -> Value {
     let outcome = handle("app:checkToolchain", |log| {
         check_toolchain_impl(&state, &args, log)

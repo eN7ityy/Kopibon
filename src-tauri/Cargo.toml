@@ -22,3 +22,5 @@ rusqlite = { version = "0.37" }
 kopibon-core = { path = "../kopibon-core" }
 ureq = "3.4.0"
 keyring = "4.2.0"
+tauri-plugin-opener = "2.5.5"
+tauri-plugin-dialog = "2.7.3"

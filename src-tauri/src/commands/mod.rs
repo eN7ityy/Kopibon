@@ -8,9 +8,14 @@
 //!
 //! // Dumb wrapper: envelope + stderr mirror. Too small to misbehave;
 //! // B2's contract suite drives the wrapper through the real invoke loop.
-//! #[tauri::command]
+//! #[tauri::command(rename = "namespace:channel")]
 //! fn channel_name(state: State<AppState>, args: Vec<Value>) -> Value { … }
 //! ```
+//!
+//! The `rename` is LOAD-BEARING: the bridge invokes the Electron channel
+//! string (`invoke('library:getAll', …)`), and without it Tauri registers
+//! the Rust snake_case fn name — every call misses. The `handle()` channel
+//! label and the rename must be identical.
 //!
 //! Arg encoding: the bridge sends `{args:[...]}` positionally (bridge.ts) —
 //! each command indexes its params and treats JSON null as absent, matching
@@ -18,8 +23,10 @@
 
 pub mod app;
 pub mod auth;
+pub mod kavita;
 pub mod log;
 pub mod settings;
+pub mod shell;
 
 use serde_json::Value;
 

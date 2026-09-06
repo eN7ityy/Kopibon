@@ -141,35 +141,35 @@ pub(crate) fn delete_impl(
     Ok(json!({ "success": true }))
 }
 
-#[tauri::command]
+#[tauri::command(rename = "settings:get")]
 pub(crate) fn settings_get(state: State<AppState>, args: Vec<Value>) -> Value {
     let outcome = handle("settings:get", |log| get_impl(&state, &args, log));
     forward(&state, "settings:get", outcome.logs);
     outcome.value
 }
 
-#[tauri::command]
+#[tauri::command(rename = "settings:getAll")]
 pub(crate) fn settings_get_all(state: State<AppState>, args: Vec<Value>) -> Value {
     let outcome = handle("settings:getAll", |log| get_all_impl(&state, &args, log));
     forward(&state, "settings:getAll", outcome.logs);
     outcome.value
 }
 
-#[tauri::command]
+#[tauri::command(rename = "settings:set")]
 pub(crate) fn settings_set(state: State<AppState>, args: Vec<Value>) -> Value {
     let outcome = handle("settings:set", |log| set_impl(&state, &args, log));
     forward(&state, "settings:set", outcome.logs);
     outcome.value
 }
 
-#[tauri::command]
+#[tauri::command(rename = "settings:setAll")]
 pub(crate) fn settings_set_all(state: State<AppState>, args: Vec<Value>) -> Value {
     let outcome = handle("settings:setAll", |log| set_all_impl(&state, &args, log));
     forward(&state, "settings:setAll", outcome.logs);
     outcome.value
 }
 
-#[tauri::command]
+#[tauri::command(rename = "settings:delete")]
 pub(crate) fn settings_delete(state: State<AppState>, args: Vec<Value>) -> Value {
     let outcome = handle("settings:delete", |log| delete_impl(&state, &args, log));
     forward(&state, "settings:delete", outcome.logs);

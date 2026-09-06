@@ -15,6 +15,7 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 
 use crate::auth::AuthState;
+use crate::kavita::KavitaState;
 use crate::log::Logger;
 
 /// Shared application state (`State<AppState>`). Must stay `Send + Sync`:
@@ -39,6 +40,9 @@ pub struct AppState {
     /// the `GET /user` round trip (1.x main is single-threaded; same
     /// serialisation here).
     pub auth: Mutex<AuthState>,
+    /// Kavita shell state: blocking transport + status-bar count cache
+    /// (`kavita-client.ts` module scope: client singleton, `itemCountCache`).
+    pub kavita: Mutex<KavitaState>,
 }
 
 impl AppState {
@@ -54,6 +58,7 @@ impl AppState {
             toolchain_cache: Mutex::new(None),
             logger,
             auth: Mutex::new(auth),
+            kavita: Mutex::new(KavitaState::new()),
         })
     }
 }
