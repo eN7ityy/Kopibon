@@ -15,6 +15,8 @@ mod diagnostics;
 mod download;
 mod envelope;
 mod events;
+#[cfg(test)]
+mod freshness;
 mod kavita;
 mod library;
 mod log;
