@@ -158,24 +158,6 @@ fn in_flight_registry() -> &'static Mutex<HashMap<String, Instant>> {
     REGISTRY.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
-/// Forward outcome log lines to stderr as JSON (command wrapper helper).
-/// TEMPORARY until B2-log lands the file+ring logger: today the lines are
-/// visible in dev runs; the shape (`level/scope/message/fields`) already
-/// matches the `LogRecord` the logger will persist.
-pub fn forward_to_stderr(logs: &[LogRecord]) {
-    for record in logs {
-        eprintln!(
-            "{}",
-            json!({
-                "level": record.level,
-                "scope": record.scope,
-                "message": record.message,
-                "fields": record.fields,
-            })
-        );
-    }
-}
-
 /// Generate a unique error identifier (`newErrorId()`, logger.ts:100-122).
 /// Format: `E-` + 8 Crockford base32 chars from 8 crypto-random bytes.
 pub fn new_error_id() -> String {

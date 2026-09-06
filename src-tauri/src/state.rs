@@ -12,6 +12,8 @@ use serde_json::Value;
 use std::path::PathBuf;
 use std::sync::Mutex;
 
+use crate::log::Logger;
+
 /// Shared application state (`State<AppState>`). Must stay `Send + Sync`:
 /// [`Db`] owns a `Mutex<Connection>` writer plus fresh read connections, so
 /// commands on different threads serialize writes and never block reads.
@@ -26,6 +28,9 @@ pub struct AppState {
     pub data_dir: PathBuf,
     /// `checkToolchain` cache (toolchain.ts:105-106: cached unless `force`).
     pub toolchain_cache: Mutex<Option<Value>>,
+    /// Root logger (`createLogger`, logger.ts:478-509). Cloned into scopes
+    /// per command; the file+ring backend is shared.
+    pub logger: Logger,
 }
 
 impl AppState {
@@ -33,10 +38,12 @@ impl AppState {
     pub fn open(data_dir: PathBuf) -> Result<Self, String> {
         std::fs::create_dir_all(&data_dir).map_err(|e| e.to_string())?;
         let db = Db::open(&data_dir.join("db.sqlite"))?;
+        let logger = Logger::create(&data_dir.join("logs"))?;
         Ok(AppState {
             db,
             data_dir,
             toolchain_cache: Mutex::new(None),
+            logger,
         })
     }
 }

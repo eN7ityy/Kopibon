@@ -11,6 +11,7 @@
 mod commands;
 mod envelope;
 mod events;
+mod log;
 mod state;
 
 use state::AppState;
@@ -43,6 +44,12 @@ fn main() {
             ping,
             commands::app::app_get_version,
             commands::app::app_check_toolchain,
+            commands::log::log_write,
+            commands::log::log_get_records,
+            commands::log::log_set_level,
+            commands::log::log_get_level,
+            commands::log::log_set_retention,
+            commands::log::log_get_retention,
         ])
         .run(tauri::generate_context!())
         .expect("failed to run kopibon");
@@ -55,6 +62,6 @@ fn ping() -> serde_json::Value {
     let outcome = envelope::handle("ping", |_log| {
         Ok(serde_json::json!({ "success": true, "data": "pong" }))
     });
-    envelope::forward_to_stderr(&outcome.logs);
+    debug_assert!(outcome.logs.is_empty());
     outcome.value
 }

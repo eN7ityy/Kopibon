@@ -11,8 +11,10 @@
 use serde_json::{json, Value};
 use tauri::State;
 
-use crate::envelope::{forward_to_stderr, handle, CommandError, LogSink};
+use crate::envelope::{handle, CommandError, LogSink};
 use crate::state::AppState;
+
+use super::forward;
 
 /// `app:getVersion` → version string (`index.ts:399`).
 pub(crate) fn get_version_impl() -> Result<Value, CommandError> {
@@ -77,7 +79,8 @@ fn build_report() -> Value {
 #[tauri::command]
 pub(crate) fn app_get_version(_args: Vec<Value>) -> Value {
     let outcome = handle("app:getVersion", |_log| get_version_impl());
-    forward_to_stderr(&outcome.logs);
+    // No state: nothing to forward to (a fast infallible command logs nothing).
+    debug_assert!(outcome.logs.is_empty());
     outcome.value
 }
 
@@ -86,7 +89,7 @@ pub(crate) fn app_check_toolchain(state: State<AppState>, args: Vec<Value>) -> V
     let outcome = handle("app:checkToolchain", |log| {
         check_toolchain_impl(&state, &args, log)
     });
-    forward_to_stderr(&outcome.logs);
+    forward(&state, "app:checkToolchain", outcome.logs);
     outcome.value
 }
 
