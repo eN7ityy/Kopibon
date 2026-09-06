@@ -31,10 +31,15 @@ scope cut (planning plan §3).
 quality on the lossless path, (c) block PDF→CBZ for lossless sources.
 **Status:** open — gated on S4.
 
-### Q3. GUI toolkit (S2)
-Six-way scoring (egui, Iced, Slint, Dioxus, Tauri v2 + web UI, …) is gated on
+### Q3. GUI toolkit (S2) — RESOLVED (USER DECISION, Phase B kickoff)
+Six-way scoring (egui, Iced, Slint, Dioxus, Tauri v2 + web UI, …) was gated on
 the baselines and spikes; see `06-technology-decision.md`.
-**Status:** open — closes with Wave 3.
+**Status: closed — user selected Tauri v2 + existing frontend (option A)
+directly.** S2's role changes: no longer a *selection* gate, it re-runs as
+*measurement* on the 2.x build (idle RSS, 10k-grid scroll, thumbnail
+transport M5, Japanese rendering — 08-GUI §7 exit 3). The egui→relm4 fallback
+ladder (06 §7) stays armed: if measurement on the real build fails M1/M2/M6,
+it fires then.
 
 ### Q4. XMP byte parity (S1)
 Byte-parity for the XMP packet without Python is the highest-value spike; on

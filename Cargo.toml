@@ -1,6 +1,12 @@
 [workspace]
 resolver = "2"
 members = ["kopibon-core"]
+exclude = ["src-tauri"]
+# src-tauri is a separate Cargo project (own target dir + lockfile), per the
+# Tauri convention for repos with an existing workspace: `cargo test
+# --workspace` (the Phase A gate) must keep building without webkit link
+# deps, and the Tauri CLI owns src-tauri's build. B2 links kopibon-core in
+# via a path dependency from src-tauri/Cargo.toml.
 
 # Warning lints are denied here so local behaviour and the CI gate (clippy
 # -D warnings, 11 §3.1) agree; there is no pre-commit enforcement.

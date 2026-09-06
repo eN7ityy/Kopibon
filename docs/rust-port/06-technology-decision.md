@@ -339,7 +339,12 @@ record) and in [05-baselines.md](05-baselines.md) §4 (replacing the
    scope (bridge rewrite, not screen rewrite); `08-subsystem-plans/` GUI plan
    is written against Tauri commands/events per §8. *(pending)*
 4. If fallback triggers: this document is amended with the re-scored matrix and
-   the user is informed before Wave 3 closes (Q3). *(pending)*
+   the user is informed before Wave 3 closes (Q3). *(superseded — see below)*
+5. **USER DECISION (Phase B kickoff, 16-open-questions Q3 RESOLVED): Tauri v2
+   selected directly; conditions 1–4 above no longer gate the choice.** S2
+   re-runs as measurement on the 2.x build (08-GUI §7 exit 3: idle RSS, 10k
+   grid, M5 thumbnail transport, Japanese); the egui → relm4 ladder stays
+   armed on measured M1/M2/M6 failure.
 
 ---
 

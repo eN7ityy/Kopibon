@@ -1,0 +1,16 @@
+[package]
+name = "kopibon"
+version = "1.0.2"
+edition = "2021"
+license = "GPL-3.0-or-later"
+description = "Kopibon 2.x Tauri shell: existing React renderer against kopibon-core (Phase B)"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# Phase A core. B1 only needs it to link; B2's command layer calls it.
+kopibon-core = { path = "../kopibon-core" }

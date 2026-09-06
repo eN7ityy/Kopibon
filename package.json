@@ -27,12 +27,16 @@
     "db:studio": "drizzle-kit studio",
     "test": "vitest run",
     "test:watch": "vitest",
-    "notices": "node tools/generate-notices.mjs"
+    "notices": "node tools/generate-notices.mjs",
+    "dev:tauri": "vite --config vite.config.ts",
+    "build:tauri": "vite build --config vite.config.ts",
+    "tauri": "tauri"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
     "@tanstack/react-query": "^5.62.0",
+    "@tauri-apps/api": "^2.11.1",
     "archiver": "^8.0.0",
     "better-sqlite3": "^13.0.1",
     "drizzle-orm": "^0.38.0",
@@ -53,6 +57,7 @@
     "@electron-toolkit/eslint-config-ts": "^3.1.0",
     "@electron-toolkit/tsconfig": "^2.0.0",
     "@tailwindcss/vite": "^4.0.0",
+    "@tauri-apps/cli": "^2.11.4",
     "@types/archiver": "^8.0.0",
     "@types/better-sqlite3": "^7.6.0",
     "@types/node": "^22.19.1",

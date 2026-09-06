@@ -1,3 +1,4 @@
+import './bridge'
 import './assets/styles.css'
 
 import { StrictMode } from 'react'
