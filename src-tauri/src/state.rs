@@ -19,6 +19,7 @@ use crate::auth::AuthState;
 use crate::commands::updater::UpdaterState;
 use crate::download::DownloadManager;
 use crate::kavita::KavitaState;
+use crate::library::LibraryState;
 use crate::log::Logger;
 
 /// Shared application state (`State<AppState>`). Must stay `Send + Sync`:
@@ -55,6 +56,9 @@ pub struct AppState {
     /// Download pump state: in-flight flags, CDN health, concurrency
     /// (`DownloadManager` singleton + module maps).
     pub download: DownloadManager,
+    /// Library pump + lock state: scan flags, cancel flags, `syncingItems`,
+    /// CBZ locks, originals cache (module scope in `library.ipc.ts`).
+    pub library: LibraryState,
 }
 
 impl AppState {
@@ -74,6 +78,7 @@ impl AppState {
             api: ApiState::new(),
             updater: UpdaterState::new(),
             download: DownloadManager::new(),
+            library: LibraryState::new(),
         })
     }
 }

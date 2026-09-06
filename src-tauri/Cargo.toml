@@ -28,3 +28,7 @@ sysinfo = "0.39.6"
 tauri-plugin-updater = "2.11.0"
 semver = "1.0.28"
 tauri-plugin-notification = "2.4.0"
+zip = { version = "8.6.0", default-features = false, features = ["deflate"] }
+image = { version = "0.25.10", default-features = false, features = ["jpeg", "png"] }
+sha1 = "0.11.0"
+base64 = "0.23.1"

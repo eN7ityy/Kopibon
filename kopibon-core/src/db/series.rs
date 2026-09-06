@@ -83,6 +83,73 @@ pub fn find_or_create(conn: &Connection, name: &str, now_s: i64) -> Result<Serie
     find_by_name(conn, &trimmed)?.ok_or_else(|| format!("Could not create the series \"{trimmed}\""))
 }
 
+/// previewBackfill (series.repo.ts:240-257): `{ groups, galleries }` the
+/// enable dialog quotes — computed, never estimated. The ignore-list binds
+/// as parameters from the same array the runtime check uses.
+pub fn preview_backfill(conn: &Connection, min: i64) -> Result<serde_json::Value, String> {
+    let ignored: Vec<String> = crate::series_grouping::UNGROUPABLE_NAMES
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+    let placeholders = vec!["?"; ignored.len()].join(",");
+    let sql = format!(
+        "SELECT COUNT(*) AS groups, COALESCE(SUM(n), 0) AS galleries FROM (
+           SELECT COUNT(*) AS n FROM library_item
+            WHERE series_name IS NOT NULL AND trim(series_name) != ''
+              AND lower(trim(series_name)) NOT IN ({placeholders})
+            GROUP BY series_name COLLATE NOCASE
+           HAVING COUNT(*) >= ?
+         )"
+    );
+    let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
+    let mut params: Vec<rusqlite::types::Value> = ignored
+        .into_iter()
+        .map(rusqlite::types::Value::Text)
+        .collect();
+    params.push(rusqlite::types::Value::Integer(min));
+    let (groups, galleries): (i64, i64) = stmt
+        .query_row(rusqlite::params_from_iter(params.iter()), |r| {
+            Ok((r.get(0)?, r.get(1)?))
+        })
+        .map_err(|e| e.to_string())?;
+    Ok(serde_json::json!({ "groups": groups, "galleries": galleries }))
+}
+
+/// findDisplayableByName (series.repo.ts:279-298): the group a name refers
+/// to — `{ id, name, totalCount }` — or `None` when grouping would not show
+/// it (unnamed, ungroupable, dissolved, below threshold).
+pub fn find_displayable_by_name(
+    conn: &Connection,
+    name: &str,
+    min: i64,
+) -> Result<Option<serde_json::Value>, String> {
+    let trimmed = name.trim();
+    if trimmed.is_empty()
+        || !crate::series_grouping::is_groupable_series_name(Some(trimmed))
+    {
+        return Ok(None);
+    }
+    let mut stmt = conn
+        .prepare(
+            "SELECT s.id AS id, s.name AS name, COUNT(li.id) AS total
+               FROM series s
+               JOIN library_item li ON li.series_id = s.id
+              WHERE s.name = ? COLLATE NOCASE AND s.is_dissolved = 0
+              GROUP BY s.id
+             HAVING COUNT(li.id) >= ?",
+        )
+        .map_err(|e| e.to_string())?;
+    stmt.query_row(rusqlite::params![trimmed, min], |r| {
+        Ok(serde_json::json!({
+            "id": r.get::<_, i64>(0)?,
+            "name": r.get::<_, String>(1)?,
+            "totalCount": r.get::<_, i64>(2)?,
+        }))
+    })
+    .optional()
+    .map_err(|e| e.to_string())
+}
+
 /// resolveFor (series.repo.ts:88-144): link items to their group and pull in
 /// everything else sharing the name — linking is by *name* across the whole
 /// library, idempotent, and clears the link of unusable names.

@@ -19,6 +19,7 @@ pub mod connection;
 pub mod conversion;
 pub mod blocked;
 pub mod download;
+pub mod library_write;
 pub mod gallery;
 pub mod library;
 pub mod maintenance;

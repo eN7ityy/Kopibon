@@ -5,6 +5,69 @@
 
 use rusqlite::Connection;
 
+/// counts (conversion.repo.ts:115-124): `{ pending, converting, completed,
+/// failed }`, unknown statuses ignored (`if (r.status in out)`).
+pub fn counts(conn: &Connection) -> Result<serde_json::Value, String> {
+    let mut stmt = conn
+        .prepare("SELECT status, COUNT(*) FROM conversion_queue GROUP BY status")
+        .map_err(|e| e.to_string())?;
+    let mapped = stmt
+        .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+        .map_err(|e| e.to_string())?;
+    let rows: Vec<(String, i64)> = mapped.filter_map(|r| r.ok()).collect();
+    let mut out = serde_json::json!({ "pending": 0, "converting": 0, "completed": 0, "failed": 0 });
+    for (status, n) in rows {
+        if out.get(&status).is_some() {
+            out[status] = serde_json::Value::from(n);
+        }
+    }
+    Ok(out)
+}
+
+/// pendingItemIds (conversion.repo.ts:127-135): library ids still awaiting
+/// conversion, for the UI locks.
+pub fn pending_item_ids(conn: &Connection) -> Result<Vec<i64>, String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT library_item_id FROM conversion_queue
+             WHERE status IN ('pending','converting') AND library_item_id IS NOT NULL",
+        )
+        .map_err(|e| e.to_string())?;
+    let mapped = stmt
+        .query_map([], |r| r.get(0))
+        .map_err(|e| e.to_string())?;
+    mapped
+        .collect::<Result<Vec<i64>, _>>()
+        .map_err(|e| e.to_string())
+}
+
+/// recentErrors (conversion.repo.ts:138-146, default limit 20).
+pub fn recent_errors(conn: &Connection, limit: i64) -> Result<Vec<String>, String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT error_message FROM conversion_queue
+             WHERE status = 'failed' AND error_message IS NOT NULL
+             ORDER BY completed_at DESC LIMIT ?",
+        )
+        .map_err(|e| e.to_string())?;
+    let mapped = stmt
+        .query_map([limit], |r| r.get(0))
+        .map_err(|e| e.to_string())?;
+    mapped
+        .collect::<Result<Vec<String>, _>>()
+        .map_err(|e| e.to_string())
+}
+
+/// clearFinished (conversion.repo.ts:152-156): drop finished rows so a new
+/// batch's queue reflects outstanding work.
+pub fn clear_finished_rows(conn: &Connection) -> Result<usize, String> {
+    conn.execute(
+        "DELETE FROM conversion_queue WHERE status IN ('completed','failed')",
+        [],
+    )
+    .map_err(|e| e.to_string())
+}
+
 /// enqueue (conversion.repo.ts:40-61): UPSERT on file_path, resetting to
 /// pending, clearing error/timestamps, refreshing library_item_id and the
 /// per-row keep_original.

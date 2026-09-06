@@ -27,6 +27,7 @@
     "db:studio": "drizzle-kit studio",
     "test": "vitest run",
     "test:watch": "vitest",
+    "contract:bridge": "vitest run tests/contract/bridge.test.ts",
     "notices": "node tools/generate-notices.mjs",
     "dev:tauri": "vite --config vite.config.ts",
     "build:tauri": "vite build --config vite.config.ts",
