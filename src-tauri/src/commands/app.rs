@@ -44,7 +44,7 @@ pub(crate) fn check_toolchain_impl(
     Ok(json!({ "success": true, "data": report }))
 }
 
-fn build_report() -> Value {
+pub(crate) fn build_report() -> Value {
     let pdfium = match kopibon_core::conversion::raster::probe_library(None) {
         Ok(detail) => json!({
             "id": "pdfium",

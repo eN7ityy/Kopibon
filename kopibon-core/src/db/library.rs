@@ -36,6 +36,15 @@ fn order_by(sort_field: Option<&str>) -> &'static str {
     }
 }
 
+/// `libraryRepo.count` (library.repo.ts:761-768): total `library_item`
+/// rows. The diagnostics call site maps failure to -1 (`index.ts:318-323`).
+pub fn item_count(db: &Db) -> Result<i64, String> {
+    db.with_reader(|conn| {
+        conn.query_row("SELECT COUNT(*) FROM library_item", [], |row| row.get(0))
+            .map_err(|e| e.to_string())
+    })
+}
+
 /// findPaginated (library.repo.ts:392-431): { items, total }.
 pub fn find_paginated(
     db: &Db,

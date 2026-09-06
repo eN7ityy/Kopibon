@@ -235,8 +235,7 @@ impl Logger {
         self.shared.lock().map(|s| s.level).unwrap_or(DEFAULT_LEVEL)
     }
 
-    /// `logDir` for `log:openFolder` (B3 opener plugin); allow-listed until then.
-    #[allow(dead_code)]
+    /// `logDir` for `log:openFolder` (opener plugin).
     pub fn log_dir(&self) -> PathBuf {
         self.shared
             .lock()
@@ -502,7 +501,7 @@ impl Logger {
 }
 
 /// `Date.toISOString()` — UTC, millisecond precision always.
-fn now_iso() -> String {
+pub(crate) fn now_iso() -> String {
     let ms = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_millis() as i64)

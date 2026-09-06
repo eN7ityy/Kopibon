@@ -173,6 +173,7 @@ majors. Sources: 08-subsystem-plans 01–08 as cited.
 | `tauri` (08) | MIT OR Apache-2.0 | Notice preservation | Generated notices file |
 | `tauri-plugin-opener` 2.5.5 (08, B2-shell) | **Apache-2.0 OR MIT (verified** against the crate `Cargo.toml` at adoption) | Notice preservation | Generated notices file. `shell:*` backend (`open_url`/`open_path`/`reveal_item_in_dir`); registered via `.plugin()` in `main.rs`, Rust-side calls only (no capability entries needed — the renderer never touches plugin JS) |
 | `tauri-plugin-dialog` 2.7.3 (08, B2-shell) | **Apache-2.0 OR MIT (verified** against the crate `Cargo.toml` at adoption) | Notice preservation | Generated notices file. `dialog:*` backend (blocking picks — sync Tauri commands run off the main thread); pulls `tauri-plugin-fs` 2.5.2 (**Apache-2.0 OR MIT, verified**) for `FilePath` |
+| `sysinfo` 0.39.6 (08, B2-log) | **MIT (verified** against the crate `Cargo.toml` at adoption) | Notice preservation | Generated notices file. OS facts for the diagnostics bundle (kernel release, total memory); CPU count via `std::thread::available_parallelism` |
 | `tauri-plugin-updater` (08) | MIT OR Apache-2.0 | Notice preservation | Generated notices file |
 | `notify-rust` (08) | MIT OR Apache-2.0 | Notice preservation | Generated notices file |
 | `webview2-com` family (08, Windows) | MIT | Notice preservation + licence text of the loader DLL | Generated notices file; verify which crates land in the lockfile |

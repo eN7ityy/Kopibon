@@ -11,6 +11,7 @@
 mod api;
 mod auth;
 mod commands;
+mod diagnostics;
 mod envelope;
 mod events;
 mod kavita;
@@ -99,6 +100,8 @@ fn main() {
             commands::log::log_get_level,
             commands::log::log_set_retention,
             commands::log::log_get_retention,
+            commands::log::log_open_folder,
+            commands::log::log_export_diagnostics,
             commands::auth::auth_validate_key,
             commands::auth::auth_get_auth_status,
             commands::auth::auth_set_key,

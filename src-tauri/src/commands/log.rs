@@ -6,13 +6,19 @@
 //! nothing and silently dropping invalid levels, and `log:setLevel`
 //! returning `{success:false, error:'Invalid level'}` with NO errorId.
 //! `log:openFolder` + `log:exportDiagnostics` need the opener plugin and the
-//! settings/library repos — they land in B3 (noted below, not stubbed).
+//! settings/library repos — now wired (see below).
 
 use serde_json::{json, Value};
-use tauri::State;
+use tauri::{AppHandle, Manager, State};
 
+use super::app::build_report;
+use super::shell::{ShellOps, TauriShell};
+use crate::auth::{
+    decrypt_key, stored_setting, KAVITA_KEY_ACCOUNT, NHENTAI_KEY_ACCOUNT, NHENTAI_KEY_SETTING,
+};
+use crate::diagnostics::{serialize_diagnostics, DiagnosticsInput};
 use crate::envelope::{handle, CommandError, LogSink};
-use crate::log::{records_to_json, LogLevel};
+use crate::log::{now_iso, records_to_json, LogLevel};
 use crate::state::AppState;
 
 use super::forward;
@@ -122,6 +128,123 @@ pub(crate) fn log_get_retention(state: State<AppState>, args: Vec<Value>) -> Val
         get_retention_impl(&state, &args, log)
     });
     forward(&state, "log:getRetention", outcome.logs);
+    outcome.value
+}
+
+/// `log:openFolder` (RAW — `index.ts:293`): opens the log dir, returns
+/// nothing.
+pub(crate) fn open_folder_impl(app: &AppHandle, state: &AppState) {
+    let shell = TauriShell::new(app.clone());
+    // Best-effort like `shell.openPath` with no error surface (RAW channel
+    // returns nothing either way).
+    let _ = shell.open_path(&state.logger.log_dir().to_string_lossy());
+}
+
+/// `log:exportDiagnostics` (`index.ts:297-396`): scrubbed
+/// `diagnostics-<ts>.json` in the log dir, revealed in the file manager,
+/// `{path}` returned. Unreadable settings/DB degrade to empty, never fail
+/// the bundle (`:311-323`).
+pub(crate) fn export_diagnostics_impl(
+    state: &AppState,
+    app: &AppHandle,
+    _log: &mut LogSink,
+) -> Result<Value, CommandError> {
+    let toolchain = build_report();
+    let settings = state
+        .db
+        .with_reader(|conn| {
+            Ok::<_, String>(kopibon_core::db::settings::get_all(conn).unwrap_or_default())
+        })
+        .unwrap_or_default();
+    let library_item_count = kopibon_core::db::library::item_count(&state.db).unwrap_or(-1);
+    // Both the stored blob and the decrypted key are secrets (safeStorage
+    // falls back to verbatim storage — `:325-327`), plus the raw Kavita
+    // blob (`:349-354`).
+    let mut secrets = Vec::new();
+    if let Some(stored) = stored_setting(&state.db, NHENTAI_KEY_SETTING) {
+        if !stored.is_empty() {
+            secrets.push(stored.clone());
+            let real = decrypt_key(NHENTAI_KEY_ACCOUNT, &stored);
+            if !real.is_empty() {
+                secrets.push(real);
+            }
+        }
+    }
+    if let Some(kavita_key) = stored_setting(&state.db, KAVITA_KEY_ACCOUNT) {
+        if !kavita_key.is_empty() {
+            secrets.push(kavita_key);
+        }
+    }
+    // Last 500 ring records, oldest first (`getRingBuffer().slice(-500)`).
+    let records = match records_to_json(&state.logger.ring_buffer()) {
+        Value::Array(all) => all.into_iter().rev().take(500).rev().collect(),
+        _ => Vec::new(),
+    };
+    let sys = sysinfo::System::new_all();
+    let home_dir = app
+        .path()
+        .home_dir()
+        .ok()
+        .map(|p| p.to_string_lossy().to_string());
+    let input = DiagnosticsInput {
+        app_version: env!("CARGO_PKG_VERSION").to_string(),
+        tauri_version: tauri::VERSION.to_string(),
+        os_platform: std::env::consts::OS.to_string(),
+        os_arch: std::env::consts::ARCH.to_string(),
+        os_release: sysinfo::System::kernel_version().unwrap_or_default(),
+        os_cpus: std::thread::available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(0),
+        os_total_mem_gb: sys.total_memory() / (1024 * 1024 * 1024),
+        toolchain,
+        settings,
+        library_item_count,
+        records,
+        secrets,
+        redact_paths: true,
+        exported_at: now_iso(),
+        home_dir,
+    };
+    // Written once, from already-scrubbed text (`:379-381`).
+    let text = serialize_diagnostics(&input);
+    let ts = input.exported_at.replace([':', '.'], "-");
+    let export_path = state
+        .logger
+        .log_dir()
+        .join(format!("diagnostics-{ts}.json"));
+    std::fs::write(&export_path, text).map_err(|e| CommandError::Thrown(e.to_string()))?;
+    let mut fields = serde_json::Map::new();
+    fields.insert(
+        "path".to_string(),
+        Value::String(export_path.to_string_lossy().to_string()),
+    );
+    fields.insert("records".to_string(), json!(input.records.len()));
+    state
+        .logger
+        .scope("log")
+        .info("diagnostics exported", Some(fields));
+    let shell = TauriShell::new(app.clone());
+    shell
+        .reveal_in_dir(&export_path.to_string_lossy())
+        .map_err(CommandError::Thrown)?;
+    Ok(json!({ "success": true, "data": { "path": export_path.to_string_lossy() } }))
+}
+
+#[tauri::command(rename = "log:openFolder")]
+pub(crate) fn log_open_folder(app: AppHandle, state: State<AppState>) {
+    open_folder_impl(&app, &state);
+}
+
+#[tauri::command(rename = "log:exportDiagnostics")]
+pub(crate) fn log_export_diagnostics(
+    app: AppHandle,
+    state: State<AppState>,
+    _args: Vec<Value>,
+) -> Value {
+    let outcome = handle("log:exportDiagnostics", |log| {
+        export_diagnostics_impl(&state, &app, log)
+    });
+    forward(&state, "log:exportDiagnostics", outcome.logs);
     outcome.value
 }
 
