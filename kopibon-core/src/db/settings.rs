@@ -40,6 +40,33 @@ pub fn set(conn: &mut Connection, key: &str, value: &str) -> Result<(), String> 
     Ok(())
 }
 
+/// `settingsRepo.getAll` (settings.repo.ts:16-24): whole table as a map.
+pub fn get_all(conn: &Connection) -> Result<std::collections::BTreeMap<String, String>, String> {
+    let mut stmt = conn
+        .prepare("SELECT key, value FROM app_settings")
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map([], |row| {
+            let k: String = row.get(0)?;
+            let v: String = row.get(1)?;
+            Ok((k, v))
+        })
+        .map_err(|e| e.to_string())?;
+    let mut out = std::collections::BTreeMap::new();
+    for row in rows {
+        let (k, v) = row.map_err(|e| e.to_string())?;
+        out.insert(k, v);
+    }
+    Ok(out)
+}
+
+/// `settingsRepo.delete` (settings.repo.ts:45-48).
+pub fn delete(conn: &mut Connection, key: &str) -> Result<(), String> {
+    conn.execute("DELETE FROM app_settings WHERE key = ?", [key])
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 // ── typed accessors (03-data-model §7.1–7.2 coercions) ─────────────────────
 
 /// `downloadConcurrency` clamped 1–8 (download-manager.ts:144-152).

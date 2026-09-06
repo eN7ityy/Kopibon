@@ -8,6 +8,7 @@
 //! (the `handle.ts` port) and `events.rs`; B3 adds the plugins, bootstrap
 //! parity and polls→push.
 
+mod auth;
 mod commands;
 mod envelope;
 mod events;
@@ -37,7 +38,28 @@ fn main() {
         .setup(|app| {
             let data_dir = resolve_data_dir(app);
             let state = AppState::open(data_dir).map_err(|e| e.to_string())?;
+            // `restoreAuthFromDb()` (`index.ts`): fire-and-forget, NOT awaited
+            // — the window shows while the saved key validates. A scoped
+            // logger line records the outcome; failures are silent by design
+            // (an invalid saved key just means logged-out).
+            let logger = state.logger.scope("auth");
             app.manage(state);
+            let handle = app.handle().clone();
+            std::thread::spawn(move || {
+                use tauri::Manager;
+                let state: tauri::State<AppState> = handle.state();
+                let restored = state
+                    .auth
+                    .lock()
+                    .map(|mut auth| {
+                        auth.restore(&state.db);
+                        auth.status()
+                    })
+                    .unwrap_or((false, None));
+                if restored.0 {
+                    logger.info("Restored saved API session", None);
+                }
+            });
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -50,6 +72,16 @@ fn main() {
             commands::log::log_get_level,
             commands::log::log_set_retention,
             commands::log::log_get_retention,
+            commands::auth::auth_validate_key,
+            commands::auth::auth_get_auth_status,
+            commands::auth::auth_set_key,
+            commands::auth::auth_clear_key,
+            commands::auth::auth_get_rate_limits,
+            commands::settings::settings_get,
+            commands::settings::settings_get_all,
+            commands::settings::settings_set,
+            commands::settings::settings_set_all,
+            commands::settings::settings_delete,
         ])
         .run(tauri::generate_context!())
         .expect("failed to run kopibon");

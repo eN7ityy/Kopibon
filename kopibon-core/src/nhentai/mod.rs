@@ -19,8 +19,9 @@ use limiter::{ApiRateLimiter, EndpointKey};
 pub use types::*;
 
 /// The `setTimeout` seam of the 429 path (api-client.ts:193): production
-/// sleeps for real, tests record the wait.
-pub type Sleeper = Box<dyn FnMut(i64)>;
+/// sleeps for real, tests record the wait. `Send` so the client can live in
+/// shared app state (Phase B `AuthState`); test recorders use `Arc`.
+pub type Sleeper = Box<dyn FnMut(i64) + Send>;
 
 pub fn real_sleeper() -> Sleeper {
     Box::new(|ms: i64| std::thread::sleep(std::time::Duration::from_millis(ms.max(0) as u64)))

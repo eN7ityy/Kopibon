@@ -8,10 +8,13 @@
 //! the database handle and the data dir (the `initDatabase()` sequence).
 
 use kopibon_core::db::Db;
+use kopibon_core::metadata::mappers::Clock;
+use kopibon_core::metadata::mappers::SystemClock;
 use serde_json::Value;
 use std::path::PathBuf;
 use std::sync::Mutex;
 
+use crate::auth::AuthState;
 use crate::log::Logger;
 
 /// Shared application state (`State<AppState>`). Must stay `Send + Sync`:
@@ -31,6 +34,11 @@ pub struct AppState {
     /// Root logger (`createLogger`, logger.ts:478-509). Cloned into scopes
     /// per command; the file+ring backend is shared.
     pub logger: Logger,
+    /// nhentai auth state: client + `loggedIn`/`username` module flags
+    /// (`auth.ipc.ts:7-10`). Behind a mutex — `validateKey` holds it across
+    /// the `GET /user` round trip (1.x main is single-threaded; same
+    /// serialisation here).
+    pub auth: Mutex<AuthState>,
 }
 
 impl AppState {
@@ -39,11 +47,13 @@ impl AppState {
         std::fs::create_dir_all(&data_dir).map_err(|e| e.to_string())?;
         let db = Db::open(&data_dir.join("db.sqlite"))?;
         let logger = Logger::create(&data_dir.join("logs"))?;
+        let auth = AuthState::fresh(SystemClock.now_ms());
         Ok(AppState {
             db,
             data_dir,
             toolchain_cache: Mutex::new(None),
             logger,
+            auth: Mutex::new(auth),
         })
     }
 }

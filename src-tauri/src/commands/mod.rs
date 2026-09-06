@@ -17,7 +17,9 @@
 //! the preload's `?? default` idioms.
 
 pub mod app;
+pub mod auth;
 pub mod log;
+pub mod settings;
 
 use serde_json::Value;
 

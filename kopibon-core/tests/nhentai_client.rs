@@ -356,7 +356,7 @@ fn client_429_retry_once_with_retry_after() {
         ReplayTransport::error(429, "Too Many Requests", Some("2")),
         ReplayTransport::ok(r#"{"result":[]}"#),
     ]));
-    let waits = std::rc::Rc::new(std::sync::Mutex::new(Vec::<i64>::new()));
+    let waits = std::sync::Arc::new(std::sync::Mutex::new(Vec::<i64>::new()));
     let waits_c = waits.clone();
     c.sleep = Box::new(move |ms| waits_c.lock().unwrap().push(ms));
     let resp = c.search_galleries("x", None, None, &clock).expect("recovered");
@@ -369,7 +369,7 @@ fn client_429_retry_once_with_retry_after() {
         ReplayTransport::error(429, "Too Many Requests", None),
         ReplayTransport::ok("{}"),
     ]));
-    let waits = std::rc::Rc::new(std::sync::Mutex::new(Vec::<i64>::new()));
+    let waits = std::sync::Arc::new(std::sync::Mutex::new(Vec::<i64>::new()));
     let waits_c = waits.clone();
     c.sleep = Box::new(move |ms| waits_c.lock().unwrap().push(ms));
     let _ = c.get_gallery(1, &clock).unwrap();
@@ -380,7 +380,7 @@ fn client_429_retry_once_with_retry_after() {
         ReplayTransport::error(429, "Too Many Requests", Some("100")),
         ReplayTransport::ok("{}"),
     ]));
-    let waits = std::rc::Rc::new(std::sync::Mutex::new(Vec::<i64>::new()));
+    let waits = std::sync::Arc::new(std::sync::Mutex::new(Vec::<i64>::new()));
     let waits_c = waits.clone();
     c.sleep = Box::new(move |ms| waits_c.lock().unwrap().push(ms));
     let _ = c.get_gallery(1, &clock).unwrap();

@@ -20,3 +20,5 @@ getrandom = "0.2"
 rusqlite = { version = "0.37" }
 # Phase A core. B1 only needs it to link; B2's command layer calls it.
 kopibon-core = { path = "../kopibon-core" }
+ureq = "3.4.0"
+keyring = "4.2.0"
