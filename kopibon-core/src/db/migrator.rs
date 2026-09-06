@@ -271,6 +271,22 @@ pub fn run_migrations(conn: &mut Connection) -> Result<(), String> {
         .map_err(|e| e.to_string())?;
     }
 
+    // metadata_queue — the Q6 port decision (06-subsystem-plans §5, P2
+    // deviation with its 04-parity-ledger §9 row): convertAllMetadata is
+    // crash-resumable in 2.x. Additive CREATE TABLE IF NOT EXISTS — the one
+    // deliberate schema touch on already-migrated DBs.
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS metadata_queue (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          file_path TEXT NOT NULL UNIQUE,
+          library_item_id INTEGER,
+          status TEXT NOT NULL DEFAULT 'pending',
+          error_message TEXT,
+          created_at INTEGER NOT NULL DEFAULT (unixepoch())
+        );",
+    )
+    .map_err(|e| e.to_string())?;
+
     // ── Path-storage migrations (connection.ts:411-493) ────────────────────
     migrate_cover_paths(conn)?;
     migrate_file_paths(conn)?;

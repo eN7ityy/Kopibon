@@ -183,6 +183,8 @@ behavior (covers appear within ~2 s of an item being added) as P0.
 | D-error-boundary | Mount an error boundary app-wide | 1.x ships one unused; blank-screen failure is unacceptable | proposed |
 | D-localstorage-keys | Keep or migrate `doujin-*` localStorage keys | Only matters for side-by-side import of prefs | open |
 | D-sidebar-collapsed | Drop the dead persisted state | No UI control exists to set it | proposed |
+| D-metadata-queue | `convertAllMetadata` becomes crash-resumable via a new `metadata_queue` table (additive `CREATE TABLE IF NOT EXISTS` in the migrator) | Q6 port decision, 06-subsystem-plans §5: 1.x ran the job off an in-memory array and lost its place on crash; the table is the one deliberate schema touch on existing DBs (DB-01 whitelists it) | accepted (Q6 default) |
+| D-lossy-fallback-deferred | The lossy `pdftoppm` fallback raises a loud per-item error ("lossy fallback requires a rasteriser; source PDF left in place") until a rasteriser is chosen | USER DECISION of 06 §4: D3 bans poppler; pdfium/mupdf choice deferred to the packaging plan; the safety property (lossy conversion can never destroy the only full-quality copy) holds by construction | accepted |
 
 Rules: a deviation becomes *accepted* only with a row here and a note in
 `00-executive-summary.md` §Decisions. During Phase C, any behavior observed in

@@ -207,6 +207,12 @@ pub fn scratch_from(src: &std::path::Path, name: &str) -> std::path::PathBuf {
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).expect("mkdir scratch");
     std::fs::copy(src, dir.join("db.sqlite")).expect("copy fixture db");
+    // The testdata copy is stored read-only; scratch copies must be writable.
+    let dst = dir.join("db.sqlite");
+    let mut perms = std::fs::metadata(&dst).expect("stat").permissions();
+    use std::os::unix::fs::PermissionsExt;
+    perms.set_mode(perms.mode() | 0o200);
+    std::fs::set_permissions(&dst, perms).expect("chmod copy");
     dir
 }
 

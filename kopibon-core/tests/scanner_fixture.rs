@@ -130,6 +130,99 @@ pub fn build_pdf(
     Ok(())
 }
 
+/// Build a PDF whose pages are embedded DCTDecode JPEGs (the shape the S4
+/// extraction path consumes).
+pub fn build_image_pdf(path: &Path, jpegs: &[Vec<u8>]) -> Result<(), Box<dyn std::error::Error>> {
+    build_image_pdf_with_count(path, jpegs, jpegs.len() as i64)
+}
+
+/// `declared_count` lets a test write a page tree whose Count disagrees with
+/// the embedded image count (the count-guard fixture).
+pub fn build_image_pdf_with_count(
+    path: &Path,
+    jpegs: &[Vec<u8>],
+    declared_count: i64,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use lopdf::{Dictionary, Object, Stream};
+
+    fn name(s: &str) -> Object {
+        Object::Name(s.as_bytes().to_vec())
+    }
+    let mut doc = lopdf::Document::with_version("1.4");
+    // Insert the (empty) Pages dict immediately so no later add_object can
+    // collide with its id; fill it at the end.
+    let pages_id = doc.add_object(Dictionary::new());
+    let mut kids: Vec<Object> = Vec::new();
+
+    for (i, jpeg) in jpegs.iter().enumerate() {
+        let (w, h) = (612.0f32, 792.0f32);
+        let content = format!("q {w} 0 0 {h} 0 0 cm /Im{i} Do Q\n");
+        let image_stream = Stream::new(
+            Dictionary::from_iter([
+                (b"Type".to_vec(), name("XObject")),
+                (b"Subtype".to_vec(), name("Image")),
+                (b"Width".to_vec(), Object::Integer(612)),
+                (b"Height".to_vec(), Object::Integer(792)),
+                (b"ColorSpace".to_vec(), name("DeviceRGB")),
+                (b"BitsPerComponent".to_vec(), Object::Integer(8)),
+                (b"Filter".to_vec(), name("DCTDecode")),
+            ]),
+            jpeg.clone(),
+        );
+        let image_id = doc.add_object(image_stream);
+        // Contents must be an INDIRECT stream object (nested streams in a
+        // dict break lopdf's writer — same class as the S1 metadata lesson).
+        let content_id = doc.add_object(Stream::new(Dictionary::new(), content.into_bytes()));
+        let page_dict = Dictionary::from_iter([
+            (b"Type".to_vec(), name("Page")),
+            (b"Parent".to_vec(), Object::Reference(pages_id)),
+            (
+                b"MediaBox".to_vec(),
+                Object::Array(vec![
+                    Object::Integer(0),
+                    Object::Integer(0),
+                    Object::Integer(612),
+                    Object::Integer(792),
+                ]),
+            ),
+            (
+                b"Resources".to_vec(),
+                Dictionary::from_iter([(
+                    b"XObject".to_vec(),
+                    Dictionary::from_iter([(format!("Im{i}").into_bytes(), Object::Reference(image_id))])
+                        .into(),
+                )])
+                .into(),
+            ),
+            (b"Contents".to_vec(), Object::Reference(content_id)),
+        ]);
+        let page_id = doc.add_object(page_dict);
+        kids.push(Object::Reference(page_id));
+    }
+
+    doc.set_object(
+        pages_id,
+        Dictionary::from_iter([
+            (b"Type".to_vec(), name("Pages")),
+            (b"Kids".to_vec(), Object::Array(kids)),
+            (b"Count".to_vec(), Object::Integer(declared_count)),
+        ]),
+    );
+    let catalog_id = doc.add_object(Dictionary::from_iter([
+        (b"Type".to_vec(), name("Catalog")),
+        (b"Pages".to_vec(), Object::Reference(pages_id)),
+    ]));
+    // pdf-lib always writes an Info dict; the XMP writer updates it in place.
+    let info_id = doc.add_object(Dictionary::from_iter([
+        (b"Producer".to_vec(), "pdf-lib 1.8.0 (https://github.com/Hopding/pdf-lib)".into()),
+    ]));
+    doc.trailer.set("Root", Object::Reference(catalog_id));
+    doc.trailer.set("Info", Object::Reference(info_id));
+    doc.trailer.set("Size", Object::Integer(doc.max_id as i64 + 1));
+    doc.save(path)?;
+    Ok(())
+}
+
 /// Write a CBZ: ComicInfo.xml first, then cover page(s).
 pub fn build_cbz(path: &Path, comic_info: &str, pages: &[Vec<u8>]) -> Result<(), Box<dyn std::error::Error>> {
     let file = std::fs::File::create(path)?;

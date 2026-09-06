@@ -19,6 +19,12 @@ fn scratch_copy(name: &str) -> PathBuf {
     std::fs::create_dir_all(&dir).expect("mkdir");
     let dst = dir.join("db.sqlite");
     std::fs::copy(&src, &dst).expect("copy production db");
+    // The testdata copy is stored read-only; the temp copy must be writable
+    // for the migrator's (sanctioned) metadata_queue addition.
+    let mut perms = std::fs::metadata(&dst).expect("stat").permissions();
+    use std::os::unix::fs::PermissionsExt;
+    perms.set_mode(perms.mode() | 0o200);
+    std::fs::set_permissions(&dst, perms).expect("chmod copy");
     dst
 }
 
@@ -32,7 +38,7 @@ fn snapshot_schema(path: &std::path::Path) -> String {
     let rows = stmt
         .query_map([], |r| r.get::<_, String>(0))
         .expect("query");
-    rows.filter_map(|r| r.ok()).collect::<Vec<_>>().join("\n")
+    rows.filter_map(|r| r.ok()).collect::<Vec<_>>().join("\u{1e}")
 }
 
 fn integrity(path: &std::path::Path) -> String {
@@ -69,9 +75,24 @@ fn db01_migration_zero_surprise_on_production_copy() {
     }
 
     let after_schema = snapshot_schema(&path);
+    // Zero-surprise, with the ONE sanctioned addition: metadata_queue
+    // (D-metadata-queue, Q6 port decision). Every pre-existing row of
+    // sqlite_master must be byte-identical; rows are \x1e-joined because
+    // the CREATE statements themselves are multi-line.
+    let before_rows: Vec<&str> = before_schema.split('\u{1e}').collect();
+    let after_rows: Vec<&str> = after_schema.split('\u{1e}').collect();
+    let after_filtered: Vec<&str> = after_rows
+        .iter()
+        .filter(|r| !r.starts_with("metadata_queue|") && !r.starts_with("sqlite_autoindex_metadata_queue"))
+        .copied()
+        .collect();
     assert_eq!(
-        before_schema, after_schema,
-        "Rust open changed sqlite_master on an already-migrated DB"
+        before_rows, after_filtered,
+        "Rust open changed sqlite_master on an already-migrated DB (beyond metadata_queue)"
+    );
+    assert!(
+        after_schema.contains("metadata_queue|"),
+        "metadata_queue must exist after the migrator"
     );
     assert_eq!(integrity(&path), "ok");
     std::fs::remove_dir_all(path.parent().unwrap()).ok();
