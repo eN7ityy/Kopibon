@@ -79,6 +79,7 @@ run_cargo_test nhentai_client "exit-4 nhentai_client (NC-02/03/04)"
 # ── Exit 5: pumps (download/conversion/sync) incl. crash recovery ───────────
 run_cargo_test download_pipeline "exit-5 download_pipeline (DL-01)"
 run_cargo_test conversion "exit-5 conversion (CV-01)"
+run_cargo_test raster_absent "exit-5 raster_absent (CV-01 rasteriser-absent loud failure)"
 run_cargo_test sync_differential "exit-5 sync_differential (SY-01)"
 run_cargo_test crash_recovery "exit-5 crash_recovery (CR-01)" -- --test-threads=1
 run_cargo_test kavita_acceptance "exit-5 kavita unit shapes (KV-01/02 replay)"

@@ -12,10 +12,12 @@
  * output: { ok, value: { events, result } } — events are every worker
  * message in order; result is the 'complete' payload.
  *
- * `noPdftoppm: true` runs the worker with pdftoppm unavailable — the
- * plan §6 interim baseline ("PDF thumbnails absent, as on a poppler-less
- * 1.x install — loud, not silent") until the rasteriser escalation (Q-S4)
- * is decided.
+ * `noPdftoppm: true` runs the worker with pdftoppm unavailable (PATH wiped).
+ * Historical note: this was the plan §6 interim baseline ("PDF thumbnails
+ * absent, as on a poppler-less 1.x install") until the rasteriser escalation
+ * (Q-S4/F1) resolved with pdfium-render — SC-01 now compares with both
+ * sides rasterising for real. The flag is kept for removal-guard trees
+ * (CBZ-only, unaffected) and any future rasteriser-absent coverage.
  */
 
 import { buildSync } from 'esbuild'

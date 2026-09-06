@@ -5,11 +5,13 @@
 //! discard everything. Expected page count comes from the document's page
 //! tree, never from gallery.page_count (scanner stubs are 0).
 //!
-//! Attempt 2 in 1.x is the lossy pdftoppm rasterise. USER DECISION (06 §4):
-//! until a rasteriser is chosen (escalation outstanding) the lossy fallback
-//! raises a LOUD per-item error — "lossy fallback requires a rasteriser;
-//! source PDF left in place" — so the safety property (a lossy conversion can
-//! never destroy the only full-quality copy) holds by construction.
+//! Attempt 2 in 1.x is the lossy pdftoppm rasterise. Port: the vendored
+//! pdfium rasteriser (`super::raster`, F1 resolved option A) renders every
+//! page at 150 DPI (`method: "pdfium"`, `lossless: false`) — exactly the 1.x
+//! Attempt-2 shape (pdf-extract.ts:177-206), including the count-guard
+//! message shape (:194-198). Rasteriser-absent still fails LOUD per item so
+//! the safety property (a lossy conversion can never destroy the only
+//! full-quality copy) holds by construction.
 
 use std::path::{Path, PathBuf};
 
@@ -203,8 +205,13 @@ pub fn extract_pdf_images(
     ));
     let _ = std::fs::remove_dir_all(scratch_dir);
 
-    // Attempt 2 would be pdftoppm (lossy). USER DECISION (06 §4): loud error.
-    Err(LOSSY_FALLBACK_UNAVAILABLE.to_string())
+    // Attempt 2: the pdfium lossy rasterise (1.x pdftoppm shape,
+    // pdf-extract.ts:177-206). Rasteriser-absent fails LOUD per item.
+    let image_paths =
+        super::raster::render_pages(pdf_path, scratch_dir, expected_pages, None).inspect_err(|_| {
+            let _ = std::fs::remove_dir_all(scratch_dir);
+        })?;
+    Ok(ExtractResult { image_paths, page_count: expected_pages, lossless: false, method: "pdfium" })
 }
 
 /// Numeric trailing-index sort key (pdf-extract.ts:85-89) — the digits must

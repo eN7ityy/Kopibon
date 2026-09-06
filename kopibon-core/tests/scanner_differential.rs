@@ -200,10 +200,13 @@ fn sc01_full_scan_parity_and_incremental() {
     std::fs::create_dir_all(&js_thumb).ok();
     std::fs::create_dir_all(&rs_thumb).ok();
 
+    // Both sides rasterise for real now: 1.x via pdftoppm on PATH, Rust via
+    // the vendored pdfium (F1 resolved option A). The interim
+    // `noPdftoppm` poppler-less baseline is obsolete — cover *names* are the
+    // same sha1 scheme on both sides (JPEG bytes are never compared).
     let scan_input = json!({
         "libraryRoot": fixture.root.to_string_lossy(),
         "thumbnailDir": js_thumb.to_string_lossy(),
-        "noPdftoppm": true,
     });
 
     // ── Scan 1: everything new ─────────────────────────────────────────────

@@ -137,11 +137,10 @@ in `processFile` when metadata carries none (:779-780).
   (01-current-architecture §7 port note).
 - Size/quality: **600×800 `fit: inside`** (never upscale), **quality 82**
   (:479-481). CBZ: first non-`ComicInfo.xml` entry (:504-510). PDF: 1.x shells
-  to `pdftoppm -f 1 -l 1 -singlefile -jpeg -scale-to 800` (:553-560); under D3
-  the port needs a native rasteriser — the known open item
-  (pdfium-render / mupdf; 07-metadata-spec §10.3, Q2 (S4 outcome) in
-  [16-open-questions.md](../16-open-questions.md)). Until it lands, PDF
-  thumbnails are absent (as on a poppler-less 1.x install) — loud, not silent.
+  to `pdftoppm -f 1 -l 1 -singlefile -jpeg -scale-to 800` (:553-560); the port
+  renders page 1 with the vendored pdfium (F1 resolved option A,
+  `scanner::thumbnail::generate_pdf_thumbnail`) and feeds it through the same
+  fit-inside/q82 encoder under the same `sha1(path)[0..16].jpg` name.
 - **sharp → `image` crate. JPEG re-encode parity is NOT byte-critical.** State
   the tolerance explicitly: thumbnail files are cache artefacts keyed by path;
   the DB stores only the bare filename, and nothing compares their bytes. The

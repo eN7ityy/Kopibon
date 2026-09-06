@@ -15,6 +15,7 @@ crc32fast = { workspace = true }
 sha1 = { workspace = true }
 jiff = { workspace = true }
 lopdf = { workspace = true }
+pdfium-render = { workspace = true }
 ryu-js = "1.0.3"
 zip = { version = "8.6.0", default-features = false, features = ["deflate"] }
 base64 = "0.23.1"

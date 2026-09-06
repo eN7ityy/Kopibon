@@ -5,7 +5,7 @@
 use rusqlite::{Connection, OptionalExtension};
 
 use super::extract::{cbz::extract_cbz_metadata, pdf::extract_pdf_metadata, ExtractedMetadata};
-use super::thumbnail::{generate_cbz_thumbnail, thumbnail_filename};
+use super::thumbnail::{generate_cbz_thumbnail, generate_pdf_thumbnail, thumbnail_filename};
 use super::walk::{is_absolute, normalize_path, relative_path};
 use super::ScanOutcome;
 use crate::metadata::mappers::Clock;
@@ -116,8 +116,7 @@ fn repair_thumbnail(ctx: &ProcessContext<'_>, row_id: i64, file_path: &str) -> R
     let made = if is_cbz {
         generate_cbz_thumbnail(std::path::Path::new(file_path), ctx.thumbnail_dir)
     } else {
-        // PDF rasteriser: open escalation (D3/Q-S4) — absent, loudly.
-        None
+        generate_pdf_thumbnail(std::path::Path::new(file_path), ctx.thumbnail_dir)
     };
     let Some(made) = made else {
         return Ok(()); // generation failed — logged by the caller, never fatal
@@ -385,8 +384,7 @@ pub fn process_file(ctx: &mut ProcessContext<'_>, file_path: &str) -> Result<Sca
             let made = if is_cbz {
                 generate_cbz_thumbnail(std::path::Path::new(&abs_path), ctx.thumbnail_dir)
             } else {
-                // PDF rasteriser: open escalation (D3/Q-S4) — absent, loudly.
-                None
+                generate_pdf_thumbnail(std::path::Path::new(&abs_path), ctx.thumbnail_dir)
             };
             thumbnail_path = made.map(|p| p.to_string_lossy().to_string());
         }

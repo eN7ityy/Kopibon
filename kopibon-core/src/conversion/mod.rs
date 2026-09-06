@@ -6,13 +6,15 @@
 //! handling → scratch purge → report. Failure at any step leaves the source
 //! PDF and the DB row untouched — an invariant, not a courtesy.
 //!
-//! The lossy `pdftoppm` fallback is superseded by the USER DECISION of 06 §4:
-//! until a rasteriser is chosen (escalation outstanding), a lossy fallback
-//! raises a loud per-item error and the original is never touched.
+//! The lossy fallback is the vendored pdfium rasteriser (`raster.rs`, F1
+//! resolved option A): count-guard trip → render every page at 150 DPI
+//! (`method: "pdfium"`, `lossless: false`), exactly the 1.x Attempt-2 shape.
+//! Rasteriser-absent still fails loud per item; the original is never touched.
 
 pub mod extract;
 pub mod metadata_job;
 pub mod originals;
+pub mod raster;
 pub mod verify;
 pub mod worker_cbz;
 

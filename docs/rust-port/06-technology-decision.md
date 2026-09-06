@@ -45,8 +45,12 @@ checked, not because it discriminates. The spikes that make it a non-question:
   The `zip` crate is not used for writes. Nothing here touches the GUI.
 - **S4 — lossless PDF extraction: PASS.** lopdf DCTDecode streams byte-identical
   to `pdfimages -all` (16/16). Remaining gap: the `pdftoppm` rasterise fallback
-  needs a Rust renderer (pdfium-render / mupdf) — open item, independent of the
-  toolkit choice (it feeds the PDF→CBZ conversion plan, not the UI plan).
+  needs a Rust renderer — **RESOLVED with pdfium-render 0.9.3 (USER DECISION,
+  option A; 18-future-work F1 closed).** Fidelity spike (3-page vector PDF):
+  3=3 pages, identical 1275×1650 @150 DPI, mean-abs-diff ≈0.18/255; non-V8
+  libpdfium.so 7.7 MB unpacked (BSD-3-Clause). Wired as Attempt 2
+  (`method: "pdfium"`) plus PDF thumbnails — independent of the toolkit choice
+  (it feeds the PDF→CBZ conversion plan, not the UI plan).
 - **S5 — safeStorage:** the stored nhentai key is a Chromium `os_crypt` "v11"
   blob, not decryptable from Rust without the OS keyring; recommendation is
   re-enter on import, softened by D4 (side-by-side install). Toolkit-neutral.
@@ -360,8 +364,8 @@ rewriting them:
   verbatim as internal channel contracts. Under Tauri these surface as
   batched events (preserving the 25-item/500 ms `newItems` batching); under
   native toolkits as direct subscriptions. The `pdftoppm`-fallback rasteriser
-  gap (S4 remainder) is tracked in the conversion plan as an open item with
-  pdfium-render/mupdf as named options.
+  gap (S4 remainder) is **closed with pdfium-render** (F1 resolved, §1) —
+  vendored per-platform in the packaging plan.
 - **nhentai client plan** — toolkit-independent (reqwest port of `api-client.ts`
   + rate limiter). S5 consequence lands in the upgrade/import plan: the
   safeStorage key is re-entered on first import (D4 side-by-side softens).

@@ -143,20 +143,19 @@ shipped backwards-CBZ regression).
   (lossy), sets `lossless:false`, and step 6 then forces the original to be
   kept.
 
-> **USER DECISION — the `pdftoppm` rasterise fallback.** D3 bans poppler in
-> the shipped build; the named Rust options are `pdfium-render` (dynamic
-> pdfium binary, bundled size + licence questions) vs `mupdf`
-> (AGPL linkage question for a GPL-3.0 app — workable but must be cleared in
-> `13-licence-audit.md`; 06-technology-decision §8 defers the choice to the
-> packaging plan). **Recommendation: defer the choice; until it is made, the
-> lossy fallback path raises a loud per-item error** — *"lossy fallback
-> requires a rasteriser; source PDF left in place"* — marking the queue row
-> failed and keeping the original (step 6 never runs, so nothing can be
-> deleted). This preserves the safety property (a lossy conversion can never
-> destroy the only full-quality copy) and shrinks Phase A scope; the count
-> guard, the forced-keep machinery and `_lossy` archiving are still fully
-> built and tested with injected fake extractors so the fallback slots in
-> without rework.
+> **RESOLVED — pdfium-render (USER DECISION option A, 18-future-work F1
+> closed).** The fallback is `conversion::raster`: vendored non-V8
+> `libpdfium.so` (`third-party/pdfium/`, BSD-3-Clause — 13-licence-audit §5),
+> bound at runtime via `Pdfium::bind_to_library` (never a subprocess — D3
+> holds). Attempt 2 renders every page at 150 DPI to `page-%04d.jpg`
+> (`method: "pdfium"`, `lossless: false`), with the 1.x count-guard message
+> shape on short renders; fidelity spike (3-page vector PDF): 3=3 pages,
+> identical 1275×1650, mean-abs-diff ≈0.18/255. Rasteriser-absent still fails
+> loud per item (the old *"lossy fallback requires a rasteriser"* text leads
+> the error). PDF thumbnails reuse the same binding (page-1 render →
+> fit-inside 600×800 q82). Binding is process-global first-call-wins
+> (pdfium-render constraint); the absent-path test is isolated in
+> `tests/raster_absent.rs`.
 
 ## 5. `metadata_job.rs` — convertAllMetadata, made resumable
 

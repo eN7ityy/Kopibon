@@ -161,7 +161,12 @@ guard exists, `release.yml:99-104`), `permissions: contents: write`, and the
   so frozen 1.x installs' updaters simply find nothing new — no separate feed
   or channel split is needed for the side-by-side window.
 - Budgets: ≤ 80 MB unpacked, `app:checkToolchain` reports **zero** external
-  tools (D3) — Phase D exit criteria (09 §Phase D, 05 §1).
+  tools (D3) — Phase D exit criteria (09 §Phase D, 05 §1). The vendored
+  pdfium binary rides inside that budget: non-V8 `libpdfium.so` is 7.7 MB
+  unpacked / ~3.5 MB compressed per platform (`third-party/pdfium/`), shipped
+  beside the binary via Tauri `resources`/`externalBin` (never a shelled-out
+  tool, so D3 holds); Windows (`pdfium.dll`) and macOS builds vendor at the
+  Phase D packaging review.
 
 ## 7. Build caching
 

@@ -197,7 +197,7 @@ Every test has **ID | suite | level | fixture | command** — all four, no excep
 | DB-01 | Migration zero-surprise on production copy | invariant | prod-DB byte copy | `cargo test --test db_differential migration` |
 | DB-02 | Read parity over filter × sort matrix | semantic | prod-DB byte copy | `cargo test --test db_differential read` |
 | DL-01 | Download pipeline vs 1.x, scripted CDN/failure ladder | semantic + byte artefacts | fixture server | `cargo test --test download_differential` |
-| CV-01 | Golden PDF→CBZ conversion + verify gate both ways | byte | fixture 3 | `cargo test --test conversion` |
+| CV-01 | Golden PDF→CBZ conversion + verify gate both ways + pdfium lossy fallback (count guard → 3 JPEGs, method pdfium) + rasteriser-absent loud failure | byte | fixture 3 | `cargo test --test conversion` + `cargo test --test raster_absent` |
 | SY-01 | Sync retry/pacing/cancel vs 1.x on scripted gallery | semantic | fixture server | `cargo test --test sync_differential` |
 | KV-01 | Endpoints + scan-trigger positives/negatives (§4.1–4.4) | invariant | Doujin-Test (id 6) | `cargo test --test kavita_acceptance -- --ignored` |
 | KV-02 | Production-library protection (id 5 counts before/after) | invariant | server | embedded in `kavita_acceptance` harness pre/post hook |

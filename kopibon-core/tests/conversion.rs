@@ -267,8 +267,16 @@ fn cv01_verify_gate_and_missing_source() {
     std::fs::remove_dir_all(&e.dir).ok();
 }
 
+/// Vendored libpdfium.so must be present for raster tests (`third-party/pdfium/`).
+fn require_vendored_pdfium() {
+    let vendored = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../third-party/pdfium/linux-x64/libpdfium.so");
+    assert!(vendored.exists(), "vendored libpdfium.so missing: {}", vendored.display());
+}
+
 #[test]
-fn cv01_count_guard_loud_lossy_failure() {
+fn cv01_count_guard_lossy_raster_fallback() {
+    require_vendored_pdfium();
     let (e, conn) = env();
     let jpeg = scanner_fixture::cover_jpeg(300, 420);
     let pdf_rel = "Test Artist/mismatch.pdf";
@@ -306,18 +314,35 @@ fn cv01_count_guard_loud_lossy_failure() {
     let (_queue_id, _item) = seed_pdf(&conn, &e, pdf_rel, false);
     let mut logs = Vec::new();
     let scratch = e.data_dir.join("convert-cbz/probe");
-    let err = kopibon_core::conversion::extract::extract_pdf_images(&pdf_abs, &scratch, &mut |m| {
+    let result = kopibon_core::conversion::extract::extract_pdf_images(&pdf_abs, &scratch, &mut |m| {
         logs.push(m)
     })
-    .unwrap_err();
-    // USER DECISION: loud per-item error, source untouched.
-    assert_eq!(
-        err,
-        "lossy fallback requires a rasteriser; source PDF left in place"
-    );
+    .expect("count guard trips, pdfium Attempt 2 renders all pages");
+    // F1 resolved (option A): lossy fallback renders one JPEG per page, in
+    // order — never byte-parity, never a loud failure, source untouched.
+    assert!(!result.lossless);
+    assert_eq!(result.method, "pdfium");
+    assert_eq!(result.page_count, 3);
+    assert_eq!(result.image_paths.len(), 3);
+    for (i, path) in result.image_paths.iter().enumerate() {
+        assert_eq!(path.file_name().unwrap().to_string_lossy(), format!("page-{:04}.jpg", i + 1));
+        let bytes = std::fs::read(path).unwrap();
+        assert!(bytes.starts_with(&[0xFF, 0xD8, 0xFF]), "page {} is a JPEG", i + 1);
+        assert!(image::load_from_memory(&bytes).is_ok(), "page {} decodes", i + 1);
+    }
     assert!(pdf_abs.exists(), "the source PDF is never deleted on the lossy path");
-    assert!(!scratch.exists(), "extraction debris discarded");
     assert!(logs.iter().any(|l| l.contains("Count mismatch")));
+
+    // Same fixture through the thumbnail path: page 1 → scanner-scheme file.
+    std::fs::create_dir_all(e.thumbnail_dir()).unwrap();
+    let thumb = kopibon_core::scanner::thumbnail::generate_pdf_thumbnail(&pdf_abs, e.thumbnail_dir())
+        .expect("pdf thumbnail renders");
+    assert!(thumb.exists());
+    let thumb_bytes = std::fs::read(&thumb).unwrap();
+    assert!(thumb_bytes.starts_with(&[0xFF, 0xD8, 0xFF]));
+    let thumb_img = image::load_from_memory(&thumb_bytes).unwrap();
+    assert!(thumb_img.width() <= kopibon_core::scanner::thumbnail::THUMB_WIDTH);
+    assert!(thumb_img.height() <= kopibon_core::scanner::thumbnail::THUMB_HEIGHT);
 }
 
 #[test]

@@ -50,6 +50,19 @@ never a silent quality drop (08/06 §4 USER DECISION).
 **Trigger.** First real user PDF that hits the lossy path, or the Phase D
 packaging review picking the crate. Revisit with the size/licence numbers on
 the table.
+**Status: RESOLVED — pdfium-render (USER DECISION, option A).** Fidelity spike
+measured 2026-09-06 on a 3-page vector/text PDF (Helvetica, Letter, no embedded
+images — the S4 count-guard trip case): page count 3=3; dimensions identical
+1275×1650 both sides at 150 DPI; mean-abs-diff ≈0.18/255 per channel (JPEG
+encoder difference only — the lossy path is never byte-parity). Thumbnail check:
+`pdftoppm -scale-to 800` → 619×800; pdfium 150 DPI render resized fit-inside
+600×800 matches the scanner scheme. Binary facts: pdfium-render 0.9.3
+(MIT OR Apache-2.0), non-V8 `libpdfium.so` 7.7 MB unpacked / 3.5 MB compressed
+per platform (pdfium-binaries chromium/8035), BSD-3-Clause + permissive bundled
+notices, userspace-only linkage (libpthread/libm/libgcc_s/libc). Wired as
+Attempt 2 in `kopibon-core::conversion::extract` (`method: "pdfium"`) and
+`generate_pdf_thumbnail` in `scanner/thumbnail.rs`; D-lossy-fallback-deferred
+resolved in the ledger.
 
 ### F2. FTS5 search
 
